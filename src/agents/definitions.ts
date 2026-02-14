@@ -11,9 +11,21 @@ export interface AgentDefinition {
   model: 'haiku' | 'sonnet' | 'opus';
   tools: string[];
   systemPromptFile: string;
+  /** Fallback agent name when this agent fails */
+  fallback?: string;
+  /** Maximum fallback chain depth (default: 1) */
+  maxFallbackDepth?: number;
+  /** Provider for CLI-based agents */
+  provider?: 'claude' | 'codex' | 'gemini';
+  /** Capabilities for agent selection */
+  capabilities?: string[];
+  /** Condition for automatic spawning */
+  spawnCondition?: string;
 }
 
 export const agents: Record<string, AgentDefinition> = {
+  // ─── Analysis Agents (Phase 1) ────────────────────────────
+
   'pm-conductor': {
     name: 'pm-conductor',
     description:
@@ -21,16 +33,11 @@ export const agents: Record<string, AgentDefinition> = {
     model: 'opus',
     tools: ['Read', 'Glob', 'Grep', 'Write', 'Bash', 'Task', 'AskUserQuestion'],
     systemPromptFile: 'agents/pm-conductor.md',
+    provider: 'claude',
+    capabilities: ['analysis', 'spec-writing', 'review', 'coordination'],
   },
 
-  'feedback-composer': {
-    name: 'feedback-composer',
-    description:
-      'Feedback Composer — Phase 4 피드백 문서 작성. 리뷰 결과를 정밀한 수정 지침으로 변환',
-    model: 'sonnet',
-    tools: ['Read', 'Write', 'Grep'],
-    systemPromptFile: 'agents/feedback-composer.md',
-  },
+  // ─── Design Wing (Phase 1, conditional) ───────────────────
 
   'architect': {
     name: 'architect',
@@ -39,6 +46,9 @@ export const agents: Record<string, AgentDefinition> = {
     model: 'opus',
     tools: ['Read', 'Glob', 'Grep', 'Write'],
     systemPromptFile: 'agents/architect.md',
+    provider: 'claude',
+    capabilities: ['system-design', 'api-design', 'module-boundaries'],
+    spawnCondition: 'new_module || structural_change',
   },
 
   'schema-designer': {
@@ -48,6 +58,9 @@ export const agents: Record<string, AgentDefinition> = {
     model: 'opus',
     tools: ['Read', 'Glob', 'Grep', 'Write'],
     systemPromptFile: 'agents/schema-designer.md',
+    provider: 'claude',
+    capabilities: ['db-schema', 'data-model', 'erd', 'migration'],
+    spawnCondition: 'data_model_change',
   },
 
   'ui-designer': {
@@ -57,47 +70,50 @@ export const agents: Record<string, AgentDefinition> = {
     model: 'opus',
     tools: ['Read', 'Glob', 'Grep', 'Write'],
     systemPromptFile: 'agents/ui-designer.md',
+    provider: 'claude',
+    capabilities: ['ui-spec', 'component-tree', 'interaction-flow'],
+    spawnCondition: 'frontend_ui_work',
+  },
+
+  // ─── Feedback Agent (Phase 4) ─────────────────────────────
+
+  'feedback-composer': {
+    name: 'feedback-composer',
+    description:
+      'Feedback Composer — Phase 4 피드백 문서 작성. 리뷰 결과를 정밀한 수정 지침으로 변환',
+    model: 'sonnet',
+    tools: ['Read', 'Write', 'Grep'],
+    systemPromptFile: 'agents/feedback-composer.md',
+    provider: 'claude',
+    capabilities: ['feedback', 'issue-classification', 'prioritization'],
   },
 };
 
 /**
- * 에이전트 호출 예시
+ * 논리 역할 → 에이전트 키 매핑 테이블
  *
- * // PM Conductor (Phase 1 분석)
- * Task(
- *   subagent_type="gran-maestro:pm-conductor",
- *   model="opus",
- *   prompt="Analyze request: '사용자 인증 기능 추가'"
- * )
+ * | 논리 역할 | agents.json 키 | 유형 | Phase |
+ * |----------|----------------|------|-------|
+ * | PM Conductor | pm-conductor | analysis | 1, 3 |
+ * | Explorer Agent | (Claude Code Team) | analysis | 1 |
+ * | Analyst Agent | (Claude Code Team) | analysis | 1 |
+ * | Architect | architect | analysis | 1 |
+ * | Schema Designer | schema-designer | analysis | 1 |
+ * | UI Designer | ui-designer | analysis | 1 |
+ * | Codex Developer | codex-dev (agents.json) | execution | 2 |
+ * | Gemini Developer | gemini-dev (agents.json) | execution | 2 |
+ * | Security Reviewer | (Claude Code Team) | — | 3 |
+ * | Quality Reviewer | (Claude Code Team) | — | 3 |
+ * | Verifier | (Claude Code Team) | — | 3 |
+ * | Codex Reviewer | codex-reviewer (agents.json) | review | 3 |
+ * | Gemini Reviewer | gemini-reviewer (agents.json) | review | 3 |
+ * | Feedback Composer | feedback-composer | — | 4 |
  *
- * // Feedback Composer (Phase 4)
- * Task(
- *   subagent_type="gran-maestro:feedback-composer",
- *   model="sonnet",
- *   prompt="Write feedback for REQ-001-01 based on review at ..."
- * )
+ * Note: Execution agents (codex-dev, gemini-dev) and review agents
+ * (codex-reviewer, gemini-reviewer) are defined in the runtime
+ * agents.json file at .gran-maestro/agents.json, not here.
+ * They are invoked via CLI (Phase 2) or MCP (Phase 1, 3).
  *
- * // Architect (Design Wing)
- * Task(
- *   subagent_type="gran-maestro:architect",
- *   model="opus",
- *   prompt="Design system architecture for REQ-001"
- * )
- *
- * // Schema Designer (Design Wing)
- * Task(
- *   subagent_type="gran-maestro:schema-designer",
- *   model="opus",
- *   prompt="Design data model for REQ-001"
- * )
- *
- * // UI Designer (Design Wing)
- * Task(
- *   subagent_type="gran-maestro:ui-designer",
- *   model="opus",
- *   prompt="Design UI specification for REQ-001"
- * )
- *
- * Note: outsource-brief.md는 에이전트가 아닌 템플릿으로,
- * PM Conductor가 변수를 치환하여 Codex/Gemini CLI에 전달합니다.
+ * The outsource-brief.md is a template (not an agent).
+ * PM Conductor substitutes variables and passes it to CLI agents.
  */

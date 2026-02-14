@@ -49,14 +49,31 @@ Before declaring completion, verify:
 
 ## CLI 호출 방식
 
+> **주의**: 아래 CLI 명령어는 검증 전 초안입니다. 실제 사용 시 `--help`로 확인 후 조정하세요.
+> CLIAdapter 추상화 레이어(`src/core/cli-adapter.ts`)를 통해 호출됩니다.
+
 ### Codex CLI
 ```bash
+# 검증 필요: exec 서브커맨드, -C 플래그 실존 확인
 codex exec --full-auto -C {WORKTREE_PATH} "{brief}"
+# 대안: codex --full-auto "{brief}" (cwd 옵션으로 디렉토리 지정)
 ```
 
 ### Gemini CLI
 ```bash
+# 검증 필요: -p 플래그, --approval-mode 옵션 확인
 gemini -p "{brief}" --approval-mode yolo
+# 대안: gemini -y -p "{brief}" (자동 승인)
+```
+
+### CLIAdapter 경유 호출 (권장)
+```typescript
+const adapter = createAdapter(agent.provider); // 'codex' | 'gemini'
+const result = await adapter.execute(brief, {
+  workingDir: worktreePath,
+  timeout_ms: config.timeouts.cli_default_ms,
+  outputFormat: 'text'
+});
 ```
 
 ## 피드백 라운드 시 추가 삽입

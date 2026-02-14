@@ -50,3 +50,7 @@ codex exec --full-auto -C {working_dir} -o {output_file} "{prompt}"
 /mx --json "package.json 의존성 분석"
 /mx --output analysis.md "전체 코드 품질 리포트 작성"
 ```
+
+## 한국어 트리거
+
+- "코덱스 실행", "코덱스로", "코드 작업"

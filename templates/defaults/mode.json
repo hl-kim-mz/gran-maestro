@@ -1,0 +1,8 @@
+{
+  "active": false,
+  "activated_at": null,
+  "deactivated_at": null,
+  "active_requests": [],
+  "auto_deactivate": true,
+  "previous_mode": "omc"
+}

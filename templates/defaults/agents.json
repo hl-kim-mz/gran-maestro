@@ -1,0 +1,65 @@
+{
+  "execution_agents": {
+    "codex-dev": {
+      "provider": "codex",
+      "model": "gpt-5.3-codex",
+      "cli_command": "codex",
+      "role": "developer",
+      "capabilities": ["code", "refactor", "test"],
+      "fallback": "gemini-dev",
+      "max_fallback_depth": 1
+    },
+    "gemini-dev": {
+      "provider": "gemini",
+      "model": "gemini-3-pro-preview",
+      "cli_command": "gemini",
+      "role": "developer",
+      "capabilities": ["frontend", "docs", "large-context"],
+      "fallback": "codex-dev",
+      "max_fallback_depth": 1
+    }
+  },
+  "review_agents": {
+    "codex-reviewer": {
+      "provider": "codex",
+      "model": "gpt-5.3-codex",
+      "cli_command": "codex",
+      "role": "reviewer",
+      "capabilities": ["code-review", "accuracy"],
+      "fallback": "gemini-reviewer",
+      "max_fallback_depth": 1
+    },
+    "gemini-reviewer": {
+      "provider": "gemini",
+      "model": "gemini-3-pro-preview",
+      "cli_command": "gemini",
+      "role": "reviewer",
+      "capabilities": ["review", "consistency", "large-context"],
+      "fallback": null,
+      "max_fallback_depth": 0
+    }
+  },
+  "analysis_agents": {
+    "architect": {
+      "provider": "claude",
+      "model": "opus",
+      "role": "architect",
+      "capabilities": ["system-design", "api-design", "module-boundaries"],
+      "spawn_condition": "new_module || structural_change"
+    },
+    "schema-designer": {
+      "provider": "claude",
+      "model": "opus",
+      "role": "data-architect",
+      "capabilities": ["db-schema", "data-model", "erd", "migration"],
+      "spawn_condition": "data_model_change"
+    },
+    "ui-designer": {
+      "provider": "claude",
+      "model": "opus",
+      "role": "designer",
+      "capabilities": ["ui-spec", "component-tree", "interaction-flow"],
+      "spawn_condition": "frontend_ui_work"
+    }
+  }
+}

@@ -86,6 +86,47 @@ All outputs are files under .gran-maestro/requests/REQ-XXX/:
 - summary.md — final completion report
 </output_format>
 
+<mcp_cli_routing>
+Phase별 호출 경로를 구분하여 사용합니다. 원칙: 코드 변경 필요 → CLI, 읽기/분석만 → MCP.
+
+| Phase | 용도 | 호출 경로 | 이유 |
+|-------|------|----------|------|
+| Phase 1 | 코드 구조 분석 | **MCP** (read-only) | 코드베이스를 읽기만 함, 변경 없음 |
+| Phase 1 | 대규모 컨텍스트 분석 | **MCP** (read-only) | 문서/코드 읽기만 |
+| Phase 1 | 설계 검증 | **MCP** (read-only) | 구조적 타당성 확인 |
+| Phase 2 | 코드 구현 | **CLI** (full-auto) | 파일 생성/수정/삭제 필요 |
+| Phase 2 | 테스트 작성 | **CLI** (full-auto) | 파일 생성 필요 |
+| Phase 3 | 코드 정확성 검증 | **MCP** (read-only) | diff 읽기만 |
+| Phase 3 | 전체 일관성 검토 | **MCP** (read-only) | 코드 읽기만 |
+| /mx, /mg | 사용자 직접 호출 | **CLI** (full-auto) | 사용자 의도에 따라 변경 가능 |
+
+MCP 호출 방식:
+- Codex: `mcp__x__ask_codex` (agent_role, prompt, context_files)
+- Gemini: `mcp__g__ask_gemini` (agent_role, prompt, files)
+CLI 호출 방식:
+- Codex: `codex exec --full-auto -C {worktree_path} "{prompt}"`
+- Gemini: `gemini -p "{prompt}" --approval-mode yolo`
+</mcp_cli_routing>
+
+<fallback_policy>
+에이전트 실패 시 fallback 규칙:
+
+- fallback 깊이: **최대 1단계** (codex → gemini, gemini → codex)
+- 순환 참조 방지: fallback된 에이전트가 다시 실패하면 **사용자 개입 요청**
+- fallback 시 동일 worktree, 동일 spec으로 실행
+- 재시도: 동일 에이전트 최대 2회 → fallback 에이전트 최대 2회 → 사용자 개입
+- 타임아웃: 기본 5분, 대규모 태스크 30분 (spec에서 PM이 지정)
+
+실패 분류:
+| 유형 | 재시도 | fallback | 사용자 개입 |
+|------|--------|----------|-----------|
+| cli_timeout | 1회 (타임아웃 2배) | 가능 | 최후 |
+| cli_crash | 1회 (동일 설정) | 가능 | 최후 |
+| cli_auth_failure | 없음 | 없음 | 즉시 |
+| cli_network_error | 2회 (exponential backoff) | 없음 | 최후 |
+| unknown | 없음 | 없음 | 즉시 |
+</fallback_policy>
+
 <failure_modes_to_avoid>
 - Writing code: Even "just this one line." Delegate everything.
 - Vague specs: "Implement the feature." Instead: specific files, acceptance criteria, test plan.

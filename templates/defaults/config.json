@@ -1,0 +1,59 @@
+{
+  "version": "1.0.0",
+  "plugin_name": "gran-maestro",
+  "branding": {
+    "name": "Gran Maestro",
+    "tagline": "I am the Maestro — I conduct, I don't code."
+  },
+  "server": {
+    "port": 3847,
+    "host": "127.0.0.1",
+    "auth_enabled": true
+  },
+  "workflow": {
+    "max_feedback_rounds": 5,
+    "auto_approve_spec": false,
+    "default_agent": "codex-dev"
+  },
+  "concurrency": {
+    "max_parallel_tasks": 5,
+    "max_parallel_reviews": 3,
+    "queue_strategy": "fifo"
+  },
+  "timeouts": {
+    "cli_default_ms": 300000,
+    "cli_large_task_ms": 1800000,
+    "pre_check_ms": 120000,
+    "merge_ms": 60000,
+    "user_approval_ms": null,
+    "dashboard_health_check_ms": 10000
+  },
+  "worktree": {
+    "root_directory": ".gran-maestro/worktrees",
+    "max_active": 10,
+    "base_branch": "main",
+    "stale_timeout_hours": 24
+  },
+  "retry": {
+    "max_cli_retries": 2,
+    "max_fallback_depth": 1,
+    "backoff_base_ms": 1000
+  },
+  "history": {
+    "retention_days": 30,
+    "auto_archive": true
+  },
+  "notifications": {
+    "terminal": true,
+    "dashboard": true
+  },
+  "realtime": {
+    "protocol": "sse",
+    "debounce_ms": 100
+  },
+  "debug": {
+    "enabled": false,
+    "log_level": "info",
+    "log_prompts": false
+  }
+}

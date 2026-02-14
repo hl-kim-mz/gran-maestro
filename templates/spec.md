@@ -3,7 +3,7 @@
 - Request ID: {REQ_ID}
 - Task ID: {TASK_ID}
 - Created: {DATE}
-- Status: draft | approved | in_progress | review | completed | failed
+- Status: pending | queued | executing | pre_check | pre_check_failed | review | feedback | merging | merge_conflict | done | failed | cancelled
 - Assigned Agent: codex | gemini
 - Assigned Team: {에이전트 팀 구성 설명}
 - Worktree: .gran-maestro/worktrees/{TASK_ID}
@@ -46,6 +46,9 @@
 - Architecture: {.gran-maestro/requests/REQ-XXX/design/architecture.md 또는 N/A}
 - Data Model: {.gran-maestro/requests/REQ-XXX/design/data-model.md 또는 N/A}
 - UI Spec: {.gran-maestro/requests/REQ-XXX/design/ui-spec.md 또는 N/A}
+
+> **검증**: Design Wing 에이전트가 소환된 경우, 해당 설계 문서 참조가 반드시 채워져야 합니다.
+> PM Conductor는 스펙 승인 전에 design_refs 필드의 완전성을 검증합니다.
 
 ## 5. 테스트 계획 (Test Plan)
 

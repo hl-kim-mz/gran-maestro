@@ -223,3 +223,97 @@ REQ-001                    # 사용자의 원본 요청
 ```
 
 </file_structure>
+
+---
+
+<terminology>
+
+## 용어 사전
+
+공식 용어를 일관되게 사용합니다. 대체어 사용을 지양합니다.
+
+| 공식 용어 | 설명 | 사용 금지 대체어 |
+|----------|------|----------------|
+| Gran Maestro | 플러그인 전체 이름 | Maestro (단독 사용 시) |
+| PM Conductor | Phase 1/3의 AI 리더 | PM, Claude, Claude Code |
+| Analysis Squad | Phase 1 분석팀 | 분석팀, Team |
+| Design Wing | Phase 1 설계 에이전트 그룹 | 설계팀 |
+| Review Squad | Phase 3 리뷰팀 | 리뷰팀, Team |
+| Outsource Brief | Phase 2 프롬프트 | 외주 명세 |
+| Feedback Composer | Phase 4 피드백 에이전트 | — |
+
+</terminology>
+
+---
+
+<error_handling>
+
+## 에러 처리 정책
+
+### 타임아웃
+
+| 항목 | 기본값 | 설정 키 |
+|------|--------|---------|
+| CLI 기본 실행 | 5분 (300,000ms) | `timeouts.cli_default_ms` |
+| 대규모 태스크 | 30분 (1,800,000ms) | `timeouts.cli_large_task_ms` |
+| 사전 검증 | 2분 (120,000ms) | `timeouts.pre_check_ms` |
+| Merge | 1분 (60,000ms) | `timeouts.merge_ms` |
+| 사용자 승인 | 무제한 | — |
+
+### Fallback 정책
+
+- fallback 깊이: 최대 1단계 (codex ↔ gemini)
+- 순환 참조 방지: fallback 에이전트 재실패 시 사용자 개입
+- 재시도: 동일 에이전트 최대 2회 → fallback → 사용자 개입
+
+</error_handling>
+
+---
+
+<history_policy>
+
+## 이력 보존 정책
+
+- 기본 보존 기간: 30일 (`history.retention_days`)
+- 자동 아카이브: 활성 (`history.auto_archive`)
+- 보존 대상: `.gran-maestro/requests/` 하위 모든 파일
+- 아카이브 시: `request.json`, `summary.md`만 보존, 나머지 삭제
+- 수동 조회: `/mh` (maestro:history)
+
+</history_policy>
+
+---
+
+<debug_mode>
+
+## 디버그 모드
+
+디버그 모드를 활성화하면 상세 로그가 출력됩니다.
+
+```
+/mcf debug.enabled true       # 디버그 모드 활성화
+/mcf debug.log_level debug    # 로그 레벨 변경 (info | debug | trace)
+/mcf debug.log_prompts true   # CLI에 전달되는 프롬프트 내용 로깅
+```
+
+디버그 로그 위치: `.gran-maestro/logs/debug.log`
+
+</debug_mode>
+
+---
+
+<session_recovery>
+
+## 세션 복구
+
+Claude Code 세션이 종료된 후 미완료 워크플로우를 복구하려면:
+
+```
+/mr              # 모든 미완료 요청 복구 목록 표시
+/mr REQ-001      # 특정 요청 복구
+/mr REQ-001-01   # 특정 태스크 복구
+```
+
+복구 시 파일 기반 상태(`.gran-maestro/requests/`)에서 마지막 활성 Phase를 자동 감지합니다.
+
+</session_recovery>
