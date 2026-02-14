@@ -16,11 +16,12 @@ Gran Maestro 워크플로우 외부에서 Gemini CLI를 직접 호출합니다.
 
 1. `$ARGUMENTS`에서 프롬프트와 옵션 파싱
 2. 파일 패턴 지정 시 해당 파일들을 컨텍스트로 포함
-3. Gemini CLI 실행:
+3. `--files` 옵션의 패턴으로 파일 목록 확인. 매칭 파일이 없으면 경고 출력
+4. Gemini CLI 실행:
    ```bash
    gemini -p "{prompt}" --approval-mode yolo
    ```
-4. 실행 결과를 사용자에게 표시
+5. 실행 결과를 사용자에게 표시
 
 ## 옵션
 
@@ -49,6 +50,13 @@ gemini -p "{prompt}" --sandbox
 /mg "대규모 리팩토링 영향 분석"
 /mg --sandbox "이 코드의 보안 취약점을 분석해줘"
 ```
+
+## 주의사항
+
+- Gemini CLI가 설치되어 있어야 합니다 (`gemini --version`으로 확인)
+- Gemini의 컨텍스트 윈도우는 최대 1M 토큰입니다. 대용량 파일은 분할 처리를 권장합니다
+- `--approval-mode yolo` / `-y` 옵션은 모든 작업을 자동 승인하므로 주의하여 사용
+- Gran Maestro 워크플로우 외부에서 독립 실행되며, 요청 상태에 영향을 주지 않음
 
 ## 한국어 트리거
 

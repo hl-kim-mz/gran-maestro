@@ -10,7 +10,8 @@
     "allowImportingTsExtensions": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
-    "lib": ["ES2022"]
+    "lib": ["ES2022", "DOM"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/server.ts"]
 }

@@ -15,12 +15,14 @@ Gran Maestro 워크플로우 외부에서 Codex CLI를 직접 호출합니다.
 ## 실행 프로토콜
 
 1. `$ARGUMENTS`에서 프롬프트와 옵션 파싱
-2. 작업 디렉토리 결정 (--dir 또는 현재 디렉토리)
+1.5. `--dir` 지정 시 해당 디렉토리 존재 여부 확인. 없으면 에러 메시지 출력 후 중단
+2. 작업 디렉토리 결정 (--dir 또는 현재 디렉토리). 경로가 상대경로이면 현재 작업 디렉토리(cwd) 기준으로 해석
 3. Codex CLI 실행:
    ```bash
    codex exec --full-auto -C {working_dir} "{prompt}"
    ```
 4. 실행 결과를 사용자에게 표시
+5. `--output <file>` 지정 시 결과를 해당 경로에 저장 (절대 경로 권장, 상대경로는 cwd 기준)
 
 ## 옵션
 
@@ -50,6 +52,12 @@ codex exec --full-auto -C {working_dir} -o {output_file} "{prompt}"
 /mx --json "package.json 의존성 분석"
 /mx --output analysis.md "전체 코드 품질 리포트 작성"
 ```
+
+## 주의사항
+
+- Codex CLI가 설치되어 있어야 합니다 (`codex --version`으로 확인)
+- `--full-auto` 모드는 파일 수정 권한이 있으므로 주의하여 사용
+- Gran Maestro 워크플로우 외부에서 독립 실행되며, 요청 상태에 영향을 주지 않음
 
 ## 한국어 트리거
 

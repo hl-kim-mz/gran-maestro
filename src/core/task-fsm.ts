@@ -152,17 +152,17 @@ export const VALID_TRANSITIONS: readonly TaskTransition[] = [
     condition: 'Retries exhausted',
     guard: 'retry_count >= max_retries',
   },
-  // Review -> Done (PASS)
-  {
-    from: 'review',
-    to: 'done',
-    condition: 'PASS verdict -- all acceptance criteria met',
-  },
   // Review -> Feedback (FAIL / PARTIAL)
   {
     from: 'review',
     to: 'feedback',
     condition: 'FAIL or PARTIAL verdict',
+  },
+  // Review -> Merging (PASS verdict)
+  {
+    from: 'review',
+    to: 'merging',
+    condition: 'PASS verdict -- all acceptance criteria met, proceed to merge',
   },
   // Feedback -> Re-execute (implementation error)
   {
@@ -187,12 +187,6 @@ export const VALID_TRANSITIONS: readonly TaskTransition[] = [
     from: 'merging',
     to: 'merge_conflict',
     condition: 'Merge conflict detected',
-  },
-  // Review -> Merging (direct merge path)
-  {
-    from: 'review',
-    to: 'merging',
-    condition: 'PASS verdict -- proceed to merge',
   },
   // Any non-terminal -> Cancelled (/mc)
   {

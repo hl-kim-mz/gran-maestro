@@ -32,7 +32,8 @@
     "root_directory": ".gran-maestro/worktrees",
     "max_active": 10,
     "base_branch": "main",
-    "stale_timeout_hours": 24
+    "stale_timeout_hours": 24,
+    "auto_cleanup_on_cancel": true
   },
   "retry": {
     "max_cli_retries": 2,

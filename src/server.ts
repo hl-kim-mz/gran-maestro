@@ -7,6 +7,9 @@
  *
  * Usage:
  *   deno run --allow-net --allow-read --allow-write src/server.ts
+ *
+ * NOTE: This file is excluded from `npx tsc --noEmit` because it uses Deno URL imports.
+ *       Type checking is performed via `deno check src/server.ts` instead.
  */
 
 import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
@@ -942,6 +945,181 @@ nav button.active {
 .empty-state h2 { font-size: 18px; color: var(--text-secondary); margin-bottom: 8px; }
 .empty-state p { font-size: 13px; max-width: 400px; margin: 0 auto; }
 
+/* ─── Log View ─────────────────────────────────────────────── */
+.log-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.log-toolbar select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  min-width: 200px;
+}
+.log-toolbar select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.log-content {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-y: auto;
+  height: calc(100vh - 200px);
+  color: var(--text-secondary);
+}
+
+/* ─── Dependencies View ────────────────────────────────────── */
+.dep-graph {
+  position: relative;
+  overflow: auto;
+  height: calc(100vh - 160px);
+}
+.dep-graph svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+.dep-node {
+  position: absolute;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  min-width: 160px;
+  cursor: default;
+  z-index: 1;
+}
+.dep-node .dep-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.dep-node .dep-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.dep-node .dep-status {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.dep-node.status-done { border-color: var(--green); opacity: 0.65; }
+.dep-node.status-done .dep-status { background: rgba(78,204,163,0.15); color: var(--green); }
+.dep-node.status-active { border-color: var(--accent); box-shadow: 0 0 8px rgba(233,69,96,0.3); }
+.dep-node.status-active .dep-status { background: rgba(233,69,96,0.15); color: var(--accent); }
+.dep-node.status-blocked { border-color: var(--red); }
+.dep-node.status-blocked .dep-status { background: rgba(233,69,96,0.15); color: var(--red); }
+.dep-node.status-pending .dep-status { background: rgba(106,106,122,0.15); color: var(--gray); }
+
+/* ─── Notification Bell ────────────────────────────────────── */
+.notif-bell {
+  position: relative;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  margin-left: 12px;
+  user-select: none;
+}
+.notif-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  background: var(--red);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+.notif-panel {
+  position: absolute;
+  top: 50px;
+  right: 12px;
+  width: 360px;
+  max-height: 440px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+}
+.notif-header button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.notif-header button:hover { text-decoration: underline; }
+.notif-list {
+  overflow-y: auto;
+  flex: 1;
+}
+.notif-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(42,42,78,0.5);
+  font-size: 13px;
+  cursor: default;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item.unread { background: rgba(233,69,96,0.05); }
+.notif-item .notif-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.notif-item .notif-msg {
+  color: var(--text-secondary);
+}
+.notif-item.unread .notif-msg { color: var(--text-primary); }
+.notif-empty {
+  text-align: center;
+  padding: 30px 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 /* ─── Scrollbar ─────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
@@ -956,13 +1134,23 @@ nav button.active {
     <div class="status">
       <span id="connection-status">Connecting...</span>
       <div class="dot" id="connection-dot"></div>
+      <span class="notif-bell" onclick="toggleNotifPanel()" id="notif-bell">&#128276;<span class="notif-badge" id="notif-badge" style="display:none">0</span></span>
     </div>
   </header>
+  <div class="notif-panel" id="notif-panel" style="display:none">
+    <div class="notif-header">
+      <span>Notifications</span>
+      <button onclick="markAllRead()">Mark all read</button>
+    </div>
+    <div class="notif-list" id="notif-list"></div>
+  </div>
   <main id="main-content"></main>
   <nav>
     <button class="active" data-view="workflow" onclick="switchView('workflow')">Workflow</button>
     <button data-view="agents" onclick="switchView('agents')">Agents</button>
     <button data-view="documents" onclick="switchView('documents')">Documents</button>
+    <button data-view="log" onclick="switchView('log')">Log</button>
+    <button data-view="dependencies" onclick="switchView('dependencies')">Dependencies</button>
     <button data-view="settings" onclick="switchView('settings')">Settings</button>
   </nav>
 </div>
@@ -980,6 +1168,11 @@ let docActivePath = '';
 let config = {};
 let modeStatus = {};
 let sseConnected = false;
+let logContent = '';
+let logSelectedTask = '';
+let notifications = [];
+let notificationUnread = 0;
+let showNotificationPanel = false;
 
 // ─── API Helpers ────────────────────────────────────────────────────────────
 function apiHeaders() {
@@ -1230,6 +1423,238 @@ async function loadFile(path) {
   }
 }
 
+// ─── Log View ────────────────────────────────────────────────────────────────
+
+function renderLog() {
+  // Build task options from requests
+  let options = '<option value="">-- Select a task --</option>';
+  requests.forEach(req => {
+    (req._tasks || []).forEach(t => {
+      options += '<option value="' + escapeHtml(req.id) + '/' + escapeHtml(t.id) + '"' +
+        (logSelectedTask === req.id + '/' + t.id ? ' selected' : '') + '>' +
+        escapeHtml(req.id) + ' / Task ' + escapeHtml(t.id) +
+        (t.status ? ' (' + escapeHtml(t.status) + ')' : '') +
+        '</option>';
+    });
+  });
+
+  const toolbar = '<div class="log-toolbar">' +
+    '<select onchange="selectLogTask(this.value)">' + options + '</select>' +
+    '</div>';
+
+  if (!logSelectedTask) {
+    return toolbar +
+      '<div class="empty-state"><div class="icon">&#128220;</div>' +
+      '<h2>Execution Log</h2>' +
+      '<p>Select a task to view its execution log</p></div>';
+  }
+
+  return toolbar +
+    '<div class="log-content" id="log-content">' + escapeHtml(logContent || 'Loading...') + '</div>';
+}
+
+async function selectLogTask(val) {
+  logSelectedTask = val;
+  logContent = '';
+  if (!val) {
+    renderCurrentView();
+    return;
+  }
+  const parts = val.split('/');
+  const reqId = parts[0];
+  const taskId = parts[1];
+  try {
+    const data = await apiFetch('/api/file?path=' + encodeURIComponent('requests/' + reqId + '/tasks/' + taskId + '/exec-log.md'));
+    logContent = data.content || '';
+  } catch {
+    logContent = '(No exec-log.md found for this task)';
+  }
+  renderCurrentView();
+  scrollLogToBottom();
+}
+
+function scrollLogToBottom() {
+  const el = document.getElementById('log-content');
+  if (el) el.scrollTop = el.scrollHeight;
+}
+
+// ─── Dependencies View ───────────────────────────────────────────────────────
+
+function renderDependencies() {
+  // Collect requests that have blockedBy or blocks relationships
+  const hasRelation = requests.filter(r =>
+    (r.blockedBy && r.blockedBy.length > 0) || (r.blocks && r.blocks.length > 0)
+  );
+
+  // Build adjacency: blockedBy means an edge from blocker -> blocked
+  const edges = [];
+  const nodeIds = new Set();
+  requests.forEach(r => {
+    if (r.blockedBy && r.blockedBy.length > 0) {
+      r.blockedBy.forEach(dep => {
+        edges.push({ from: dep, to: r.id });
+        nodeIds.add(dep);
+        nodeIds.add(r.id);
+      });
+    }
+  });
+
+  if (edges.length === 0) {
+    return '<div class="empty-state"><div class="icon">&#128279;</div>' +
+      '<h2>No Dependencies</h2>' +
+      '<p>No dependency relationships found between requests</p></div>';
+  }
+
+  // Build lookup
+  const reqMap = {};
+  requests.forEach(r => { reqMap[r.id] = r; });
+
+  // Topological layering (Kahn-style BFS)
+  const inDeg = {};
+  const adj = {};
+  nodeIds.forEach(id => { inDeg[id] = 0; adj[id] = []; });
+  edges.forEach(e => {
+    adj[e.from].push(e.to);
+    inDeg[e.to] = (inDeg[e.to] || 0) + 1;
+  });
+  const layers = [];
+  let queue = [];
+  nodeIds.forEach(id => { if (inDeg[id] === 0) queue.push(id); });
+  const assigned = new Set();
+  while (queue.length > 0) {
+    layers.push([...queue]);
+    queue.forEach(id => assigned.add(id));
+    const next = [];
+    queue.forEach(id => {
+      (adj[id] || []).forEach(to => {
+        inDeg[to]--;
+        if (inDeg[to] === 0 && !assigned.has(to)) next.push(to);
+      });
+    });
+    queue = next;
+  }
+  // Orphans (cycles): put remaining in last layer
+  nodeIds.forEach(id => { if (!assigned.has(id)) { layers.push([id]); assigned.add(id); } });
+
+  // Position nodes: left-to-right layers
+  const COL_W = 220;
+  const ROW_H = 90;
+  const PAD_X = 40;
+  const PAD_Y = 30;
+  const nodePos = {};
+  layers.forEach((layer, li) => {
+    layer.forEach((id, ri) => {
+      nodePos[id] = { x: PAD_X + li * COL_W, y: PAD_Y + ri * ROW_H };
+    });
+  });
+
+  const totalW = PAD_X * 2 + layers.length * COL_W;
+  const maxRows = Math.max(...layers.map(l => l.length));
+  const totalH = PAD_Y * 2 + maxRows * ROW_H;
+
+  // Render SVG arrows
+  let svgLines = '';
+  edges.forEach(e => {
+    const f = nodePos[e.from];
+    const t = nodePos[e.to];
+    if (!f || !t) return;
+    const x1 = f.x + 160;
+    const y1 = f.y + 30;
+    const x2 = t.x;
+    const y2 = t.y + 30;
+    svgLines += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + 'var(--text-muted)' + '" stroke-width="2" marker-end="url(#arrow)"/>';
+  });
+
+  const svg = '<svg width="' + totalW + '" height="' + totalH + '" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs><marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">' +
+    '<polygon points="0 0, 10 3.5, 0 7" fill="var(--text-muted)"/></marker></defs>' +
+    svgLines + '</svg>';
+
+  // Render nodes
+  let nodesHtml = '';
+  nodeIds.forEach(id => {
+    const r = reqMap[id] || { id: id, title: id, status: 'unknown' };
+    const pos = nodePos[id];
+    if (!pos) return;
+    const st = (r.status || '').toLowerCase();
+    let statusCls = 'status-pending';
+    if (['completed','done','success'].includes(st)) statusCls = 'status-done';
+    else if (['executing','running','in_progress','active'].includes(st)) statusCls = 'status-active';
+    else if (r.blockedBy && r.blockedBy.length > 0) statusCls = 'status-blocked';
+
+    nodesHtml += '<div class="dep-node ' + statusCls + '" style="left:' + pos.x + 'px;top:' + pos.y + 'px">' +
+      '<div class="dep-id">' + escapeHtml(r.id) + '</div>' +
+      '<div class="dep-title">' + escapeHtml(r.title || r.id) + '</div>' +
+      '<span class="dep-status">' + escapeHtml(r.status || 'pending') + '</span>' +
+      '</div>';
+  });
+
+  return '<div class="dep-graph" style="min-width:' + totalW + 'px;min-height:' + totalH + 'px">' +
+    svg + nodesHtml + '</div>';
+}
+
+// ─── Notification Helpers ────────────────────────────────────────────────────
+
+function addNotification(msg) {
+  notifications.unshift({ message: msg, time: new Date().toISOString(), read: false });
+  if (notifications.length > 50) notifications = notifications.slice(0, 50);
+  notificationUnread = notifications.filter(n => !n.read).length;
+  updateNotifBadge();
+}
+
+function updateNotifBadge() {
+  const badge = document.getElementById('notif-badge');
+  if (!badge) return;
+  if (notificationUnread > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = notificationUnread > 99 ? '99+' : String(notificationUnread);
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function toggleNotifPanel() {
+  showNotificationPanel = !showNotificationPanel;
+  const panel = document.getElementById('notif-panel');
+  if (!panel) return;
+  panel.style.display = showNotificationPanel ? 'flex' : 'none';
+  if (showNotificationPanel) renderNotifList();
+}
+
+function renderNotifList() {
+  const list = document.getElementById('notif-list');
+  if (!list) return;
+  if (notifications.length === 0) {
+    list.innerHTML = '<div class="notif-empty">No notifications</div>';
+    return;
+  }
+  list.innerHTML = notifications.map((n, i) => {
+    const t = new Date(n.time).toLocaleTimeString();
+    return '<div class="notif-item ' + (n.read ? '' : 'unread') + '" onclick="markNotifRead(' + i + ')">' +
+      '<div class="notif-time">' + t + '</div>' +
+      '<div class="notif-msg">' + escapeHtml(n.message) + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function markNotifRead(idx) {
+  if (notifications[idx]) {
+    notifications[idx].read = true;
+    notificationUnread = notifications.filter(n => !n.read).length;
+    updateNotifBadge();
+    renderNotifList();
+  }
+}
+
+function markAllRead() {
+  notifications.forEach(n => { n.read = true; });
+  notificationUnread = 0;
+  updateNotifBadge();
+  renderNotifList();
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+
 function renderSettings() {
   const configStr = JSON.stringify(config, null, 2);
   return '<div class="settings-form">' +
@@ -1297,6 +1722,8 @@ function renderCurrentView() {
     case 'workflow': main.innerHTML = renderWorkflow(); break;
     case 'agents': main.innerHTML = renderAgents(); break;
     case 'documents': main.innerHTML = renderDocuments(); break;
+    case 'log': main.innerHTML = renderLog(); break;
+    case 'dependencies': main.innerHTML = renderDependencies(); break;
     case 'settings': main.innerHTML = renderSettings(); break;
   }
 }
@@ -1349,6 +1776,35 @@ function connectSSE() {
         });
         // Keep last 200 entries
         if (agentActivities.length > 200) agentActivities = agentActivities.slice(-200);
+      }
+
+      // ─── Notification collection ───
+      if (event.type === 'phase_change') {
+        const reqId = event.requestId || '?';
+        addNotification(reqId + ': Phase changed');
+      }
+      if (event.type === 'task_update') {
+        const st = (event.data && event.data.kind) || '';
+        const taskLabel = (event.requestId || '?') + '-' + (event.taskId || '?');
+        if (st === 'done' || st === 'completed') {
+          addNotification(taskLabel + ': Completed');
+        } else if (st === 'failed' || st === 'error') {
+          addNotification(taskLabel + ': Failed');
+        } else if (st === 'cancelled') {
+          addNotification(taskLabel + ': Cancelled');
+        }
+      }
+      if (event.type === 'config_change') {
+        addNotification('Settings changed');
+      }
+
+      // ─── Log view: refresh if viewing exec-log and relevant event ───
+      if (event.type === 'agent_activity' && event.data && event.data.path &&
+          event.data.path.includes('exec-log') && logSelectedTask && currentView === 'log') {
+        const parts = logSelectedTask.split('/');
+        if (event.data.path.includes(parts[0]) && event.data.path.includes(parts[1])) {
+          selectLogTask(logSelectedTask);
+        }
       }
 
       // Refresh data on meaningful events
