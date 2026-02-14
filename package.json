@@ -1,0 +1,16 @@
+{
+  "name": "gran-maestro",
+  "version": "0.1.0",
+  "description": "Gran Maestro — AI orchestration plugin for Claude Code",
+  "main": "src/agents/definitions.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brandev/gran-maestro.git"
+  },
+  "keywords": ["claude-code", "plugin", "orchestration", "pm", "ai-agents"],
+  "author": "brandev",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
