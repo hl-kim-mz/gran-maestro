@@ -1,6 +1,6 @@
 # Outsource Brief Template
 
-Phase 2에서 Codex CLI / Gemini CLI에 전달하는 프롬프트 템플릿입니다.
+Phase 2에서 `/mst:codex` / `/mst:gemini` 스킬에 전달하는 프롬프트 템플릿입니다.
 이 파일은 에이전트가 아닌 **템플릿**으로, PM Conductor가 변수를 치환하여 사용합니다.
 
 <outsource_brief>
@@ -47,33 +47,24 @@ Before declaring completion, verify:
 | `{SPEC_CONTENT}` | spec.md 전체 내용 | (Implementation Spec 문서) |
 | `{summary}` | 커밋 메시지용 요약 | `Add JWT auth middleware` |
 
-## CLI 호출 방식
+## 스킬 호출 방식
 
-> **주의**: 아래 CLI 명령어는 검증 전 초안입니다. 실제 사용 시 `--help`로 확인 후 조정하세요.
-> CLIAdapter 추상화 레이어(`src/core/cli-adapter.ts`)를 통해 호출됩니다.
+모든 외부 AI 호출은 내부 스킬(`/mst:codex`, `/mst:gemini`)을 경유합니다.
+직접 CLI 호출(`codex exec`, `gemini -p`)이나 MCP 도구는 사용하지 않습니다.
 
-### Codex CLI
-```bash
-# 검증 필요: exec 서브커맨드, -C 플래그 실존 확인
-codex exec --full-auto -C {WORKTREE_PATH} "{brief}"
-# 대안: codex --full-auto "{brief}" (cwd 옵션으로 디렉토리 지정)
+### Codex 실행
+```
+/mst:codex "{brief}" --dir {WORKTREE_PATH}
 ```
 
-### Gemini CLI
-```bash
-# 검증 필요: -p 플래그, --approval-mode 옵션 확인
-gemini -p "{brief}" --approval-mode yolo
-# 대안: gemini -y -p "{brief}" (자동 승인)
+### Gemini 실행
+```
+/mst:gemini "{brief}"
 ```
 
-### CLIAdapter 경유 호출 (권장)
-```typescript
-const adapter = createAdapter(agent.provider); // 'codex' | 'gemini'
-const result = await adapter.execute(brief, {
-  workingDir: worktreePath,
-  timeout_ms: config.timeouts.cli_default_ms,
-  outputFormat: 'text'
-});
+### 결과 파일 저장이 필요한 경우
+```
+/mst:codex "{brief}" --dir {WORKTREE_PATH} --output {exec-log-path}
 ```
 
 ## 피드백 라운드 시 추가 삽입

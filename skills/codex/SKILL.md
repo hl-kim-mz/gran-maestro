@@ -1,13 +1,13 @@
 ---
 name: codex
-description: "Codex CLI를 직접 호출하여 코드 작업을 실행합니다. 사용자가 '코덱스 실행', '코덱스로', '코드 작업'을 말하거나 /mst:codex를 호출할 때 사용. Gran Maestro 워크플로우 내 자동 위임에는 사용하지 않음 (Phase 2에서 자동 호출됨)."
+description: "Codex CLI를 호출하여 코드 작업을 실행합니다. 사용자가 '코덱스 실행', '코덱스로', '코드 작업'을 말하거나 /mst:codex를 호출할 때 사용. Gran Maestro 워크플로우 내 모든 Codex 호출은 이 스킬을 경유합니다."
 user-invocable: true
 argument-hint: "{프롬프트} [--dir {경로}] [--json]"
 ---
 
 # maestro:codex
 
-Gran Maestro 워크플로우 외부에서 Codex CLI를 직접 호출합니다.
+Codex CLI 호출의 단일 진입점입니다. Gran Maestro 워크플로우 내·외부 모든 Codex 호출이 이 스킬을 경유합니다.
 결과는 터미널에 출력되며, 선택적으로 파일로 저장 가능합니다.
 이 스킬은 모드에 관계없이 사용 가능합니다 (OMC 모드, Maestro 모드 모두).
 
@@ -56,7 +56,7 @@ codex exec --full-auto -C {working_dir} -o {output_file} "{prompt}"
 
 - Codex CLI가 설치되어 있어야 합니다 (`codex --version`으로 확인)
 - `--full-auto` 모드는 파일 수정 권한이 있으므로 주의하여 사용
-- Gran Maestro 워크플로우 외부에서 독립 실행되며, 요청 상태에 영향을 주지 않음
+- 워크플로우 외부에서 독립 호출 시 요청 상태에 영향을 주지 않음. 워크플로우 내에서는 PM Conductor가 컨텍스트를 전달
 
 ## 문제 해결
 

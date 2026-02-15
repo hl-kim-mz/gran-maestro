@@ -43,8 +43,8 @@ Gran Maestro 워크플로우(REQ)와 독립적으로 실행됩니다.
 
 `--focus` 옵션이 지정된 경우, 해당 분야에 집중하도록 프롬프트에 명시합니다.
 
-> **도구 사용 원칙**: Gran Maestro는 자체 CLI를 직접 호출합니다.
-> OMC의 MCP 도구(`mcp__*__ask_codex`, `mcp__*__ask_gemini`)나 OMC 에이전트(`oh-my-claudecode:*`)를 사용하지 않습니다.
+> **도구 사용 원칙**: 모든 외부 AI 호출은 내부 스킬(`/mst:codex`, `/mst:gemini`)을 경유합니다.
+> OMC의 MCP 도구(`mcp__*__ask_codex`, `mcp__*__ask_gemini`)나 직접 CLI 호출(`codex exec`, `gemini -p`)은 사용하지 않습니다.
 > 3개 호출을 병렬로 실행하려면 Bash `run_in_background: true`와 Task `run_in_background: true`를 사용합니다.
 
 > **토큰 절약 원칙 (Direct File Write)**:
@@ -53,14 +53,14 @@ Gran Maestro 워크플로우(REQ)와 독립적으로 실행됩니다.
 > - Codex/Gemini: 셸 리디렉션(`> opinion-*.md`)으로 stdout을 직접 파일에 저장
 > - Claude: Task 에이전트에게 Write 도구로 직접 파일 작성을 지시
 
-**Codex** (Bash: `codex exec` + 셸 리디렉션):
+**Codex** (`/mst:codex` 스킬 + `--output`):
 - 관점: **기술 실현성 분석**
 - 호출 방법:
-  ```bash
-  codex exec -C {project_dir} "{prompt}" > .gran-maestro/ideation/IDN-NNN/opinion-codex.md 2>/dev/null
   ```
-  - `run_in_background: true`로 병렬 실행
-  - **셸 리디렉션으로 stdout을 직접 파일에 저장** (부모 컨텍스트를 거치지 않음)
+  /mst:codex "{prompt}" --output .gran-maestro/ideation/IDN-NNN/opinion-codex.md
+  ```
+  - `run_in_background: true`로 병렬 실행 (Skill → 내부 Bash가 백그라운드 실행)
+  - **`--output`으로 결과를 직접 파일에 저장** (부모 컨텍스트를 거치지 않음)
   - 프롬프트에 "분석만 수행하고 파일을 수정하지 마세요. 마크다운 형식으로 분석 결과를 출력하세요."를 명시
   - 컨텍스트 파일이 필요하면 프롬프트 내에 파일 경로를 포함
 - 프롬프트 지침:
@@ -68,24 +68,24 @@ Gran Maestro 워크플로우(REQ)와 독립적으로 실행됩니다.
   - 아키텍처 트레이드오프 분석 (성능, 유지보수성, 확장성)
   - 기술 스택 적합성 판단
   - "전략/창의 분석과 비판적 평가는 다른 AI가 담당하므로, 기술 실현성에만 집중할 것"
-- 결과: `opinion-codex.md`에 직접 저장됨 (셸 리디렉션)
+- 결과: `opinion-codex.md`에 직접 저장됨
 - 완료 감지: 백그라운드 작업 완료 시 파일 존재 여부로 판단
 
-**Gemini** (Bash: `gemini -p` + 셸 리디렉션):
+**Gemini** (`/mst:gemini` 스킬 + 셸 리디렉션):
 - 관점: **전략/창의 분석**
 - 호출 방법:
-  ```bash
-  gemini -p "{prompt}" > .gran-maestro/ideation/IDN-NNN/opinion-gemini.md 2>/dev/null
   ```
-  - `run_in_background: true`로 병렬 실행
-  - **셸 리디렉션으로 stdout을 직접 파일에 저장** (부모 컨텍스트를 거치지 않음)
+  /mst:gemini "{prompt}" --sandbox > .gran-maestro/ideation/IDN-NNN/opinion-gemini.md
+  ```
+  - `run_in_background: true`로 병렬 실행 (Skill → 내부 Bash가 백그라운드 실행)
+  - **결과를 직접 파일에 저장** (부모 컨텍스트를 거치지 않음)
   - 컨텍스트 파일이 필요하면 프롬프트 내에 파일 경로를 포함
 - 프롬프트 지침:
   - 대안적 접근법 제시 (통상적이지 않은 해법 포함)
   - 생태계 트렌드와 업계 사례 참조
   - 장기적 영향과 확장 가능성 분석
   - "기술 실현성 분석과 비판적 평가는 다른 AI가 담당하므로, 전략/창의 분석에만 집중할 것"
-- 결과: `opinion-gemini.md`에 직접 저장됨 (셸 리디렉션)
+- 결과: `opinion-gemini.md`에 직접 저장됨
 - 완료 감지: 백그라운드 작업 완료 시 파일 존재 여부로 판단
 
 **Claude** (Task, subagent_type: `general-purpose`, model: `opus`):
@@ -211,7 +211,7 @@ Gran Maestro 워크플로우(REQ)와 독립적으로 실행됩니다.
 ## 문제 해결
 
 - `.gran-maestro/ideation/` 디렉토리 생성 실패 → 현재 디렉토리가 git 저장소인지 확인. 쓰기 권한 확인
-- Codex CLI 호출 실패 → `codex --version`으로 설치 확인. `npm install -g @openai/codex`로 설치
-- Gemini CLI 호출 실패 → `gemini --version`으로 설치 확인. `npm install -g @google/gemini-cli`로 설치
+- Codex 호출 실패 → `/mst:codex --help`로 스킬 확인. CLI 미설치 시 `npm install -g @openai/codex`
+- Gemini 호출 실패 → `/mst:gemini --help`로 스킬 확인. CLI 미설치 시 `npm install -g @google/gemini-cli`
 - 기존 세션 ID 충돌 → `.gran-maestro/ideation/` 디렉토리를 확인하고 중복 IDN 폴더가 없는지 검증
 - 종합 결과 품질 저하 → `--focus` 옵션으로 분석 범위를 좁혀서 재시도

@@ -1,13 +1,13 @@
 ---
 name: gemini
-description: "Gemini CLI를 직접 호출하여 대용량 컨텍스트 작업을 실행합니다. 사용자가 '제미니 실행', '제미니로', '대용량 분석'을 말하거나 /mst:gemini를 호출할 때 사용. Gran Maestro 워크플로우 내 자동 위임에는 사용하지 않음 (Phase 2에서 자동 호출됨)."
+description: "Gemini CLI를 호출하여 대용량 컨텍스트 작업을 실행합니다. 사용자가 '제미니 실행', '제미니로', '대용량 분석'을 말하거나 /mst:gemini를 호출할 때 사용. Gran Maestro 워크플로우 내 모든 Gemini 호출은 이 스킬을 경유합니다."
 user-invocable: true
 argument-hint: "{프롬프트} [--files {패턴}] [--sandbox]"
 ---
 
 # maestro:gemini
 
-Gran Maestro 워크플로우 외부에서 Gemini CLI를 직접 호출합니다.
+Gemini CLI 호출의 단일 진입점입니다. Gran Maestro 워크플로우 내·외부 모든 Gemini 호출이 이 스킬을 경유합니다.
 대용량 문서, 프론트엔드, 넓은 컨텍스트가 필요한 작업에 적합합니다.
 이 스킬은 모드에 관계없이 사용 가능합니다 (OMC 모드, Maestro 모드 모두).
 
@@ -55,7 +55,7 @@ gemini -p "{prompt}" --sandbox
 - Gemini CLI가 설치되어 있어야 합니다 (`gemini --version`으로 확인)
 - Gemini의 컨텍스트 윈도우는 최대 1M 토큰입니다. 대용량 파일은 분할 처리를 권장합니다
 - `--approval-mode yolo` / `-y` 옵션은 모든 작업을 자동 승인하므로 주의하여 사용
-- Gran Maestro 워크플로우 외부에서 독립 실행되며, 요청 상태에 영향을 주지 않음
+- 워크플로우 외부에서 독립 호출 시 요청 상태에 영향을 주지 않음. 워크플로우 내에서는 PM Conductor가 컨텍스트를 전달
 
 ## 문제 해결
 

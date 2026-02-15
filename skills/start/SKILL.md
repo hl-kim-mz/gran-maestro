@@ -60,7 +60,7 @@ Maestro 모드가 비활성 상태이면 자동으로 활성화합니다:
 5. PM Conductor 역할로 Phase 1 분석 수행 (`agents/pm-conductor.md`의 `<phase1_protocol>` 준수):
    a. 요청 파싱 및 복잡도 분류 (simple | standard | complex)
    b. Simple → 단독 분석 / Standard·Complex → Analysis Squad 팀 소환
-   c. 코드베이스 탐색 (Explorer 위임), 외부 AI 분석 (Codex·Gemini CLI 병렬)
+   c. 코드베이스 탐색 (Explorer 위임), 외부 AI 분석 (`/mst:codex`·`/mst:gemini` 스킬 병렬)
    d. 모호한 요구사항은 사용자에게 질문 (AskUserQuestion, 한 번에 하나씩)
    e. 접근 방식 결정 시: 3 AI 의견 수집 → 종합 → 순위별 추천
    f. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용)
