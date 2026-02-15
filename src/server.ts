@@ -260,6 +260,20 @@ app.get("/api/requests/:id/tasks/:taskId", async (c) => {
   const review = await readTextFile(`${taskDir}/review.md`);
   const feedback = await readTextFile(`${taskDir}/feedback.md`);
 
+  // Collect trace files
+  const tracesDir = `${taskDir}/traces`;
+  const traceFiles: string[] = [];
+  try {
+    for await (const entry of Deno.readDir(tracesDir)) {
+      if (entry.isFile && entry.name.endsWith(".md")) {
+        traceFiles.push(entry.name);
+      }
+    }
+  } catch {
+    // traces directory may not exist
+  }
+  traceFiles.sort();
+
   if (!status && !spec) {
     return c.json({ error: "Task not found" }, 404);
   }
@@ -271,7 +285,70 @@ app.get("/api/requests/:id/tasks/:taskId", async (c) => {
     spec: spec ?? null,
     review: review ?? null,
     feedback: feedback ?? null,
+    traces: traceFiles,
   });
+});
+
+// ─── API: Task Traces ──────────────────────────────────────────────────────
+
+app.get("/api/requests/:id/tasks/:taskId/traces", async (c) => {
+  const id = c.req.param("id");
+  const taskId = c.req.param("taskId");
+  const tracesDir = `${BASE_DIR}/requests/${id}/tasks/${taskId}/traces`;
+
+  if (!(await dirExists(tracesDir))) {
+    return c.json([]);
+  }
+
+  const traceFiles: { name: string; agent: string; label: string; timestamp: string }[] = [];
+  try {
+    for await (const entry of Deno.readDir(tracesDir)) {
+      if (entry.isFile && entry.name.endsWith(".md")) {
+        // Parse filename: {agent}-{label}-{YYYYMMDD-HHmmss}.md
+        const match = entry.name.match(/^(codex|gemini)-(.+)-(\d{8}-\d{6})\.md$/);
+        if (match) {
+          traceFiles.push({
+            name: entry.name,
+            agent: match[1],
+            label: match[2],
+            timestamp: match[3],
+          });
+        } else {
+          traceFiles.push({
+            name: entry.name,
+            agent: "unknown",
+            label: entry.name.replace(/\.md$/, ""),
+            timestamp: "",
+          });
+        }
+      }
+    }
+  } catch {
+    // directory read error
+  }
+
+  traceFiles.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  return c.json(traceFiles);
+});
+
+app.get("/api/requests/:id/tasks/:taskId/traces/:traceFile", async (c) => {
+  const id = c.req.param("id");
+  const taskId = c.req.param("taskId");
+  const traceFile = c.req.param("traceFile");
+
+  // Prevent directory traversal
+  if (traceFile.includes("..") || traceFile.includes("/")) {
+    return c.json({ error: "Invalid trace file name" }, 400);
+  }
+
+  const content = await readTextFile(
+    `${BASE_DIR}/requests/${id}/tasks/${taskId}/traces/${traceFile}`
+  );
+  if (content === null) {
+    return c.json({ error: "Trace file not found" }, 404);
+  }
+
+  return c.json({ name: traceFile, content });
 });
 
 // ─── API: Ideation Sessions ─────────────────────────────────────────────────
@@ -479,6 +556,20 @@ function classifyFsEvent(
   path: string,
   kind: string
 ): SSEEvent | null {
+  // Pattern: .gran-maestro/requests/REQ-XXX/tasks/NN/traces/...
+  // (must be checked before generic task_update to avoid being swallowed)
+  const traceMatch = path.match(
+    /\.gran-maestro\/requests\/([^/]+)\/tasks\/([^/]+)\/traces\/(.+)/
+  );
+  if (traceMatch) {
+    return {
+      type: "trace_update",
+      requestId: traceMatch[1],
+      taskId: traceMatch[2],
+      data: { path, kind, traceFile: traceMatch[3], timestamp: new Date().toISOString() },
+    };
+  }
+
   // Pattern: .gran-maestro/requests/REQ-XXX/tasks/NN/...
   const taskMatch = path.match(
     /\.gran-maestro\/requests\/([^/]+)\/tasks\/([^/]+)/
@@ -587,7 +678,7 @@ body {
 /* ─── Layout ────────────────────────────────────────────────── */
 #app {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr;
   height: 100vh;
   max-height: 100vh;
 }
@@ -627,7 +718,7 @@ main {
 }
 nav {
   background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: center;
   gap: 0;
@@ -638,17 +729,17 @@ nav button {
   background: none;
   border: none;
   color: var(--text-secondary);
-  padding: 12px 16px;
+  padding: 10px 16px;
   font-size: 13px;
   font-family: var(--font-sans);
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s;
-  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
 }
 nav button:hover { color: var(--text-primary); }
 nav button.active {
   color: var(--accent);
-  border-top-color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 /* ─── Cards ─────────────────────────────────────────────────── */
@@ -991,6 +1082,25 @@ nav button.active {
   color: var(--text-secondary);
   margin-bottom: 8px;
 }
+/* ─── Approval Banner ──────────────────────────────────────── */
+.approval-banner {
+  background: linear-gradient(90deg, rgba(240,192,64,0.15), rgba(233,69,96,0.10));
+  border-bottom: 1px solid rgba(240,192,64,0.3);
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--yellow);
+  animation: banner-pulse 3s ease-in-out infinite;
+}
+.approval-icon { font-size: 16px; }
+@keyframes banner-pulse {
+  0%, 100% { background: linear-gradient(90deg, rgba(240,192,64,0.15), rgba(233,69,96,0.10)); }
+  50% { background: linear-gradient(90deg, rgba(240,192,64,0.25), rgba(233,69,96,0.18)); }
+}
+
 .toast {
   position: fixed;
   bottom: 80px;
@@ -1330,6 +1440,7 @@ nav button.active {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gray); }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -1348,7 +1459,6 @@ nav button.active {
     </div>
     <div class="notif-list" id="notif-list"></div>
   </div>
-  <main id="main-content"></main>
   <nav>
     <button class="active" data-view="workflow" onclick="switchView('workflow')">Workflow</button>
     <button data-view="agents" onclick="switchView('agents')">Agents</button>
@@ -1358,6 +1468,11 @@ nav button.active {
     <button data-view="dependencies" onclick="switchView('dependencies')">Dependencies</button>
     <button data-view="settings" onclick="switchView('settings')">Settings</button>
   </nav>
+  <div class="approval-banner" id="approval-banner" style="display:none">
+    <span class="approval-icon">&#9888;</span>
+    <span id="approval-msg">Approval needed</span>
+  </div>
+  <main id="main-content"></main>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1380,6 +1495,9 @@ let notificationUnread = 0;
 let showNotificationPanel = false;
 let ideationSessions = [];
 let ideationActiveSession = null;
+let openDirs = new Set();
+let treeInitialized = false;
+let prevTreeJson = '';
 
 // ─── API Helpers ────────────────────────────────────────────────────────────
 function apiHeaders() {
@@ -1393,40 +1511,17 @@ async function apiFetch(path, options = {}) {
   return res.json();
 }
 
-// ─── Markdown Renderer (simple) ─────────────────────────────────────────────
+// ─── Markdown Renderer (marked.js with fallback) ────────────────────────────
 function renderMarkdown(md) {
   if (!md) return '';
-  let html = md
-    // Code blocks
-    .replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, '<pre><code>$1</code></pre>')
-    // Inline code
-    .replace(/\`([^\`]+)\`/g, '<code>$1</code>')
-    // Headers
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    // Bold & italic
-    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
-    .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
-    // Blockquotes
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    // Unordered lists
-    .replace(/^[\\-\\*] (.+)$/gm, '<li>$1</li>')
-    // Ordered lists
-    .replace(/^\\d+\\. (.+)$/gm, '<li>$1</li>')
-    // Links
-    .replace(/\\[([^\\]]+)\\]\\(([^\\)]+)\\)/g, '<a href="$2" style="color:var(--accent)">$1</a>')
-    // Horizontal rules
-    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">')
-    // Checkboxes
-    .replace(/\\[x\\]/g, '<input type="checkbox" checked disabled>')
-    .replace(/\\[ \\]/g, '<input type="checkbox" disabled>')
-    // Paragraphs (lines not already wrapped)
-    .replace(/^(?!<[a-z])(\\S.+)$/gm, '<p>$1</p>');
-
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(/(<li>.*?<\\/li>\\s*)+/g, '<ul>$&</ul>');
-  return html;
+  // Use marked library if loaded from CDN
+  if (typeof marked !== 'undefined' && marked.parse) {
+    try {
+      return marked.parse(md, { gfm: true, breaks: true });
+    } catch(e) { /* fall through to fallback */ }
+  }
+  // Fallback: escape and show as preformatted text
+  return '<pre style="white-space:pre-wrap">' + escapeHtml(md) + '</pre>';
 }
 
 // ─── JSON Syntax Highlighting ───────────────────────────────────────────────
@@ -1478,10 +1573,13 @@ function taskStatusIcon(status) {
   }
 }
 
-function phaseClass(phase, activePhase) {
+function phaseClass(phase, activePhase, reqStatus) {
   if (!activePhase) return '';
   const p = typeof phase === 'number' ? phase : parseInt(phase);
   const ap = typeof activePhase === 'number' ? activePhase : parseInt(activePhase);
+  const st = (reqStatus || '').toLowerCase();
+  // All phases done when request is completed
+  if (st === 'completed' || st === 'done' || st === 'success') return 'done';
   if (p < ap) return 'done';
   if (p === ap) return 'active';
   return 'waiting';
@@ -1499,9 +1597,10 @@ function renderWorkflow() {
 
   return requests.map(req => {
     const phases = [1, 2, 3, 4, 5];
-    const activePhase = req.phase || 1;
+    const activePhase = req.current_phase || req.phase || 1;
+    const reqStatus = req.status || 'unknown';
     const phaseNodes = phases.map((p, i) => {
-      const cls = phaseClass(p, activePhase);
+      const cls = phaseClass(p, activePhase, reqStatus);
       const node = '<div class="phase-node ' + cls + '">Phase ' + p + '</div>';
       const arrow = i < phases.length - 1 ? '<span class="phase-arrow">&#9654;</span>' : '';
       return node + arrow;
@@ -1509,6 +1608,11 @@ function renderWorkflow() {
 
     const blockedBadge = req.blockedBy && req.blockedBy.length > 0
       ? '<span class="blocked-badge">blocked by: ' + req.blockedBy.join(', ') + '</span>'
+      : '';
+
+    const isCompleted = ['completed','done','success'].includes(reqStatus.toLowerCase());
+    const completedBadge = isCompleted
+      ? '<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(78,204,163,0.15);color:var(--green);margin-left:8px">COMPLETED</span>'
       : '';
 
     const tasksHtml = (req._tasks || []).map(t => {
@@ -1519,10 +1623,10 @@ function renderWorkflow() {
         '</div>';
     }).join('');
 
-    return '<div class="card">' +
-      '<div class="card-title">' + escapeHtml(req.id) + ': ' + escapeHtml(req.title || 'Untitled') + blockedBadge + '</div>' +
-      '<div class="card-subtitle">Status: ' + escapeHtml(req.status || 'unknown') +
-      ' | Phase: ' + activePhase + '</div>' +
+    return '<div class="card" style="' + (isCompleted ? 'opacity:0.75;border-color:var(--green)' : '') + '">' +
+      '<div class="card-title">' + escapeHtml(req.id) + ': ' + escapeHtml(req.title || 'Untitled') + completedBadge + blockedBadge + '</div>' +
+      '<div class="card-subtitle">Status: ' + escapeHtml(reqStatus) +
+      ' | Phase: ' + activePhase + (req.completed_at ? ' | Completed: ' + new Date(req.completed_at).toLocaleString() : '') + '</div>' +
       '<div class="phase-row">' + phaseNodes + '</div>' +
       (tasksHtml ? '<div class="task-list">' + tasksHtml + '</div>' : '') +
       '</div>';
@@ -1575,7 +1679,8 @@ function filterAgents() {
 }
 
 function renderDocuments() {
-  const treeHtml = renderTree(docTree, 0);
+  const treeHtml = renderTree(docTree, 0, '');
+  treeInitialized = true;
   const contentHtml = docContent || '<div class="empty-state" style="padding:40px"><p>Select a file from the tree to view its contents.</p></div>';
   return '<div class="doc-layout">' +
     '<div class="doc-tree">' + treeHtml + '</div>' +
@@ -1583,15 +1688,18 @@ function renderDocuments() {
     '</div>';
 }
 
-function renderTree(nodes, depth) {
+function renderTree(nodes, depth, parentPath) {
   if (!nodes || nodes.length === 0) return '';
   return nodes.map(n => {
+    const nodePath = parentPath ? parentPath + '/' + n.name : n.name;
     if (n.type === 'directory') {
-      const isOpen = depth < 2;
-      return '<div class="tree-dir ' + (isOpen ? 'open' : '') + '" onclick="toggleTreeDir(this)">' +
+      // On first render, default-open dirs at depth < 2
+      if (!treeInitialized && depth < 2) openDirs.add(nodePath);
+      const isOpen = openDirs.has(nodePath);
+      return '<div class="tree-dir ' + (isOpen ? 'open' : '') + '" data-path="' + escapeHtml(nodePath) + '" onclick="toggleTreeDir(this)">' +
         escapeHtml(n.name) + '</div>' +
         '<div class="tree-children ' + (isOpen ? '' : 'collapsed') + '">' +
-        renderTree(n.children || [], depth + 1) +
+        renderTree(n.children || [], depth + 1, nodePath) +
         '</div>';
     }
     const activeClass = docActivePath === n.path ? 'active' : '';
@@ -1601,6 +1709,10 @@ function renderTree(nodes, depth) {
 }
 
 function toggleTreeDir(el) {
+  const path = el.getAttribute('data-path');
+  if (path) {
+    if (openDirs.has(path)) { openDirs.delete(path); } else { openDirs.add(path); }
+  }
   el.classList.toggle('open');
   const children = el.nextElementSibling;
   if (children) children.classList.toggle('collapsed');
@@ -1633,31 +1745,47 @@ async function loadFile(path) {
 // ─── Log View ────────────────────────────────────────────────────────────────
 
 function renderLog() {
-  // Build task options from requests
-  let options = '<option value="">-- Select a task --</option>';
+  let options = '<option value="">-- Select a file --</option>';
+
+  // Request-level files
   requests.forEach(req => {
+    const reqFiles = ['request.json', 'design/spec.md', 'discussion/feedback.md'];
+    options += '<optgroup label="' + escapeHtml(req.id) + ' (' + escapeHtml(req.status || '?') + ')">';
+    reqFiles.forEach(f => {
+      const val = 'req:' + req.id + '/' + f;
+      options += '<option value="' + escapeHtml(val) + '"' +
+        (logSelectedTask === val ? ' selected' : '') + '>' +
+        escapeHtml(f) + '</option>';
+    });
+    // Task exec-logs
     (req._tasks || []).forEach(t => {
-      options += '<option value="' + escapeHtml(req.id) + '/' + escapeHtml(t.id) + '"' +
-        (logSelectedTask === req.id + '/' + t.id ? ' selected' : '') + '>' +
-        escapeHtml(req.id) + ' / Task ' + escapeHtml(t.id) +
+      const val = 'task:' + req.id + '/' + t.id;
+      options += '<option value="' + escapeHtml(val) + '"' +
+        (logSelectedTask === val ? ' selected' : '') + '>' +
+        'tasks/' + escapeHtml(t.id) + '/exec-log.md' +
         (t.status ? ' (' + escapeHtml(t.status) + ')' : '') +
         '</option>';
     });
+    options += '</optgroup>';
   });
 
   const toolbar = '<div class="log-toolbar">' +
-    '<select onchange="selectLogTask(this.value)">' + options + '</select>' +
+    '<select onchange="selectLogTask(this.value)" style="min-width:320px">' + options + '</select>' +
     '</div>';
 
   if (!logSelectedTask) {
     return toolbar +
       '<div class="empty-state"><div class="icon">&#128220;</div>' +
       '<h2>Execution Log</h2>' +
-      '<p>Select a task to view its execution log</p></div>';
+      '<p>Select a request file or task log to view</p></div>';
   }
 
-  return toolbar +
-    '<div class="log-content" id="log-content">' + escapeHtml(logContent || 'Loading...') + '</div>';
+  const isMarkdown = logSelectedTask.endsWith('.md');
+  const contentHtml = isMarkdown
+    ? '<div class="doc-content" id="log-content" style="height:calc(100vh - 200px);overflow-y:auto">' + renderMarkdown(logContent || 'Loading...') + '</div>'
+    : '<div class="log-content" id="log-content">' + (logContent.startsWith('{') ? highlightJson(logContent) : escapeHtml(logContent || 'Loading...')) + '</div>';
+
+  return toolbar + contentHtml;
 }
 
 async function selectLogTask(val) {
@@ -1667,14 +1795,20 @@ async function selectLogTask(val) {
     renderCurrentView();
     return;
   }
-  const parts = val.split('/');
-  const reqId = parts[0];
-  const taskId = parts[1];
+  let filePath = '';
+  if (val.startsWith('req:')) {
+    // Request-level file: req:REQ-001/design/spec.md
+    filePath = 'requests/' + val.substring(4);
+  } else if (val.startsWith('task:')) {
+    // Task exec-log: task:REQ-001/01
+    const parts = val.substring(5).split('/');
+    filePath = 'requests/' + parts[0] + '/tasks/' + parts[1] + '/exec-log.md';
+  }
   try {
-    const data = await apiFetch('/api/file?path=' + encodeURIComponent('requests/' + reqId + '/tasks/' + taskId + '/exec-log.md'));
+    const data = await apiFetch('/api/file?path=' + encodeURIComponent(filePath));
     logContent = data.content || '';
   } catch {
-    logContent = '(No exec-log.md found for this task)';
+    logContent = '(File not found: ' + filePath + ')';
   }
   renderCurrentView();
   scrollLogToBottom();
@@ -2024,6 +2158,37 @@ function closeIdeationDetail() {
   renderCurrentView();
 }
 
+// ─── Approval Banner Logic ───────────────────────────────────────────────────
+let approvalNotified = new Set();
+
+function updateApprovalBanner() {
+  const banner = document.getElementById('approval-banner');
+  const msg = document.getElementById('approval-msg');
+  if (!banner || !msg) return;
+  const pending = requests.filter(r => {
+    const st = (r.status || '').toLowerCase();
+    return st.includes('approve') || st.includes('review') || st === 'phase2_spec_review';
+  });
+  if (pending.length > 0) {
+    const labels = pending.map(r => r.id).join(', ');
+    msg.textContent = labels + ': Approval needed - run /mst:approve to proceed';
+    banner.style.display = 'flex';
+    // Browser notification (once per request)
+    pending.forEach(r => {
+      if (!approvalNotified.has(r.id)) {
+        approvalNotified.add(r.id);
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Gran Maestro', { body: r.id + ': Spec ready for approval' });
+        } else if ('Notification' in window && Notification.permission !== 'denied') {
+          Notification.requestPermission();
+        }
+      }
+    });
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
 // ─── View Switching ─────────────────────────────────────────────────────────
 function switchView(view) {
   ideationActiveSession = null;
@@ -2045,6 +2210,7 @@ function renderCurrentView() {
     case 'dependencies': main.innerHTML = renderDependencies(); break;
     case 'settings': main.innerHTML = renderSettings(); break;
   }
+  updateApprovalBanner();
 }
 
 // ─── Data Loading ───────────────────────────────────────────────────────────
@@ -2071,6 +2237,24 @@ async function loadData() {
     } catch { /* keep stale data */ }
   }
 
+  // Check for phase transitions requiring approval (deduplicated)
+  requests.forEach(req => {
+    const st = (req.status || '').toLowerCase();
+    if (st.includes('approve') || st.includes('review') || st === 'phase2_spec_review') {
+      if (!approvalNotified.has(req.id)) {
+        addNotification(req.id + ': Approval needed');
+      }
+    }
+  });
+
+  // Smart render: skip documents view re-render if tree structure unchanged
+  const newTreeJson = JSON.stringify(docTree);
+  if (currentView === 'documents' && newTreeJson === prevTreeJson) {
+    prevTreeJson = newTreeJson;
+    updateApprovalBanner();
+    return; // tree unchanged, preserve DOM state
+  }
+  prevTreeJson = newTreeJson;
   renderCurrentView();
 }
 
@@ -2139,8 +2323,15 @@ function connectSSE() {
         addNotification('Ideation ' + (event.sessionId || '?') + ' updated');
       }
 
+      // Trace updates
+      if (event.type === 'trace_update') {
+        const traceLabel = (event.requestId || '?') + '-' + (event.taskId || '?');
+        const traceFile = (event.data && event.data.traceFile) || '';
+        addNotification(traceLabel + ': AI trace saved (' + traceFile + ')');
+      }
+
       // Refresh data on meaningful events
-      if (['task_update', 'request_update', 'phase_change', 'config_change', 'ideation_update'].includes(event.type)) {
+      if (['task_update', 'request_update', 'phase_change', 'config_change', 'ideation_update', 'trace_update'].includes(event.type)) {
         loadData();
       }
     } catch { /* ignore parse errors */ }

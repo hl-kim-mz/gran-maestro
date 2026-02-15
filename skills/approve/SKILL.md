@@ -21,7 +21,69 @@ PM이 작성한 구현 스펙을 승인하거나, 완료된 결과물을 최종 
    - `request.json`의 `current_phase`를 2로 변경
    - `request.json`의 `status`를 `phase2_execution`으로 변경
    - 각 태스크에 대해 git worktree 생성
-   - Phase 2 (외주 실행) 진입
+   - Phase 2 (외주 실행) 프로토콜 실행 (아래 참조)
+
+### Phase 2 외주 실행 프로토콜
+
+Phase 2에서 Claude(PM)는 **절대 코드를 직접 작성하지 않습니다**. 모든 구현은 `/mst:codex` 또는 `/mst:gemini` 스킬을 통해 외주합니다.
+
+각 태스크에 대해 다음 순서로 실행합니다:
+
+#### Step 1: 스펙 검증 (외주 전 필수)
+
+spec.md에서 다음 항목이 명확한지 확인합니다. 부족하면 보완 후 진행:
+- **수락 조건** (§3): 모든 AC가 pass/fail로 측정 가능한지
+- **테스트 계획** (§5): 테스트 실행 명령어와 항목이 구체적인지
+- **변경 범위** (§2): 수정 파일 목록이 명시되어 있는지
+
+#### Step 2: 실행 에이전트 결정
+
+spec.md의 `Assigned Agent` 필드와 `§8 에이전트 팀 구성`을 읽어 에이전트를 결정합니다.
+`agents.json`의 capabilities 기준:
+
+| 태스크 유형 | 에이전트 | capabilities |
+|------------|---------|-------------|
+| 백엔드, 리팩토링, 테스트 | `codex-dev` → `/mst:codex` | code, refactor, test |
+| **프론트엔드, 문서, 대용량 컨텍스트** | **`gemini-dev` → `/mst:gemini`** | **frontend, docs, large-context** |
+
+spec.md에 에이전트가 지정되어 있으면 그대로 사용합니다. 지정되지 않은 경우 `config.json`의 `workflow.default_agent`를 사용합니다.
+
+#### Step 3: Outsource Brief 작성 및 외주 실행
+
+spec.md의 내용을 기반으로 Outsource Brief(프롬프트)를 구성하여 외주합니다.
+Brief에는 반드시 다음을 포함합니다:
+- 구현할 내용 요약 (spec §1, §4)
+- 수정 대상 파일 목록 (spec §2)
+- 수락 조건 전체 (spec §3) — 에이전트가 스스로 검증할 수 있도록
+- 테스트 실행 명령어 (spec §5)
+
+호출 방법 (반드시 `Skill` 도구 사용, OMC MCP 직접 호출 금지):
+
+```
+# codex-dev인 경우
+Skill(skill: "mst:codex", args: "{outsource_brief} --dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase2-impl")
+
+# gemini-dev인 경우
+Skill(skill: "mst:gemini", args: "{outsource_brief} --files {worktree_path}/**/* --trace {REQ-ID}/{TASK-NUM}/phase2-impl")
+```
+
+#### Step 4: 실행 결과 확인 및 Phase 3 전환
+
+1. Trace 파일 경로 확인 (`.gran-maestro/requests/{REQ-ID}/tasks/{NN}/traces/`)
+2. `status.json`을 `executing` → `pre_check`로 변경
+3. 사전 검증 실행:
+   - spec §5의 테스트 명령어 실행 (Bash 진단 전용)
+   - spec §5의 타입 체크 명령어 실행 (Bash 진단 전용)
+4. 사전 검증 결과:
+   - **PASS**: `status.json`을 `review`로 변경, `request.json`의 `current_phase`를 3으로 변경, Phase 3 (PM 리뷰) 진입
+   - **FAIL**: `status.json`을 `pre_check_failed`로 변경, 실패 내용을 포함하여 동일 에이전트로 재실행 (최대 2회). 재실행 실패 시 fallback 에이전트로 전환 (`agents.json`의 `fallback` 필드 참조)
+
+#### Fallback 규칙
+
+- 최대 깊이: 1단계 (codex → gemini, gemini → codex)
+- 동일 에이전트 재시도: 최대 2회
+- fallback 에이전트 재시도: 최대 2회
+- 모두 실패 시: 사용자 개입 요청
 
 ### 최종 수락 (Phase 3 → Phase 5)
 

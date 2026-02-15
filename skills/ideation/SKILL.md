@@ -43,9 +43,10 @@ Gran Maestro 워크플로우(REQ)와 독립적으로 실행됩니다.
 
 `--focus` 옵션이 지정된 경우, 해당 분야에 집중하도록 프롬프트에 명시합니다.
 
-> **도구 사용 원칙**: 모든 외부 AI 호출은 내부 스킬(`/mst:codex`, `/mst:gemini`)을 경유합니다.
-> OMC의 MCP 도구(`mcp__*__ask_codex`, `mcp__*__ask_gemini`)나 직접 CLI 호출(`codex exec`, `gemini -p`)은 사용하지 않습니다.
-> 3개 호출을 병렬로 실행하려면 Bash `run_in_background: true`와 Task `run_in_background: true`를 사용합니다.
+> **도구 사용 원칙 (CRITICAL)**: 모든 외부 AI 호출은 반드시 `Skill` 도구를 통해 내부 스킬을 호출합니다.
+> - 올바른 호출: `Skill(skill: "mst:codex", args: "...")`, `Skill(skill: "mst:gemini", args: "...")`
+> - 금지: OMC MCP 도구(`mcp__*__ask_codex`, `mcp__*__ask_gemini`) 직접 호출, CLI 직접 호출(`codex exec`, `gemini -p`)
+> - 3개 호출을 병렬로 실행하려면 Bash `run_in_background: true`와 Task `run_in_background: true`를 사용합니다.
 
 > **토큰 절약 원칙 (Direct File Write)**:
 > 각 AI의 응답을 부모 컨텍스트로 가져온 뒤 파일에 쓰면 동일한 텍스트가 두 번 토큰으로 소비됩니다.

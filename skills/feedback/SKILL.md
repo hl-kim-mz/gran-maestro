@@ -16,11 +16,31 @@ argument-hint: "{REQ-ID} {피드백 내용}"
 2. Feedback Composer 에이전트 활성화 (`gran-maestro:feedback-composer`)
 3. 사용자 피드백을 구조화된 피드백 문서로 변환
 4. `.gran-maestro/requests/{REQ-ID}/tasks/NN/feedback-RN.md` 저장
-5. 실패 유형 분류:
-   - 구현 오류 → Phase 2 재실행
-   - 스펙 불충분 → Phase 1 보완
+5. 실패 유형 분류 및 라우팅:
+   - **구현 오류 → Phase 2 재실행** (아래 외주 재실행 프로토콜 참조)
+   - **스펙 불충분 → Phase 1 보완** (PM Conductor가 spec.md 보완 후 다시 승인 대기)
 6. 피드백 라운드 카운터 증가
 7. 최대 피드백 횟수(기본 5회) 초과 시 사용자 개입 요청
+
+### 외주 재실행 프로토콜 (구현 오류 시)
+
+피드백으로 인해 Phase 2를 재실행할 때도 **반드시 `/mst:codex` 또는 `/mst:gemini`를 통해 외주**합니다. Claude(PM)가 직접 코드를 수정하지 않습니다.
+
+1. 해당 태스크의 spec.md에서 `Assigned Agent` 확인
+2. feedback-RN.md의 피드백 내용을 포함한 수정 프롬프트 구성:
+   - 원본 spec.md의 수락 조건 (§3)
+   - 피드백 문서의 수정 요청 사항
+   - 테스트 실행 명령어 (§5) — 수정 후 에이전트가 직접 검증할 수 있도록
+3. 동일 worktree에서 외주 실행:
+   ```
+   # codex-dev인 경우
+   Skill(skill: "mst:codex", args: "{수정 프롬프트} --dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase4-fix-RN")
+
+   # gemini-dev인 경우
+   Skill(skill: "mst:gemini", args: "{수정 프롬프트} --files {worktree_path}/**/* --trace {REQ-ID}/{TASK-NUM}/phase4-fix-RN")
+   ```
+4. `request.json`의 `current_phase`를 2로, `status`를 `phase2_execution`으로 변경
+5. 실행 완료 후 사전 검증 (테스트 + 타입 체크) → Phase 3 리뷰로 전환
 
 ## 예시
 

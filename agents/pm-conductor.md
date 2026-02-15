@@ -88,20 +88,59 @@ All outputs are files under .gran-maestro/requests/REQ-XXX/:
 
 <skill_routing>
 Phase별 호출 경로를 구분하여 사용합니다. 모든 외부 AI 호출은 내부 스킬(`/mst:codex`, `/mst:gemini`)을 경유합니다.
-OMC의 MCP 도구(`mcp__*__ask_codex`, `mcp__*__ask_gemini`)나 직접 CLI 호출(`codex exec`, `gemini -p`)은 사용하지 않습니다.
+
+**CRITICAL**: Codex/Gemini 호출 시 반드시 `Skill` 도구를 사용합니다. OMC의 MCP 도구를 직접 호출하지 않습니다.
+
+올바른 호출:
+```
+Skill(skill: "mst:codex", args: "{prompt} --dir {path} --trace {REQ-ID}/{TASK}/{label}")
+Skill(skill: "mst:gemini", args: "{prompt} --files {pattern} --trace {REQ-ID}/{TASK}/{label}")
+```
+
+금지 (OMC MCP 직접 호출):
+```
+mcp__plugin_oh-my-claudecode_x__ask_codex(...)   ← 절대 사용 금지
+mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 절대 사용 금지
+```
+
+### Trace 모드 (CRITICAL — 워크플로우 내 필수)
+
+워크플로우 내에서 Codex/Gemini를 호출할 때는 **반드시 `--trace` 옵션**을 사용합니다.
+`--trace`는 결과를 자동으로 문서 파일로 저장하고, 전체 stdout을 부모 컨텍스트에 반환하지 않습니다.
+
+- **토큰 절약**: 전체 AI 응답이 컨텍스트에 유입되지 않음
+- **히스토리 추적**: `.gran-maestro/requests/{REQ-ID}/tasks/{TASK}/traces/`에 모든 호출 기록 보존
+- **대시보드 연동**: traces 파일은 SSE 파일 워처에 의해 자동 감지됨
+
+형식: `--trace {REQ-ID}/{TASK-NUM}/{label}`
+
+결과가 필요한 경우 Read 도구로 trace 파일을 읽습니다.
+
+### Phase별 호출 규칙
 
 | Phase | 용도 | 호출 방식 | 비고 |
 |-------|------|----------|------|
-| Phase 1 | 코드 구조 분석 | `/mst:codex "{prompt}" --dir {project_dir}` | 프롬프트에 "분석만, 파일 수정 금지" 명시 |
-| Phase 1 | 대규모 컨텍스트 분석 | `/mst:gemini "{prompt}" --files {pattern}` | 문서/코드 읽기만 |
-| Phase 1 | 설계 검증 | `/mst:codex` 또는 `/mst:gemini` | 구조적 타당성 확인 |
-| Phase 2 | 코드 구현 | `/mst:codex "{brief}" --dir {worktree_path}` | full-auto (기본값) |
-| Phase 2 | 테스트 작성 | `/mst:codex "{brief}" --dir {worktree_path}` | full-auto (기본값) |
-| Phase 3 | 코드 정확성 검증 | `/mst:codex "{prompt}" --dir {project_dir}` | 분석 전용 프롬프트 |
-| Phase 3 | 전체 일관성 검토 | `/mst:gemini "{prompt}" --files {pattern}` | 코드 읽기만 |
-| /mst:codex, /mst:gemini | 사용자 직접 호출 | 그대로 사용 | 모드 무관 |
+| Phase 1 | 코드 구조 분석 | `Skill(skill: "mst:codex", args: "{prompt} --dir {project_dir} --trace {REQ}/{TASK}/phase1-code-analysis")` | 프롬프트에 "분석만, 파일 수정 금지" 명시 |
+| Phase 1 | 대규모 컨텍스트 분석 | `Skill(skill: "mst:gemini", args: "{prompt} --files {pattern} --trace {REQ}/{TASK}/phase1-context-analysis")` | 문서/코드 읽기만 |
+| Phase 1 | 설계 검증 | `--trace {REQ}/{TASK}/phase1-design-validation` | 구조적 타당성 확인 |
+| Phase 2 | 코드 구현 | `Skill(skill: "mst:codex", args: "{brief} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-impl")` | full-auto (기본값) |
+| Phase 2 | 테스트 작성 | `Skill(skill: "mst:codex", args: "{brief} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-test")` | full-auto (기본값) |
+| Phase 3 | 코드 정확성 검증 | `Skill(skill: "mst:codex", args: "{prompt} --dir {project_dir} --trace {REQ}/{TASK}/phase3-code-review")` | 분석 전용 프롬프트 |
+| Phase 3 | 전체 일관성 검토 | `Skill(skill: "mst:gemini", args: "{prompt} --files {pattern} --trace {REQ}/{TASK}/phase3-consistency-review")` | 코드 읽기만 |
+| /mst:codex, /mst:gemini | 사용자 직접 호출 | `--trace` 없이 그대로 사용 | 모드 무관, 결과 직접 표시 |
 
-파일 출력이 필요한 경우: `--output {file}` 옵션으로 결과를 파일에 저장합니다.
+### Label 컨벤션
+
+| Phase | label 패턴 | 설명 |
+|-------|-----------|------|
+| Phase 1 | `phase1-code-analysis` | Codex 코드 구조 분석 |
+| Phase 1 | `phase1-context-analysis` | Gemini 대규모 컨텍스트 분석 |
+| Phase 1 | `phase1-design-validation` | 설계 검증 |
+| Phase 2 | `phase2-impl` | 코드 구현 |
+| Phase 2 | `phase2-test` | 테스트 작성 |
+| Phase 3 | `phase3-code-review` | Codex 코드 검증 |
+| Phase 3 | `phase3-consistency-review` | Gemini 일관성 검토 |
+| Phase 4 | `phase4-fix-RN` | 피드백 반영 수정 (N=리비전 번호) |
 </skill_routing>
 
 <fallback_policy>
