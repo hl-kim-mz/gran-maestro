@@ -46,6 +46,7 @@ interface SSEEvent {
   requestId?: string;
   taskId?: string;
   sessionId?: string;
+  projectId?: string;
   data: unknown;
 }
 
@@ -59,20 +60,35 @@ interface IdeationSession {
   [key: string]: unknown;
 }
 
+interface Project {
+  id: string;
+  name: string;
+  path: string;
+  registered_at: string;
+}
+
+interface Registry {
+  projects: Project[];
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const BASE_DIR = ".gran-maestro";
 const DEFAULT_PORT = 3847;
 const HOST = "127.0.0.1";
 const SSE_DEBOUNCE_MS = 100;
+const HUB_MODE = Deno.args.includes("--hub");
+const HUB_DIR = `${Deno.env.get("HOME")}/.gran-maestro-hub`;
 
 // ─── Auth Token ─────────────────────────────────────────────────────────────
 
-const dashboardToken = crypto.randomUUID();
+let AUTH_TOKEN: string = crypto.randomUUID();
+let registry: Registry = { projects: [] };
 
 // ─── Hono App ───────────────────────────────────────────────────────────────
 
 const app = new Hono();
+const projectApi = new Hono();
 
 // ─── Utility: Safe File Read ────────────────────────────────────────────────
 
@@ -127,8 +143,67 @@ async function listDirs(path: string): Promise<string[]> {
 
 // ─── Config Loader ──────────────────────────────────────────────────────────
 
-async function loadConfig(): Promise<GranMaestroConfig> {
-  return (await readJsonFile<GranMaestroConfig>(`${BASE_DIR}/config.json`)) ?? {};
+async function loadConfig(baseDir = BASE_DIR): Promise<GranMaestroConfig> {
+  return (await readJsonFile<GranMaestroConfig>(`${baseDir}/config.json`)) ?? {};
+}
+
+function stripBasePath(path: string, baseDir: string): string {
+  const normalizedBase = baseDir.endsWith("/") ? baseDir.slice(0, -1) : baseDir;
+  if (normalizedBase.startsWith("/") && path.startsWith(`${normalizedBase}/`)) {
+    return path.replace(`${normalizedBase}/`, "");
+  }
+  return path.replace(`${Deno.cwd()}/`, "");
+}
+
+async function generateProjectId(path: string): Promise<string> {
+  const data = new TextEncoder().encode(path);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  const hex = [...new Uint8Array(hash)].map((byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
+  return hex.slice(0, 6);
+}
+
+async function loadRegistry(): Promise<Registry> {
+  const loaded = await readJsonFile<Registry>(`${HUB_DIR}/registry.json`);
+  if (!loaded || !Array.isArray(loaded.projects)) {
+    return { projects: [] };
+  }
+  return {
+    projects: loaded.projects.filter((project): project is Project =>
+      typeof project?.id === "string" &&
+      typeof project?.name === "string" &&
+      typeof project?.path === "string" &&
+      typeof project?.registered_at === "string"
+    ),
+  };
+}
+
+async function saveRegistry(): Promise<boolean> {
+  return await writeJsonFile(`${HUB_DIR}/registry.json`, registry);
+}
+
+async function getOrCreateToken(): Promise<string> {
+  const tokenPath = `${HUB_DIR}/hub.token`;
+  const existing = await readTextFile(tokenPath);
+  const trimmed = existing?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+
+  const token = crypto.randomUUID();
+  await Deno.writeTextFile(tokenPath, `${token}\n`);
+  return token;
+}
+
+function resolveBaseDir(projectId?: string): string | null {
+  if (!HUB_MODE) return BASE_DIR;
+
+  if (!projectId) {
+    return registry.projects.length === 1 ? registry.projects[0]?.path ?? null : null;
+  }
+
+  return registry.projects.find((project) => project.id === projectId)?.path ?? null;
 }
 
 // ─── Auth Middleware ────────────────────────────────────────────────────────
@@ -153,24 +228,114 @@ app.use("*", async (c, next) => {
     c.req.query("token") ||
     c.req.header("Authorization")?.replace("Bearer ", "");
 
-  if (token !== dashboardToken) {
+  if (token !== AUTH_TOKEN) {
     return c.text("Unauthorized", 401);
   }
 
   await next();
 });
 
+// ─── Project Registry API (legacy-compatible + hub mode) ────────────────────
+
+app.get("/api/projects", async (c) => {
+  return c.json(registry.projects);
+});
+
+app.post("/api/projects", async (c) => {
+  if (!HUB_MODE) {
+    return c.json({ error: "Hub mode is disabled" }, 400);
+  }
+
+  let body: { name?: string; path?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  if (!body?.path || typeof body.path !== "string") {
+    return c.json({ error: "Missing required field: path" }, 400);
+  }
+
+  const projectPath = body.path.trim();
+  if (!projectPath) {
+    return c.json({ error: "Invalid path" }, 400);
+  }
+
+  const name = body.name && body.name.trim() ? body.name.trim() : projectPath;
+  let resolvedPath = projectPath;
+  try {
+    resolvedPath = await Deno.realPath(projectPath);
+  } catch {
+    return c.json({ error: "Invalid project path" }, 400);
+  }
+
+  if (!(await dirExists(resolvedPath))) {
+    return c.json({ error: "Project path not found" }, 404);
+  }
+
+  const projectId = await generateProjectId(resolvedPath);
+  const existing = registry.projects.find((project) => project.id === projectId);
+
+  if (existing) {
+    existing.name = name;
+    existing.path = resolvedPath;
+    existing.registered_at = new Date().toISOString();
+  } else {
+    registry.projects.push({
+      id: projectId,
+      name,
+      path: resolvedPath,
+      registered_at: new Date().toISOString(),
+    });
+  }
+
+  await saveRegistry();
+  return c.json({
+    id: projectId,
+    name,
+    path: resolvedPath,
+    registered_at: existing ? existing.registered_at : new Date().toISOString(),
+  });
+});
+
+app.delete("/api/projects/:projectId", async (c) => {
+  if (!HUB_MODE) {
+    return c.json({ error: "Hub mode is disabled" }, 400);
+  }
+
+  const projectId = c.req.param("projectId");
+  const previous = registry.projects.length;
+  registry.projects = registry.projects.filter((project) => project.id !== projectId);
+
+  if (registry.projects.length === previous) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  await saveRegistry();
+  return c.json({ ok: true });
+});
+
 // ─── API: Config ────────────────────────────────────────────────────────────
 
-app.get("/api/config", async (c) => {
-  const config = await loadConfig();
+projectApi.get("/config", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+  const config = await loadConfig(baseDir);
   return c.json(config);
 });
 
-app.put("/api/config", async (c) => {
+projectApi.put("/config", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
   try {
     const body = await c.req.json();
-    const success = await writeJsonFile(`${BASE_DIR}/config.json`, body);
+    const success = await writeJsonFile(`${baseDir}/config.json`, body);
     if (!success) {
       return c.json({ error: "Failed to write config" }, 500);
     }
@@ -182,8 +347,13 @@ app.put("/api/config", async (c) => {
 
 // ─── API: Mode ──────────────────────────────────────────────────────────────
 
-app.get("/api/mode", async (c) => {
-  const mode = await readJsonFile(`${BASE_DIR}/mode.json`);
+projectApi.get("/mode", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const mode = await readJsonFile(`${baseDir}/mode.json`);
   if (!mode) {
     return c.json({ active: false });
   }
@@ -192,8 +362,13 @@ app.get("/api/mode", async (c) => {
 
 // ─── API: Requests ──────────────────────────────────────────────────────────
 
-app.get("/api/requests", async (c) => {
-  const requestsDir = `${BASE_DIR}/requests`;
+projectApi.get("/requests", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const requestsDir = `${baseDir}/requests`;
   if (!(await dirExists(requestsDir))) {
     return c.json([]);
   }
@@ -213,10 +388,15 @@ app.get("/api/requests", async (c) => {
   return c.json(requests);
 });
 
-app.get("/api/requests/:id", async (c) => {
+projectApi.get("/requests/:id", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
   const id = c.req.param("id");
   const reqJson = await readJsonFile<RequestMeta>(
-    `${BASE_DIR}/requests/${id}/request.json`
+    `${baseDir}/requests/${id}/request.json`
   );
   if (!reqJson) {
     return c.json({ error: "Request not found" }, 404);
@@ -226,9 +406,14 @@ app.get("/api/requests/:id", async (c) => {
 
 // ─── API: Tasks ─────────────────────────────────────────────────────────────
 
-app.get("/api/requests/:id/tasks", async (c) => {
+projectApi.get("/requests/:id/tasks", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
   const id = c.req.param("id");
-  const tasksDir = `${BASE_DIR}/requests/${id}/tasks`;
+  const tasksDir = `${baseDir}/requests/${id}/tasks`;
   if (!(await dirExists(tasksDir))) {
     return c.json([]);
   }
@@ -250,10 +435,15 @@ app.get("/api/requests/:id/tasks", async (c) => {
   return c.json(tasks);
 });
 
-app.get("/api/requests/:id/tasks/:taskId", async (c) => {
+projectApi.get("/requests/:id/tasks/:taskId", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
   const id = c.req.param("id");
   const taskId = c.req.param("taskId");
-  const taskDir = `${BASE_DIR}/requests/${id}/tasks/${taskId}`;
+  const taskDir = `${baseDir}/requests/${id}/tasks/${taskId}`;
 
   const status = await readJsonFile<TaskMeta>(`${taskDir}/status.json`);
   const spec = await readTextFile(`${taskDir}/spec.md`);
@@ -291,10 +481,15 @@ app.get("/api/requests/:id/tasks/:taskId", async (c) => {
 
 // ─── API: Task Traces ──────────────────────────────────────────────────────
 
-app.get("/api/requests/:id/tasks/:taskId/traces", async (c) => {
+projectApi.get("/requests/:id/tasks/:taskId/traces", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
   const id = c.req.param("id");
   const taskId = c.req.param("taskId");
-  const tracesDir = `${BASE_DIR}/requests/${id}/tasks/${taskId}/traces`;
+  const tracesDir = `${baseDir}/requests/${id}/tasks/${taskId}/traces`;
 
   if (!(await dirExists(tracesDir))) {
     return c.json([]);
@@ -331,7 +526,12 @@ app.get("/api/requests/:id/tasks/:taskId/traces", async (c) => {
   return c.json(traceFiles);
 });
 
-app.get("/api/requests/:id/tasks/:taskId/traces/:traceFile", async (c) => {
+projectApi.get("/requests/:id/tasks/:taskId/traces/:traceFile", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
   const id = c.req.param("id");
   const taskId = c.req.param("taskId");
   const traceFile = c.req.param("traceFile");
@@ -342,7 +542,7 @@ app.get("/api/requests/:id/tasks/:taskId/traces/:traceFile", async (c) => {
   }
 
   const content = await readTextFile(
-    `${BASE_DIR}/requests/${id}/tasks/${taskId}/traces/${traceFile}`
+    `${baseDir}/requests/${id}/tasks/${taskId}/traces/${traceFile}`
   );
   if (content === null) {
     return c.json({ error: "Trace file not found" }, 404);
@@ -353,8 +553,13 @@ app.get("/api/requests/:id/tasks/:taskId/traces/:traceFile", async (c) => {
 
 // ─── API: Ideation Sessions ─────────────────────────────────────────────────
 
-app.get("/api/ideation", async (c) => {
-  const ideationDir = `${BASE_DIR}/ideation`;
+projectApi.get("/ideation", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const ideationDir = `${baseDir}/ideation`;
   if (!(await dirExists(ideationDir))) {
     return c.json([]);
   }
@@ -374,9 +579,14 @@ app.get("/api/ideation", async (c) => {
   return c.json(sessions);
 });
 
-app.get("/api/ideation/:id", async (c) => {
+projectApi.get("/ideation/:id", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
   const id = c.req.param("id");
-  const sessionDir = `${BASE_DIR}/ideation/${id}`;
+  const sessionDir = `${baseDir}/ideation/${id}`;
 
   const session = await readJsonFile<IdeationSession>(
     `${sessionDir}/session.json`
@@ -405,12 +615,17 @@ app.get("/api/ideation/:id", async (c) => {
 
 // ─── API: Directory Tree (for Document Browser) ─────────────────────────────
 
-app.get("/api/tree", async (c) => {
+projectApi.get("/tree", async (c) => {
   interface TreeNode {
     name: string;
     path: string;
     type: "file" | "directory";
     children?: TreeNode[];
+  }
+
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
   }
 
   async function buildTree(dir: string, depth = 0): Promise<TreeNode[]> {
@@ -419,7 +634,7 @@ app.get("/api/tree", async (c) => {
     try {
       for await (const entry of Deno.readDir(dir)) {
         const fullPath = `${dir}/${entry.name}`;
-        const relativePath = fullPath.replace(`${BASE_DIR}/`, "");
+        const relativePath = stripBasePath(fullPath, baseDir!);
         if (entry.isDirectory) {
           const children = await buildTree(fullPath, depth + 1);
           nodes.push({
@@ -445,18 +660,23 @@ app.get("/api/tree", async (c) => {
     });
   }
 
-  const tree = await buildTree(BASE_DIR);
+  const tree = await buildTree(baseDir);
   return c.json(tree);
 });
 
-app.get("/api/file", async (c) => {
+projectApi.get("/file", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
   const filePath = c.req.query("path");
   if (!filePath) {
     return c.json({ error: "Missing path query parameter" }, 400);
   }
 
   // Prevent directory traversal
-  const fullPath = `${BASE_DIR}/${filePath}`;
+  const fullPath = `${baseDir}/${filePath}`;
   if (fullPath.includes("..")) {
     return c.json({ error: "Invalid path" }, 400);
   }
@@ -468,6 +688,9 @@ app.get("/api/file", async (c) => {
 
   return c.json({ path: filePath, content });
 });
+
+app.route("/api/projects/:projectId", projectApi);
+app.route("/api", projectApi);
 
 // ─── SSE: Real-time Event Stream ────────────────────────────────────────────
 
@@ -496,42 +719,86 @@ app.get("/events", async (c) => {
       }, 30000);
 
       // Watch .gran-maestro/ for changes
-      let debounceTimer: number | undefined;
-      let watcher: Deno.FsWatcher | null = null;
+      interface EventWatcherState {
+        watcher: Deno.FsWatcher;
+        debounceTimer: number | undefined;
+        pendingPaths: string[];
+        baseDir: string;
+        projectId?: string;
+      }
 
-      (async () => {
-        try {
-          watcher = Deno.watchFs(BASE_DIR, { recursive: true });
-          for await (const event of watcher) {
-            // Debounce
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-              const paths = event.paths;
-              for (const p of paths) {
-                const relPath = p.replace(Deno.cwd() + "/", "");
-                const sseEvent = classifyFsEvent(relPath, event.kind);
-                if (sseEvent) {
-                  send(sseEvent);
-                }
-              }
-            }, SSE_DEBOUNCE_MS);
-          }
-        } catch {
-          // watcher closed or directory doesn't exist
+      const watchers = new Map<string, EventWatcherState>();
+
+      function addWatcher(baseDir: string, projectId?: string) {
+        const watcherKey = projectId ?? "legacy";
+        if (watchers.has(watcherKey)) {
+          return;
         }
-      })();
+
+        try {
+          const watcher = Deno.watchFs(baseDir, { recursive: true });
+          const state: EventWatcherState = {
+            watcher,
+            debounceTimer: undefined,
+            pendingPaths: [],
+            baseDir,
+            projectId,
+          };
+          watchers.set(watcherKey, state);
+
+          void (async () => {
+            try {
+              for await (const event of watcher) {
+                if (state.debounceTimer) {
+                  clearTimeout(state.debounceTimer);
+                }
+                state.pendingPaths.push(...event.paths);
+                state.debounceTimer = setTimeout(() => {
+                  const paths = state.pendingPaths.splice(0);
+                  for (const p of paths) {
+                    const relPath = stripBasePath(p, state.baseDir);
+                    const sseEvent = classifyFsEvent(
+                      relPath,
+                      event.kind,
+                      state.projectId
+                    );
+                    if (sseEvent) {
+                      send(sseEvent);
+                    }
+                  }
+                }, SSE_DEBOUNCE_MS);
+              }
+            } catch {
+              // watcher closed or directory doesn't exist
+            }
+          })();
+        } catch {
+          // cannot watch project
+        }
+      }
+
+      if (HUB_MODE) {
+        for (const project of registry.projects) {
+          addWatcher(project.path, project.id);
+        }
+      } else {
+        addWatcher(BASE_DIR);
+      }
 
       // Cleanup when client disconnects
       c.req.raw.signal.addEventListener("abort", () => {
         clearInterval(heartbeatInterval);
-        if (debounceTimer) clearTimeout(debounceTimer);
-        if (watcher) {
+        for (const state of watchers.values()) {
+          if (state.debounceTimer) {
+            clearTimeout(state.debounceTimer);
+          }
           try {
-            watcher.close();
+            state.watcher.close();
           } catch {
             // already closed
           }
         }
+        watchers.clear();
         try {
           controller.close();
         } catch {
@@ -554,7 +821,8 @@ app.get("/events", async (c) => {
 /** Classify a filesystem change into an SSE event type. */
 function classifyFsEvent(
   path: string,
-  kind: string
+  kind: string,
+  projectId?: string
 ): SSEEvent | null {
   // Pattern: .gran-maestro/requests/REQ-XXX/tasks/NN/traces/...
   // (must be checked before generic task_update to avoid being swallowed)
@@ -564,6 +832,7 @@ function classifyFsEvent(
   if (traceMatch) {
     return {
       type: "trace_update",
+      projectId,
       requestId: traceMatch[1],
       taskId: traceMatch[2],
       data: { path, kind, traceFile: traceMatch[3], timestamp: new Date().toISOString() },
@@ -577,6 +846,7 @@ function classifyFsEvent(
   if (taskMatch) {
     return {
       type: "task_update",
+      projectId,
       requestId: taskMatch[1],
       taskId: taskMatch[2],
       data: { path, kind, timestamp: new Date().toISOString() },
@@ -588,6 +858,7 @@ function classifyFsEvent(
   if (reqMatch) {
     return {
       type: "request_update",
+      projectId,
       requestId: reqMatch[1],
       data: { path, kind, timestamp: new Date().toISOString() },
     };
@@ -597,6 +868,7 @@ function classifyFsEvent(
   if (path.includes("config.json")) {
     return {
       type: "config_change",
+      projectId,
       data: { path, kind, timestamp: new Date().toISOString() },
     };
   }
@@ -605,6 +877,7 @@ function classifyFsEvent(
   if (path.includes("mode.json")) {
     return {
       type: "phase_change",
+      projectId,
       data: { path, kind, timestamp: new Date().toISOString() },
     };
   }
@@ -614,6 +887,7 @@ function classifyFsEvent(
   if (ideationMatch) {
     return {
       type: "ideation_update",
+      projectId,
       sessionId: ideationMatch[1],
       data: { path, kind, timestamp: new Date().toISOString() },
     };
@@ -623,6 +897,7 @@ function classifyFsEvent(
   if (path.includes("exec-log") || path.includes("activity")) {
     return {
       type: "agent_activity",
+      projectId,
       data: { path, kind, timestamp: new Date().toISOString() },
     };
   }
@@ -1446,6 +1721,9 @@ nav button.active {
 <div id="app">
   <header>
     <h1>Gran Maestro</h1>
+    <div id="project-selector" style="display:none;margin:0 12px">
+      <select id="project-select" onchange="switchProject(this.value)" style="background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;cursor:pointer"></select>
+    </div>
     <div class="status">
       <span id="connection-status">Connecting...</span>
       <div class="dot" id="connection-dot"></div>
@@ -1478,7 +1756,11 @@ nav button.active {
 <script>
 // ─── State ──────────────────────────────────────────────────────────────────
 const TOKEN = '${token}';
-const API_BASE = '';
+let currentProjectId = new URLSearchParams(window.location.search).get('project') || '';
+let projects = [];
+function getApiBase() {
+  return currentProjectId ? '/api/projects/' + encodeURIComponent(currentProjectId) : '';
+}
 let currentView = 'workflow';
 let requests = [];
 let agentActivities = [];
@@ -1505,7 +1787,7 @@ function apiHeaders() {
 }
 
 async function apiFetch(path, options = {}) {
-  const url = API_BASE + path + (path.includes('?') ? '&' : '?') + 'token=' + TOKEN;
+  const url = getApiBase() + path + (path.includes('?') ? '&' : '?') + 'token=' + TOKEN;
   const res = await fetch(url, { ...options, headers: { ...apiHeaders(), ...(options.headers || {}) } });
   if (!res.ok) throw new Error('API error: ' + res.status);
   return res.json();
@@ -2213,8 +2495,38 @@ function renderCurrentView() {
   updateApprovalBanner();
 }
 
+// ─── Project Selector ───────────────────────────────────────────────────────
+async function loadProjects() {
+  try {
+    const res = await fetch('/api/projects?token=' + TOKEN, { headers: apiHeaders() });
+    if (res.ok) {
+      projects = await res.json();
+      const selector = document.getElementById('project-selector');
+      const select = document.getElementById('project-select');
+      if (projects.length > 0 && selector && select) {
+        selector.style.display = '';
+        select.innerHTML = projects.map(p =>
+          '<option value="' + p.id + '"' + (p.id === currentProjectId ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>'
+        ).join('');
+        if (!currentProjectId && projects.length > 0) {
+          currentProjectId = projects[0].id;
+        }
+      }
+    }
+  } catch { /* not in hub mode or no projects */ }
+}
+
+function switchProject(projectId) {
+  currentProjectId = projectId;
+  const url = new URL(window.location);
+  url.searchParams.set('project', projectId);
+  window.history.replaceState({}, '', url);
+  loadData();
+}
+
 // ─── Data Loading ───────────────────────────────────────────────────────────
 async function loadData() {
+  await loadProjects();
   try {
     // Load requests and their tasks
     requests = await apiFetch('/api/requests');
@@ -2272,6 +2584,9 @@ function connectSSE() {
   es.onmessage = (e) => {
     try {
       const event = JSON.parse(e.data);
+
+      // Filter by current project in hub mode
+      if (currentProjectId && event.projectId && event.projectId !== currentProjectId) return;
 
       // Track agent activities
       if (event.type === 'agent_activity' || event.type === 'task_update' || event.type === 'request_update') {
@@ -2360,7 +2675,7 @@ setInterval(loadData, 10000);
 // ─── Root Route: Serve SPA ──────────────────────────────────────────────────
 
 app.get("/", (c) => {
-  return c.html(renderSPA(dashboardToken));
+  return c.html(renderSPA(AUTH_TOKEN));
 });
 
 // ─── Favicon (empty, avoids 401) ────────────────────────────────────────────
@@ -2399,15 +2714,49 @@ const BANNER = `
 `;
 
 async function main() {
+  if (HUB_MODE) {
+    await Deno.mkdir(HUB_DIR, { recursive: true });
+    registry = await loadRegistry();
+    AUTH_TOKEN = await getOrCreateToken();
+    const hubPidPath = `${HUB_DIR}/hub.pid`;
+    await Deno.writeTextFile(hubPidPath, `${Deno.pid}`);
+
+    const removeHubPid = async () => {
+      try {
+        await Deno.remove(hubPidPath);
+      } catch {
+        // ignore
+      }
+    };
+
+    const shutdown = async () => {
+      await removeHubPid();
+      Deno.exit(0);
+    };
+
+    Deno.addSignalListener("SIGINT", () => {
+      void shutdown();
+    });
+    Deno.addSignalListener("SIGTERM", () => {
+      void shutdown();
+    });
+  }
+
   const config = await loadConfig();
   const port = config.dashboard_port ?? DEFAULT_PORT;
 
   console.log(BANNER);
-  console.log(`  Dashboard: http://localhost:${port}?token=${dashboardToken}`);
+  console.log(`  Dashboard: http://localhost:${port}?token=${AUTH_TOKEN}`);
   console.log(`  Host:      ${HOST}`);
   console.log(`  Port:      ${port}`);
   console.log(`  Auth:      ${config.dashboard_auth === false ? "disabled" : "enabled"}`);
-  console.log(`  Watching:  ./${BASE_DIR}/`);
+  if (HUB_MODE) {
+    console.log(`  Hub mode:  enabled`);
+    console.log(`  Hub dir:   ${HUB_DIR}`);
+    console.log(`  Projects:  ${registry.projects.length}`);
+  } else {
+    console.log(`  Watching:  ./${BASE_DIR}/`);
+  }
   console.log("");
 
   // Ensure base directory exists
