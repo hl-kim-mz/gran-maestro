@@ -41,8 +41,9 @@ Maestro 오케스트레이션 스킬이 활성화됩니다.
    ```
 6. `.gran-maestro/requests/` 디렉토리 존재 확인, 없으면 생성
 7. `.gran-maestro/worktrees/` 디렉토리 존재 확인, 없으면 생성
-8. MCP 가드 hook 설정:
+8. 스크립트 설치:
    - 플러그인 루트의 `scripts/maestro-guard.sh`를 `~/.claude/scripts/maestro-guard.sh`에 복사 (이미 존재하면 덮어쓰기)
+   - 플러그인 루트의 `scripts/maestro-status.sh`를 `~/.claude/scripts/maestro-status.sh`에 복사 (이미 존재하면 덮어쓰기)
    - `~/.claude/settings.json`의 `hooks.PreToolUse` 배열에 아래 3개 항목이 없으면 추가:
      ```json
      { "matcher": "mcp__plugin_oh-my-claudecode_x__ask_codex", "hooks": [{ "type": "command", "command": "~/.claude/scripts/maestro-guard.sh" }] },
@@ -64,6 +65,24 @@ Gran Maestro 모드 활성화
 
 OMC 오케스트레이션 스킬이 비활성화되었습니다.
 /mst:start 로 새 요청을 시작하세요.
+```
+
+## 쉘에서 상태 확인
+
+`~/.claude/scripts/maestro-status.sh`가 함께 설치됩니다.
+
+```bash
+# 간단 조회
+~/.claude/scripts/maestro-status.sh        # "on (requests: 2)" 또는 "off"
+
+# JSON 전체 출력
+~/.claude/scripts/maestro-status.sh --json
+
+# exit code만 (스크립팅용)
+~/.claude/scripts/maestro-status.sh -q && echo "active" || echo "inactive"
+
+# 특정 필드 조회
+~/.claude/scripts/maestro-status.sh --field active_requests
 ```
 
 ## 부트스트래핑 참조
