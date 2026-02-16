@@ -914,9 +914,36 @@ function renderSPA(token: string): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gran Maestro Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ─── CSS Variables ─────────────────────────────────────────── */
 :root {
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --text-primary: #212529;
+  --text-secondary: #495057;
+  --text-muted: #6c757d;
+  --accent: #007bff;
+  --accent-hover: #0056b3;
+  --blue: #007bff;
+  --blue-light: #e7f1ff;
+  --green: #28a745;
+  --green-dark: #1e7e34;
+  --red: #dc3545;
+  --yellow: #ffc107;
+  --gray: #6c757d;
+  --border: #dee2e6;
+  --radius: 8px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+[data-theme="dark"] {
   --bg-primary: #1a1a2e;
   --bg-secondary: #16213e;
   --bg-card: #0f3460;
@@ -924,20 +951,17 @@ function renderSPA(token: string): string {
   --text-primary: #e0e0e0;
   --text-secondary: #a0a0b0;
   --text-muted: #6a6a7a;
-  --accent: #e94560;
-  --accent-hover: #ff6b81;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
   --blue: #0f3460;
   --blue-light: #1a4a80;
   --green: #4ecca3;
   --green-dark: #2d8a6e;
-  --red: #e94560;
+  --red: #f87171;
   --yellow: #f0c040;
   --gray: #6a6a7a;
   --border: #2a2a4e;
-  --radius: 8px;
   --shadow: 0 2px 8px rgba(0,0,0,0.3);
-  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
 
 /* ─── Reset & Base ──────────────────────────────────────────── */
@@ -948,6 +972,7 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
+  transition: background-color 0.3s, color 0.3s;
 }
 
 /* ─── Layout ────────────────────────────────────────────────── */
@@ -970,7 +995,12 @@ header h1 {
   font-size: 18px;
   font-weight: 700;
   color: var(--accent);
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 header .status {
   display: flex;
@@ -987,6 +1017,28 @@ header .status .dot {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 header .status .dot.disconnected { background: var(--red); animation: none; }
+
+.theme-toggle {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s;
+}
+.theme-toggle:hover {
+  border-color: var(--accent);
+  background: var(--blue-light);
+}
+[data-theme="dark"] .theme-toggle:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
 main {
   overflow-y: auto;
   padding: 16px 20px;
@@ -1038,6 +1090,21 @@ nav button.active {
   margin-bottom: 12px;
 }
 
+/* ─── Progress Bar ─────────────────────────────────────────── */
+.progress-container {
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  margin: 12px 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.progress-fill {
+  height: 100%;
+  background: var(--green);
+  transition: width 0.5s ease-out;
+}
+
 /* ─── Workflow: Phase Nodes ─────────────────────────────────── */
 .phase-row {
   display: flex;
@@ -1068,7 +1135,7 @@ nav button.active {
 .phase-node.active {
   border-color: var(--accent);
   color: var(--accent);
-  background: rgba(233, 69, 96, 0.1);
+  background: rgba(59, 130, 246, 0.1);
   animation: pulse-phase 2s ease-in-out infinite;
 }
 .phase-node.waiting {
@@ -1081,8 +1148,8 @@ nav button.active {
   margin: 0 2px;
 }
 @keyframes pulse-phase {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(233, 69, 96, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
 }
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
@@ -1093,20 +1160,27 @@ nav button.active {
 .task-list { margin-top: 8px; }
 .task-item {
   display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(42, 42, 78, 0.1);
+  cursor: pointer;
+}
+[data-theme="dark"] .task-item { border-bottom-color: rgba(42, 42, 78, 0.5); }
+.task-item:last-child { border-bottom: none; }
+.task-main {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 0;
   font-size: 13px;
-  border-bottom: 1px solid rgba(42, 42, 78, 0.5);
 }
-.task-item:last-child { border-bottom: none; }
+.task-item:hover .task-name { color: var(--accent); }
 .task-icon { font-size: 14px; flex-shrink: 0; }
 .task-icon.executing { color: var(--green); animation: pulse-dot 1s ease-in-out infinite; }
 .task-icon.pending { color: var(--gray); }
 .task-icon.completed { color: var(--green); }
 .task-icon.failed { color: var(--red); }
 .task-icon.cancelled { color: var(--gray); text-decoration: line-through; }
-.task-name { flex: 1; }
+.task-name { flex: 1; transition: color 0.2s; }
 .task-agent {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -1115,6 +1189,100 @@ nav button.active {
   padding: 2px 6px;
   border-radius: 4px;
 }
+.task-detail {
+  margin-top: 8px;
+  margin-left: 22px;
+  padding: 10px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  display: none;
+}
+.task-item.expanded .task-detail {
+  display: block;
+}
+.task-detail-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+.task-detail-tabs button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+}
+.task-detail-tabs button.active {
+  background: var(--accent);
+  color: white;
+}
+.task-detail-content {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+.trace-item {
+  display: block;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 4px 0;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.trace-item:last-child { border-bottom: none; }
+.trace-item:hover { text-decoration: underline; }
+
+/* ─── Search Bar ────────────────────────────────────────────── */
+.search-container {
+  padding: 10px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.search-input-wrapper {
+  position: relative;
+  flex: 1;
+  max-width: 500px;
+}
+.search-input {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  transition: all 0.2s;
+}
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+[data-theme="dark"] .search-input:focus {
+  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.2);
+}
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
 .blocked-badge {
   display: inline-block;
   font-size: 11px;
@@ -1721,13 +1889,18 @@ nav button.active {
 <div id="app">
   <header>
     <h1>Gran Maestro</h1>
-    <div id="project-selector" style="display:none;margin:0 12px">
-      <select id="project-select" onchange="switchProject(this.value)" style="background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;cursor:pointer"></select>
-    </div>
-    <div class="status">
-      <span id="connection-status">Connecting...</span>
-      <div class="dot" id="connection-dot"></div>
-      <span class="notif-bell" onclick="toggleNotifPanel()" id="notif-bell">&#128276;<span class="notif-badge" id="notif-badge" style="display:none">0</span></span>
+    <div class="header-actions">
+      <div id="project-selector" style="display:none">
+        <select id="project-select" onchange="switchProject(this.value)" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:13px;cursor:pointer"></select>
+      </div>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme (T)">
+        &#9728;
+      </button>
+      <div class="status">
+        <span id="connection-status">Connecting...</span>
+        <div class="dot" id="connection-dot"></div>
+        <span class="notif-bell" onclick="toggleNotifPanel()" id="notif-bell">&#128276;<span class="notif-badge" id="notif-badge" style="display:none">0</span></span>
+      </div>
     </div>
   </header>
   <div class="notif-panel" id="notif-panel" style="display:none">
@@ -1738,14 +1911,25 @@ nav button.active {
     <div class="notif-list" id="notif-list"></div>
   </div>
   <nav>
-    <button class="active" data-view="workflow" onclick="switchView('workflow')">Workflow</button>
-    <button data-view="agents" onclick="switchView('agents')">Agents</button>
-    <button data-view="documents" onclick="switchView('documents')">Documents</button>
-    <button data-view="log" onclick="switchView('log')">Log</button>
-    <button data-view="ideation" onclick="switchView('ideation')">Ideation</button>
-    <button data-view="dependencies" onclick="switchView('dependencies')">Dependencies</button>
-    <button data-view="settings" onclick="switchView('settings')">Settings</button>
+    <button class="active" data-view="workflow" onclick="switchView('workflow')">Workflow (1)</button>
+    <button data-view="agents" onclick="switchView('agents')">Agents (2)</button>
+    <button data-view="documents" onclick="switchView('documents')">Docs (3)</button>
+    <button data-view="log" onclick="switchView('log')">Log (4)</button>
+    <button data-view="ideation" onclick="switchView('ideation')">Idea (5)</button>
+    <button data-view="dependencies" onclick="switchView('dependencies')">Deps (6)</button>
+    <button data-view="settings" onclick="switchView('settings')">Set (7)</button>
   </nav>
+  <div class="search-container" id="search-container">
+    <div class="search-input-wrapper">
+      <span class="search-icon">&#128269;</span>
+      <input type="text" id="workflow-search" class="search-input" placeholder="Search requests... (S)" oninput="filterWorkflow()">
+    </div>
+    <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 10px;">
+      <span><b>1-7</b> Views</span>
+      <span><b>T</b> Theme</span>
+      <span><b>S</b> Search</span>
+    </div>
+  </div>
   <div class="approval-banner" id="approval-banner" style="display:none">
     <span class="approval-icon">&#9888;</span>
     <span id="approval-msg">Approval needed</span>
@@ -1758,6 +1942,16 @@ nav button.active {
 const TOKEN = '${token}';
 let currentProjectId = new URLSearchParams(window.location.search).get('project') || '';
 let projects = [];
+let theme = localStorage.getItem('gm-theme') || 'light';
+document.documentElement.setAttribute('data-theme', theme);
+
+function toggleTheme() {
+  theme = theme === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('gm-theme', theme);
+  document.getElementById('theme-toggle').innerHTML = theme === 'light' ? '&#9728;' : '&#9789;';
+}
+
 function getApiBase() {
   return currentProjectId ? '/api/projects/' + encodeURIComponent(currentProjectId) : '';
 }
@@ -1780,6 +1974,30 @@ let ideationActiveSession = null;
 let openDirs = new Set();
 let treeInitialized = false;
 let prevTreeJson = '';
+
+// ─── Keyboard Shortcuts ─────────────────────────────────────────────────────
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  
+  const key = e.key.toLowerCase();
+  if (key >= '1' && key <= '7') {
+    const views = ['workflow', 'agents', 'documents', 'log', 'ideation', 'dependencies', 'settings'];
+    switchView(views[parseInt(key) - 1]);
+  } else if (key === 't') {
+    toggleTheme();
+  } else if (key === 's') {
+    e.preventDefault();
+    document.getElementById('workflow-search')?.focus();
+  }
+});
+
+function filterWorkflow() {
+  const query = (document.getElementById('workflow-search')?.value || '').toLowerCase();
+  document.querySelectorAll('.request-card').forEach(el => {
+    const text = el.textContent.toLowerCase();
+    el.style.display = text.includes(query) ? '' : 'none';
+  });
+}
 
 // ─── API Helpers ────────────────────────────────────────────────────────────
 function apiHeaders() {
@@ -1877,10 +2095,15 @@ function renderWorkflow() {
       'Check that the .gran-maestro/requests/ directory exists.</p></div>';
   }
 
-  return requests.map(req => {
+  // Sort requests descending by ID
+  const sortedRequests = [...requests].sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+
+  return sortedRequests.map(req => {
     const phases = [1, 2, 3, 4, 5];
     const activePhase = req.current_phase || req.phase || 1;
     const reqStatus = req.status || 'unknown';
+    const isCompleted = ['completed','done','success'].includes(reqStatus.toLowerCase());
+    
     const phaseNodes = phases.map((p, i) => {
       const cls = phaseClass(p, activePhase, reqStatus);
       const node = '<div class="phase-node ' + cls + '">Phase ' + p + '</div>';
@@ -1892,27 +2115,99 @@ function renderWorkflow() {
       ? '<span class="blocked-badge">blocked by: ' + req.blockedBy.join(', ') + '</span>'
       : '';
 
-    const isCompleted = ['completed','done','success'].includes(reqStatus.toLowerCase());
     const completedBadge = isCompleted
       ? '<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(78,204,163,0.15);color:var(--green);margin-left:8px">COMPLETED</span>'
       : '';
 
+    // Calculate progress
+    const progress = isCompleted ? 100 : Math.round(((activePhase - 1) / 5) * 100);
+
     const tasksHtml = (req._tasks || []).map(t => {
-      return '<div class="task-item">' +
-        taskStatusIcon(t.status) +
-        '<span class="task-name">' + escapeHtml(t.id) + '</span>' +
-        (t.agent ? '<span class="task-agent">' + escapeHtml(t.agent) + '</span>' : '') +
+      return '<div class="task-item" onclick="toggleTaskDetail(event, this, \'' + escapeHtml(req.id) + '\', \'' + escapeHtml(t.id) + '\')">' +
+        '<div class="task-main">' +
+          taskStatusIcon(t.status) +
+          '<span class="task-name">' + escapeHtml(t.id) + '</span>' +
+          (t.agent ? '<span class="task-agent">' + escapeHtml(t.agent) + '</span>' : '') +
+        '</div>' +
+        '<div class="task-detail"></div>' +
         '</div>';
     }).join('');
 
-    return '<div class="card" style="' + (isCompleted ? 'opacity:0.75;border-color:var(--green)' : '') + '">' +
+    return '<div class="card request-card" style="' + (isCompleted ? 'opacity:0.85;border-color:var(--green)' : '') + '">' +
       '<div class="card-title">' + escapeHtml(req.id) + ': ' + escapeHtml(req.title || 'Untitled') + completedBadge + blockedBadge + '</div>' +
       '<div class="card-subtitle">Status: ' + escapeHtml(reqStatus) +
       ' | Phase: ' + activePhase + (req.completed_at ? ' | Completed: ' + new Date(req.completed_at).toLocaleString() : '') + '</div>' +
+      '<div class="progress-container"><div class="progress-fill" style="width:' + progress + '%"></div></div>' +
       '<div class="phase-row">' + phaseNodes + '</div>' +
       (tasksHtml ? '<div class="task-list">' + tasksHtml + '</div>' : '') +
       '</div>';
   }).join('');
+}
+
+async function toggleTaskDetail(event, el, reqId, taskId) {
+  event.stopPropagation();
+  const isExpanding = !el.classList.contains('expanded');
+  el.classList.toggle('expanded');
+  
+  if (isExpanding) {
+    const detailEl = el.querySelector('.task-detail');
+    detailEl.innerHTML = '<div style="padding:10px;text-align:center">Loading task details...</div>';
+    
+    try {
+      const data = await apiFetch('/api/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId));
+      
+      const renderContent = (tab) => {
+        const contentEl = el.querySelector('.task-detail-content');
+        if (tab === 'spec') {
+          contentEl.innerHTML = renderMarkdown(data.spec || 'No spec available');
+        } else if (tab === 'review') {
+          contentEl.innerHTML = renderMarkdown(data.review || 'No review yet');
+        } else if (tab === 'traces') {
+          if (!data.traces || data.traces.length === 0) {
+            contentEl.innerHTML = '<div style="color:var(--text-muted);padding:8px">No traces found</div>';
+          } else {
+            contentEl.innerHTML = data.traces.map(t => 
+              '<div class="trace-item" onclick="loadTrace(event, \'' + reqId + '\', \'' + taskId + '\', \'' + t + '\', this.parentElement)">' + escapeHtml(t) + '</div>'
+            ).join('');
+          }
+        }
+        
+        // Update active tab
+        el.querySelectorAll('.task-detail-tabs button').forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+        });
+      };
+
+      detailEl.innerHTML = 
+        '<div class="task-detail-tabs">' +
+          '<button class="active" data-tab="spec" onclick="event.stopPropagation(); this.closest(\'.task-item\').renderTaskContent(\'spec\')">Spec</button>' +
+          '<button data-tab="review" onclick="event.stopPropagation(); this.closest(\'.task-item\').renderTaskContent(\'review\')">Review</button>' +
+          '<button data-tab="traces" onclick="event.stopPropagation(); this.closest(\'.task-item\').renderTaskContent(\'traces\')">Traces</button>' +
+        '</div>' +
+        '<div class="task-detail-content"></div>';
+      
+      // Attach renderer to element for tab switching
+      el.renderTaskContent = (tab) => {
+        renderContent(tab);
+      };
+      
+      renderContent('spec');
+    } catch (e) {
+      detailEl.innerHTML = '<div style="color:var(--red);padding:10px">Error loading task details: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+}
+
+async function loadTrace(event, reqId, taskId, traceName, container) {
+  event.stopPropagation();
+  container.innerHTML = '<div style="padding:10px;text-align:center">Loading trace...</div>';
+  try {
+    const data = await apiFetch('/api/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId) + '/traces/' + encodeURIComponent(traceName));
+    container.innerHTML = '<button class="ideation-back" style="margin-bottom:8px;padding:2px 8px;font-size:11px" onclick="event.stopPropagation(); this.closest(\'.task-item\').renderTaskContent(\'traces\')">&larr; Back to traces</button>' +
+      '<div class="doc-content" style="background:transparent;border:none;padding:0">' + renderMarkdown(data.content) + '</div>';
+  } catch (e) {
+    container.innerHTML = '<div style="color:var(--red);padding:10px">Error loading trace: ' + escapeHtml(e.message) + '</div>';
+  }
 }
 
 function renderAgents() {
@@ -2478,6 +2773,13 @@ function switchView(view) {
   document.querySelectorAll('nav button').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-view') === view);
   });
+  
+  // Toggle search bar visibility
+  const searchBar = document.getElementById('search-container');
+  if (searchBar) {
+    searchBar.style.display = (view === 'workflow') ? 'flex' : 'none';
+  }
+
   renderCurrentView();
 }
 
@@ -2663,6 +2965,10 @@ function connectSSE() {
 }
 
 // ─── Init ───────────────────────────────────────────────────────────────────
+document.getElementById('theme-toggle').innerHTML = theme === 'light' ? '&#9728;' : '&#9789;';
+const searchBar = document.getElementById('search-container');
+if (searchBar) searchBar.style.display = (currentView === 'workflow') ? 'flex' : 'none';
+
 loadData();
 connectSSE();
 // Periodic refresh every 10s as fallback
