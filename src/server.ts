@@ -447,8 +447,24 @@ projectApi.get("/requests/:id/tasks/:taskId", async (c) => {
 
   const status = await readJsonFile<TaskMeta>(`${taskDir}/status.json`);
   const spec = await readTextFile(`${taskDir}/spec.md`);
-  const review = await readTextFile(`${taskDir}/review.md`);
   const feedback = await readTextFile(`${taskDir}/feedback.md`);
+
+  // Find review: try review.md first, then latest review-*.md
+  let review = await readTextFile(`${taskDir}/review.md`);
+  if (!review) {
+    const reviewFiles: string[] = [];
+    try {
+      for await (const entry of Deno.readDir(taskDir)) {
+        if (entry.isFile && entry.name.startsWith("review-") && entry.name.endsWith(".md")) {
+          reviewFiles.push(entry.name);
+        }
+      }
+    } catch { /* ignore */ }
+    reviewFiles.sort();
+    if (reviewFiles.length > 0) {
+      review = await readTextFile(`${taskDir}/${reviewFiles[reviewFiles.length - 1]}`);
+    }
+  }
 
   // Collect trace files
   const tracesDir = `${taskDir}/traces`;
@@ -2123,7 +2139,7 @@ function renderWorkflow() {
     const progress = isCompleted ? 100 : Math.round(((activePhase - 1) / 5) * 100);
 
     const tasksHtml = (req._tasks || []).map(t => {
-      return '<div class="task-item" onclick="toggleTaskDetail(event, this, \'' + escapeHtml(req.id) + '\', \'' + escapeHtml(t.id) + '\')">' +
+      return '<div class="task-item" onclick="toggleTaskDetail(event, this, \\'' + escapeHtml(req.id) + '\\', \\'' + escapeHtml(t.id) + '\\')">' +
         '<div class="task-main">' +
           taskStatusIcon(t.status) +
           '<span class="task-name">' + escapeHtml(t.id) + '</span>' +
@@ -2167,7 +2183,7 @@ async function toggleTaskDetail(event, el, reqId, taskId) {
             contentEl.innerHTML = '<div style="color:var(--text-muted);padding:8px">No traces found</div>';
           } else {
             contentEl.innerHTML = data.traces.map(t => 
-              '<div class="trace-item" onclick="loadTrace(event, \'' + reqId + '\', \'' + taskId + '\', \'' + t + '\', this.parentElement)">' + escapeHtml(t) + '</div>'
+              '<div class="trace-item" onclick="loadTrace(event, \\'' + reqId + '\\', \\'' + taskId + '\\', \\'' + t + '\\', this.parentElement)">' + escapeHtml(t) + '</div>'
             ).join('');
           }
         }
@@ -2180,9 +2196,9 @@ async function toggleTaskDetail(event, el, reqId, taskId) {
 
       detailEl.innerHTML = 
         '<div class="task-detail-tabs">' +
-          '<button class="active" data-tab="spec" onclick="event.stopPropagation(); this.closest(\'.task-item\').renderTaskContent(\'spec\')">Spec</button>' +
-          '<button data-tab="review" onclick="event.stopPropagation(); this.closest(\'.task-item\').renderTaskContent(\'review\')">Review</button>' +
-          '<button data-tab="traces" onclick="event.stopPropagation(); this.closest(\'.task-item\').renderTaskContent(\'traces\')">Traces</button>' +
+          '<button class="active" data-tab="spec" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'spec\\')">Spec</button>' +
+          '<button data-tab="review" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'review\\')">Review</button>' +
+          '<button data-tab="traces" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'traces\\')">Traces</button>' +
         '</div>' +
         '<div class="task-detail-content"></div>';
       
@@ -2203,7 +2219,7 @@ async function loadTrace(event, reqId, taskId, traceName, container) {
   container.innerHTML = '<div style="padding:10px;text-align:center">Loading trace...</div>';
   try {
     const data = await apiFetch('/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId) + '/traces/' + encodeURIComponent(traceName));
-    container.innerHTML = '<button class="ideation-back" style="margin-bottom:8px;padding:2px 8px;font-size:11px" onclick="event.stopPropagation(); this.closest(\'.task-item\').renderTaskContent(\'traces\')">&larr; Back to traces</button>' +
+    container.innerHTML = '<button class="ideation-back" style="margin-bottom:8px;padding:2px 8px;font-size:11px" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'traces\\')">&larr; Back to traces</button>' +
       '<div class="doc-content" style="background:transparent;border:none;padding:0">' + renderMarkdown(data.content) + '</div>';
   } catch (e) {
     container.innerHTML = '<div style="color:var(--red);padding:10px">Error loading trace: ' + escapeHtml(e.message) + '</div>';
