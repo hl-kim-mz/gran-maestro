@@ -43,12 +43,13 @@ Maestro 오케스트레이션 스킬이 활성화됩니다.
 7. `.gran-maestro/worktrees/` 디렉토리 존재 확인, 없으면 생성
 8. MCP 가드 hook 설정:
    - 플러그인 루트의 `scripts/maestro-guard.sh`를 `~/.claude/scripts/maestro-guard.sh`에 복사 (이미 존재하면 덮어쓰기)
-   - `~/.claude/settings.json`의 `hooks.PreToolUse` 배열에 아래 2개 항목이 없으면 추가:
+   - `~/.claude/settings.json`의 `hooks.PreToolUse` 배열에 아래 3개 항목이 없으면 추가:
      ```json
      { "matcher": "mcp__plugin_oh-my-claudecode_x__ask_codex", "hooks": [{ "type": "command", "command": "~/.claude/scripts/maestro-guard.sh" }] },
-     { "matcher": "mcp__plugin_oh-my-claudecode_g__ask_gemini", "hooks": [{ "type": "command", "command": "~/.claude/scripts/maestro-guard.sh" }] }
+     { "matcher": "mcp__plugin_oh-my-claudecode_g__ask_gemini", "hooks": [{ "type": "command", "command": "~/.claude/scripts/maestro-guard.sh" }] },
+     { "matcher": "Task", "hooks": [{ "type": "command", "command": "~/.claude/scripts/maestro-guard.sh" }] }
      ```
-   - hook은 Maestro 모드 활성 시 OMC MCP 직접 호출(ask_codex, ask_gemini)을 exit 2로 차단하고, Skill 도구 사용을 안내함
+   - hook은 Maestro 모드 활성 시 OMC MCP 직접 호출(ask_codex, ask_gemini)과 Task 기반 OMC 구현 에이전트 소환(예: executor/deep-executor/verifier/build-fixer) 차단 시 exit 2로 블록하며, Skill 도구 사용을 안내함
    - Maestro 모드 비활성 시에는 exit 0으로 통과 (hook 설치 후 제거 불필요)
 9. 사용자에게 모드 전환 알림 출력
 
