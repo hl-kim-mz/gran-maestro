@@ -1953,7 +1953,7 @@ function toggleTheme() {
 }
 
 function getApiBase() {
-  return currentProjectId ? '/api/projects/' + encodeURIComponent(currentProjectId) : '';
+  return currentProjectId ? '/api/projects/' + encodeURIComponent(currentProjectId) : '/api';
 }
 let currentView = 'workflow';
 let requests = [];
@@ -2154,7 +2154,7 @@ async function toggleTaskDetail(event, el, reqId, taskId) {
     detailEl.innerHTML = '<div style="padding:10px;text-align:center">Loading task details...</div>';
     
     try {
-      const data = await apiFetch('/api/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId));
+      const data = await apiFetch('/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId));
       
       const renderContent = (tab) => {
         const contentEl = el.querySelector('.task-detail-content');
@@ -2202,7 +2202,7 @@ async function loadTrace(event, reqId, taskId, traceName, container) {
   event.stopPropagation();
   container.innerHTML = '<div style="padding:10px;text-align:center">Loading trace...</div>';
   try {
-    const data = await apiFetch('/api/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId) + '/traces/' + encodeURIComponent(traceName));
+    const data = await apiFetch('/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId) + '/traces/' + encodeURIComponent(traceName));
     container.innerHTML = '<button class="ideation-back" style="margin-bottom:8px;padding:2px 8px;font-size:11px" onclick="event.stopPropagation(); this.closest(\'.task-item\').renderTaskContent(\'traces\')">&larr; Back to traces</button>' +
       '<div class="doc-content" style="background:transparent;border:none;padding:0">' + renderMarkdown(data.content) + '</div>';
   } catch (e) {
@@ -2297,7 +2297,7 @@ function toggleTreeDir(el) {
 
 async function loadFile(path) {
   try {
-    const data = await apiFetch('/api/file?path=' + encodeURIComponent(path));
+    const data = await apiFetch('/file?path=' + encodeURIComponent(path));
     docActivePath = path;
     const ext = path.split('.').pop().toLowerCase();
     if (ext === 'json') {
@@ -2382,7 +2382,7 @@ async function selectLogTask(val) {
     filePath = 'requests/' + parts[0] + '/tasks/' + parts[1] + '/exec-log.md';
   }
   try {
-    const data = await apiFetch('/api/file?path=' + encodeURIComponent(filePath));
+    const data = await apiFetch('/file?path=' + encodeURIComponent(filePath));
     logContent = data.content || '';
   } catch {
     logContent = '(File not found: ' + filePath + ')';
@@ -2596,7 +2596,7 @@ async function saveConfig() {
   try {
     const editor = document.getElementById('config-editor');
     const newConfig = JSON.parse(editor.value);
-    await apiFetch('/api/config', {
+    await apiFetch('/config', {
       method: 'PUT',
       body: JSON.stringify(newConfig)
     });
@@ -2609,7 +2609,7 @@ async function saveConfig() {
 
 async function refreshConfig() {
   try {
-    config = await apiFetch('/api/config');
+    config = await apiFetch('/config');
     const editor = document.getElementById('config-editor');
     if (editor) editor.value = JSON.stringify(config, null, 2);
     showToast('Configuration reloaded');
@@ -2723,7 +2723,7 @@ function renderIdeation() {
 
 async function loadIdeationSession(id) {
   try {
-    ideationActiveSession = await apiFetch('/api/ideation/' + encodeURIComponent(id));
+    ideationActiveSession = await apiFetch('/ideation/' + encodeURIComponent(id));
     renderCurrentView();
   } catch (e) {
     showToast('Error loading session: ' + e.message);
@@ -2831,23 +2831,23 @@ async function loadData() {
   await loadProjects();
   try {
     // Load requests and their tasks
-    requests = await apiFetch('/api/requests');
+    requests = await apiFetch('/requests');
     for (const req of requests) {
       try {
-        req._tasks = await apiFetch('/api/requests/' + encodeURIComponent(req.id) + '/tasks');
+        req._tasks = await apiFetch('/requests/' + encodeURIComponent(req.id) + '/tasks');
       } catch { req._tasks = []; }
     }
   } catch { requests = []; }
 
-  try { config = await apiFetch('/api/config'); } catch { config = {}; }
-  try { modeStatus = await apiFetch('/api/mode'); } catch { modeStatus = {}; }
-  try { docTree = await apiFetch('/api/tree'); } catch { docTree = []; }
-  try { ideationSessions = await apiFetch('/api/ideation'); } catch { ideationSessions = []; }
+  try { config = await apiFetch('/config'); } catch { config = {}; }
+  try { modeStatus = await apiFetch('/mode'); } catch { modeStatus = {}; }
+  try { docTree = await apiFetch('/tree'); } catch { docTree = []; }
+  try { ideationSessions = await apiFetch('/ideation'); } catch { ideationSessions = []; }
 
   // Auto-refresh active ideation detail
   if (ideationActiveSession && currentView === 'ideation') {
     try {
-      ideationActiveSession = await apiFetch('/api/ideation/' + encodeURIComponent(ideationActiveSession.session.id));
+      ideationActiveSession = await apiFetch('/ideation/' + encodeURIComponent(ideationActiveSession.session.id));
     } catch { /* keep stale data */ }
   }
 
