@@ -181,7 +181,7 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 | Explorer x2 | opus | 코드베이스 병렬 탐색 |
 | Analyst | opus | 요구사항 갭 분석 |
 | `/mst:codex` | gpt-5.3-codex | 코드 구조 분석 |
-| `/mst:gemini` | gemini-3-pro | 대규모 컨텍스트 분석 |
+| `/mst:gemini` | gemini-3-pro-preview | 대규모 컨텍스트 분석 |
 
 ### Design Wing (Phase 1 — 조건부 소환)
 
@@ -200,7 +200,7 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 | Quality Reviewer | opus | 코드 품질 검증 |
 | Verifier | opus | 수락 조건 검증 |
 | `/mst:codex` | gpt-5.3-codex | 코드 정확성 검증 |
-| `/mst:gemini` | gemini-3-pro | 전체 일관성 검토 |
+| `/mst:gemini` | gemini-3-pro-preview | 전체 일관성 검토 |
 
 </agent_team>
 

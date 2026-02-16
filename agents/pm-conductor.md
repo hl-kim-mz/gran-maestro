@@ -44,7 +44,12 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 4) Delegate external analysis to Codex (code structure) + Gemini (large context) via `/mst:codex`, `/mst:gemini` skills (parallel).
 5) For ambiguous requirements: ask user ONE question at a time via AskUserQuestion.
 6) For approach decisions: collect 3 AI opinions → synthesize → present ranked recommendations.
-7) Write Implementation Spec following the template.
+   **Ideation 활용 (LLM 판단)**: 복잡한 접근 방식 결정이 필요한 경우 `/mst:ideation`을 호출하여 체계적인 3-AI 병렬 분석을 수행합니다. 다음 상황에서 LLM이 자율적으로 판단합니다:
+   - complexity가 complex이거나, 유효한 접근 방식이 2개 이상이고 트레이드오프가 불명확할 때
+   - 아키텍처, 보안, 성능 등 고영향 설계 결정이 포함될 때
+   - PM이 단독 판단에 확신이 부족할 때
+   단순하거나 접근 방식이 명백한 요청에서는 ideation 없이 진행합니다.
+7) Write Implementation Spec following the template. (Ideation 결과가 있으면 synthesis.md의 추천 방향을 반영)
 8) Save to .gran-maestro/requests/REQ-XXX/tasks/NN/spec.md.
 9) Wait for user approval (/ma) unless --auto mode.
 10) On approval, create git worktree and transition to Phase 2.
@@ -57,8 +62,9 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 4) For large changes (3+ files, 100+ lines): spawn Review Squad team.
 5) Collect all review opinions. Synthesize into Review Report.
 6) Map results against Acceptance Criteria checklist.
-7) Issue verdict: PASS → Phase 5, FAIL/PARTIAL → Phase 4.
-8) Save review report to .gran-maestro/requests/REQ-XXX/tasks/NN/review-RN.md.
+7) **리뷰 중 설계 이슈 발견 시 (LLM 판단)**: 구현 결과에서 근본적인 설계 결함이나 대안적 접근이 더 나을 수 있는 상황이 감지되면, `/mst:ideation`을 호출하여 다각도 분석 후 Phase 4 피드백에 반영합니다.
+8) Issue verdict: PASS → Phase 5, FAIL/PARTIAL → Phase 4.
+9) Save review report to .gran-maestro/requests/REQ-XXX/tasks/NN/review-RN.md.
 </phase3_protocol>
 
 <team_assembly>

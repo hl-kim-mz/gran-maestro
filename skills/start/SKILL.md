@@ -63,6 +63,13 @@ Maestro 모드가 비활성 상태이면 자동으로 활성화합니다:
    c. 코드베이스 탐색 (Explorer 위임), 외부 AI 분석 (반드시 `Skill(skill: "mst:codex", ...)`, `Skill(skill: "mst:gemini", ...)` 도구로 호출 — OMC MCP 직접 호출 금지)
    d. 모호한 요구사항은 사용자에게 질문 (AskUserQuestion, 한 번에 하나씩)
    e. 접근 방식 결정 시: 3 AI 의견 수집 → 종합 → 순위별 추천
+      - **Ideation 자동 트리거 (LLM 판단)**: 아래 조건 중 하나라도 해당하면 `/mst:ideation`을 호출하여 체계적인 3-AI 분석을 수행합니다. LLM이 상황을 종합적으로 판단하여 결정합니다:
+        - 복잡도가 `complex`로 분류된 경우
+        - 접근 방식이 2개 이상이고 트레이드오프가 명확하지 않은 경우
+        - 아키텍처 변경, 보안 설계, 성능 최적화 등 고영향 의사결정이 필요한 경우
+        - PM이 단독 판단에 확신이 부족한 경우
+      - Ideation 결과(`synthesis.md`)의 추천 방향을 spec 작성에 반영합니다
+      - 단순(simple) 요청이나 접근 방식이 명백한 경우에는 ideation 없이 진행합니다
    f. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용)
    g. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
    h. **spec.md 파일 저장**: `.gran-maestro/requests/REQ-NNN/tasks/01/spec.md`
