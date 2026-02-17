@@ -16,7 +16,7 @@ Maestro 오케스트레이션 스킬이 활성화됩니다.
 - `/autopilot`, `/ralph`, `/ultrawork`, `/team`, `/pipeline`, `/ultrapilot`, `/swarm`, `/ecomode`
 
 ### Maestro 모드에서 사용 가능한 스킬
-- Maestro 오케스트레이션: `/mst:start`, `/mst:list`, `/mst:inspect`, `/mst:approve`, `/mst:feedback`, `/mst:cancel`, `/mst:dashboard`, `/mst:priority`, `/mst:history`, `/mst:settings`
+- Maestro 오케스트레이션: `/mst:start`, `/mst:list`, `/mst:inspect`, `/mst:approve`, `/mst:accept`, `/mst:feedback`, `/mst:cancel`, `/mst:dashboard`, `/mst:priority`, `/mst:history`, `/mst:settings`
 - CLI 직접 호출: `/mst:codex`, `/mst:gemini` (모드 무관)
 - 단발 분석/리뷰: `/analyze`, `/deepsearch`, `/code-review`, `/security-review` (모드 무관)
 - 유틸리티: `/note`, `/plan`, `/trace`, `/doctor` (모드 무관)

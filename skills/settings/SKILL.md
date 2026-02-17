@@ -22,6 +22,7 @@ Gran Maestro의 설정을 조회하거나 변경합니다.
 |----|------|--------|------|
 | `workflow.max_feedback_rounds` | 최대 피드백 반복 횟수 | `5` | number |
 | `workflow.auto_approve_spec` | 스펙 자동 승인 여부 | `false` | boolean |
+| `workflow.auto_accept_result` | Phase 3 리뷰 PASS 후 자동 수락 여부 | `true` | boolean |
 | `workflow.default_agent` | 기본 실행 에이전트 | `codex-dev` | string |
 | `server.port` | 대시보드 포트 | `3847` | number |
 | `server.host` | 대시보드 호스트 | `127.0.0.1` | string |
@@ -55,6 +56,7 @@ Gran Maestro의 설정을 조회하거나 변경합니다.
 /mst:settings workflow.max_feedback_rounds            # 특정 설정 조회
 /mst:settings workflow.max_feedback_rounds 3          # 최대 피드백 3회로 변경
 /mst:settings workflow.auto_approve_spec true         # 스펙 자동 승인 활성화
+/mst:settings workflow.auto_accept_result false       # 최종 수락 수동 모드로 전환
 /mst:settings workflow.default_agent gemini-dev       # 기본 에이전트를 Gemini로 변경
 ```
 

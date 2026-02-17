@@ -1,31 +1,29 @@
 ---
 name: approve
-description: "스펙을 승인하거나 최종 결과물을 수락합니다. 사용자가 '승인', '진행해', 'OK 진행'을 말하거나 /mst:approve를 호출할 때 사용. Gran Maestro 워크플로우 내에서만 의미 있으며, 일반적인 확인 응답에는 사용하지 않음."
+description: "스펙을 승인하고 실행을 시작합니다. 사용자가 '승인', '진행해', 'OK 진행'을 말하거나 /mst:approve를 호출할 때 사용. Gran Maestro 워크플로우 내에서만 의미 있으며, 일반적인 확인 응답에는 사용하지 않음."
 user-invocable: true
 argument-hint: "[REQ-ID]"
 ---
 
 # maestro:approve
 
-PM이 작성한 구현 스펙을 승인하거나, 완료된 결과물을 최종 수락합니다.
+PM이 작성한 구현 스펙을 승인하고 Phase 2 실행을 시작합니다. Phase 3 리뷰 PASS 후 최종 수락은 기본적으로 자동 실행됩니다 (`workflow.auto_accept_result` 설정).
 
 ## 실행 프로토콜
 
 ### REQ ID 결정 (인자 없이 호출 시)
 
-`$ARGUMENTS`에 REQ ID가 없으면, 승인 대기 중인 요청을 **REQ 번호 오름차순**으로 자동 선택합니다:
+`$ARGUMENTS`에 REQ ID가 없으면, 스펙 승인 대기 중인 요청을 **REQ 번호 오름차순**으로 자동 선택합니다:
 
 1. `.gran-maestro/requests/` 디렉토리의 모든 `request.json`을 스캔
-2. 승인 가능한 상태의 요청을 필터링:
-   - **스펙 승인 대기**: `current_phase == 1` 이고 `status`가 `phase1_analysis`가 아닌 것 (PM 분석 완료 상태), 또는 `status`가 `phase2_spec_review`인 것
-   - **최종 수락 대기**: `current_phase == 3` 이고 `status`가 `phase3_review` 또는 리뷰 PASS 상태
+2. 스펙 승인 가능한 상태의 요청을 필터링:
+   - `current_phase == 1` 이고 `status`가 `phase1_analysis`가 아닌 것 (PM 분석 완료 상태), 또는 `status`가 `phase2_spec_review`인 것
 3. REQ 번호(숫자) 오름차순으로 정렬하여 **첫 번째 요청**을 선택
 4. 승인 대기 중인 요청이 없으면 사용자에게 "승인 대기 중인 요청이 없습니다"라고 알림
 
 예시:
 ```
 /mst:approve           # REQ-002가 Phase 1 완료 대기 → REQ-002 스펙 승인
-/mst:approve           # REQ-001이 Phase 3 리뷰 PASS → REQ-001 최종 수락 (Phase 자동 판별)
 /mst:approve REQ-003   # 명시적으로 REQ-003 승인
 ```
 
@@ -193,25 +191,24 @@ while (실행 중인 태스크가 있음):
 - fallback 에이전트 재시도: 최대 2회
 - 모두 실패 시: 사용자 개입 요청
 
-### 최종 수락 (Phase 3 → Phase 5)
+### 최종 수락 (Phase 3 → Phase 5) — 자동 실행
 
-Phase 3 리뷰 완료 상태의 요청이 선택되면 자동으로 최종 수락을 수행합니다:
+Phase 3 리뷰가 PASS로 완료되면, `workflow.auto_accept_result` 설정에 따라 동작합니다:
 
-1. 리뷰 리포트가 PASS인지 확인
-2. 최종 요약 리포트 생성
-3. Worktree → main 브랜치 rebase + squash merge
-4. Worktree 삭제 + 브랜치 정리
-5. Phase 5 완료 처리
+- **`true` (기본)**: `/mst:accept` 프로토콜을 자동으로 실행합니다. 사용자 개입 없이 머지 → 정리 → 완료까지 진행됩니다.
+- **`false`**: Phase 3 리뷰 PASS 후 멈추고, 사용자에게 `/mst:accept`를 수동으로 호출하라고 안내합니다.
+
+설정 변경: `/mst:settings workflow.auto_accept_result false`
 
 ## 예시
 
 ```
-/mst:approve           # 승인 대기 중인 첫 번째 요청 자동 선택 (Phase에 따라 스펙 승인 또는 최종 수락)
-/mst:approve REQ-001   # 명시적으로 REQ-001 승인 (Phase에 따라 자동 판별)
+/mst:approve           # 스펙 승인 대기 중인 첫 번째 요청 자동 선택
+/mst:approve REQ-001   # 명시적으로 REQ-001 스펙 승인
 ```
 
 ## 문제 해결
 
 - "승인할 스펙이 없음" → 해당 요청이 Phase 1(PM 분석) 완료 상태인지 확인. `/mst:inspect {REQ-ID}`로 상태 조회
 - "이미 승인됨" → 해당 요청이 이미 Phase 2 이후에 있음. `/mst:inspect {REQ-ID}`로 현재 Phase 확인
-- "리뷰가 PASS가 아님" → 리뷰 리포트에서 미충족 수락조건 확인. 피드백 루프를 먼저 완료
+- 최종 수락이 필요한 경우 → Phase 3 리뷰 PASS 후 `/mst:accept`를 수동 호출하거나, `workflow.auto_accept_result`를 `true`로 설정

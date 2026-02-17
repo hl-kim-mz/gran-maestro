@@ -96,7 +96,8 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 | `/mst:start` | 새 요청 시작 — PM 분석 워크플로우 진입 |
 | `/mst:list` | 모든 요청/태스크 현황 목록 |
 | `/mst:inspect` | 특정 요청의 상세 상태 |
-| `/mst:approve` | 스펙 승인 또는 최종 수락 |
+| `/mst:approve` | 스펙 승인 (Phase 1 → Phase 2) |
+| `/mst:accept` | 최종 수락 (Phase 3 → Phase 5), 기본 자동 실행 |
 | `/mst:feedback` | 수동 피드백 제공 (Phase 4) |
 | `/mst:cancel` | 요청/태스크 취소 + worktree 정리 |
 | `/mst:dashboard` | 대시보드 서버 시작/열기 |
@@ -132,6 +133,7 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 | "구현해줘", "만들어줘", "개발해줘" | `/mst:start` |
 | "현황", "상태 보여줘" | `/mst:list` |
 | "승인", "진행해" | `/mst:approve` |
+| "수락", "머지", "최종 수락" | `/mst:accept` |
 | "취소", "중단" | `/mst:cancel` |
 | "우선순위 변경" | `/mst:priority` |
 
