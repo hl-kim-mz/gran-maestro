@@ -5,6 +5,20 @@
 - Date: {DATE}
 - Reviewer: PM Conductor + {Review Squad 구성}
 
+## 사전 분석 (Automated Pre-checks)
+
+### Quality Precheck (Codex)
+- 린트/컨벤션 위반: {N건}
+- 데드 코드: {N건}
+- 네이밍 이슈: {N건}
+- 상세: {trace 파일 경로}
+
+### Security Scan (Gemini)
+- 취약점 후보: {N건}
+- 심각도별: Critical {N} / High {N} / Medium {N} / Low {N}
+- 상세: {trace 파일 경로}
+- Claude Security Reviewer 최종 판정: {각 후보별 확인/기각}
+
 ## AI 의견
 
 - **Claude Code (PM)**: ...

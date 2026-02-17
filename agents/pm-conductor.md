@@ -40,8 +40,8 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 <phase1_protocol>
 1) Parse user request. Classify complexity: simple | standard | complex.
 2) Simple: PM Conductor solo analysis. Standard/Complex: spawn Analysis Squad team.
-3) Delegate codebase exploration to Explorer agents (parallel).
-4) Delegate external analysis to Codex (code structure) + Gemini (large context) via `/mst:codex`, `/mst:gemini` skills (parallel).
+3) Delegate codebase exploration to `/mst:gemini` with `--files` pattern for full codebase analysis (replaces Explorer agents). Gemini's 1M token context enables comprehensive single-pass analysis. For precision symbol tracing, optionally retain 1 Claude Explorer as supplement.
+4) Delegate external analysis to Codex (code structure) + Gemini (large context + discussion/ideation log analysis) via `/mst:codex`, `/mst:gemini` skills (parallel). Gemini Context Report should include prior discussion/ideation session logs when available.
 5) For ambiguous requirements: ask user ONE question at a time via AskUserQuestion.
 6) For approach decisions: collect 3 AI opinions → synthesize → present ranked recommendations.
    **Ideation 활용 (LLM 판단)**: 복잡한 접근 방식 결정이 필요한 경우 `/mst:ideation`을 호출하여 체계적인 3-AI 병렬 분석을 수행합니다. 다음 상황에서 LLM이 자율적으로 판단합니다:
@@ -49,6 +49,10 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
    - 아키텍처, 보안, 성능 등 고영향 설계 결정이 포함될 때
    - PM이 단독 판단에 확신이 부족할 때
    단순하거나 접근 방식이 명백한 요청에서는 ideation 없이 진행합니다.
+6.5) For standard/complex requests: delegate structural decomposition draft to Codex/Gemini.
+   - Codex: code-structure-based task decomposition draft
+   - Gemini: full-codebase-context-aware decomposition with dependency detection
+   PM reviews and approves the decomposition before spec writing.
 7) Write Implementation Spec following the template. (Ideation 결과가 있으면 synthesis.md의 추천 방향을 반영)
 8) Save to .gran-maestro/requests/REQ-XXX/tasks/NN/spec.md.
 9) Wait for user approval (/ma) unless --auto mode.
@@ -58,12 +62,15 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 <phase3_protocol>
 1) Read git diff from the task's worktree.
 2) Run diagnostics: type check, lint, tests.
+2.5) Quality Precheck via Codex: delegate mechanical review (lint rules, coding conventions, naming patterns, dead code) to `/mst:codex`. Codex produces JSON-structured findings. Claude Review Squad uses this as input for deeper logical review.
+2.7) Security Scan via Gemini: delegate pattern-based vulnerability scanning to `/mst:gemini` with full source context. Gemini produces candidate vulnerability list. Claude Security Reviewer performs final judgment on each candidate (Scanner/Auditor model).
 3) For small changes: PM solo review + `/mst:codex`, `/mst:gemini` parallel.
 4) For large changes (3+ files, 100+ lines): spawn Review Squad team.
 5) Collect all review opinions. Synthesize into Review Report.
 6) Map results against Acceptance Criteria checklist.
 7) **리뷰 중 설계 이슈 발견 시 (LLM 판단)**: 구현 결과에서 근본적인 설계 결함이나 대안적 접근이 더 나을 수 있는 상황이 감지되면, `/mst:ideation`을 호출하여 다각도 분석 후 Phase 4 피드백에 반영합니다.
 8) Issue verdict: PASS → Phase 5, FAIL/PARTIAL → Phase 4.
+8.5) Optional: On Phase 4 entry, delegate feedback document draft generation to `/mst:codex` for mechanical summarization of review findings.
 9) Save review report to .gran-maestro/requests/REQ-XXX/tasks/NN/review-RN.md.
 </phase3_protocol>
 
@@ -74,10 +81,12 @@ When assembling agent teams, consider:
 - Fallback chains → ensure resilience
 Present team composition to user in spec document with rationale.
 
-Analysis Squad: Explorer(opus) x2 + Analyst(opus) + /mst:codex + /mst:gemini
+Analysis Squad: /mst:gemini (codebase exploration + context analysis) + Analyst(opus) + /mst:codex (code structure + req decomposition)
+  + Explorer(opus) x1 (optional, precision symbol tracing only)
   + Design Wing (conditional): Architect(opus) + SchemaDesigner(opus) + UIDesigner(opus)
 Review Squad: SecurityReviewer(opus) + QualityReviewer(opus) + Verifier(opus)
-              + /mst:codex + /mst:gemini
+              + /mst:codex (quality-precheck + code-review)
+              + /mst:gemini (security-scan + consistency-review)
 </team_assembly>
 
 <output_format>
@@ -141,10 +150,15 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 절대 사용 금지
 | Phase 1 | 코드 구조 분석 | `Write → prompts/phase1-code-analysis.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {project_dir} --trace {REQ}/{TASK}/phase1-code-analysis")` | 프롬프트에 "분석만, 파일 수정 금지" 명시 |
 | Phase 1 | 대규모 컨텍스트 분석 | `Write → prompts/phase1-context-analysis.md` → `Skill(skill: "mst:gemini", args: "--prompt-file {prompt_path} --files {pattern} --trace {REQ}/{TASK}/phase1-context-analysis")` | 문서/코드 읽기만 |
 | Phase 1 | 설계 검증 | `Write → prompts/phase1-design-validation.md` → `--prompt-file {prompt_path} --trace {REQ}/{TASK}/phase1-design-validation` | 구조적 타당성 확인 |
+| Phase 1 | 코드베이스 탐색 (Explorer 대체) | `Write → prompts/phase1-exploration.md` → `Skill(skill: "mst:gemini", args: "--prompt-file {prompt_path} --files {pattern} --trace {REQ}/{TASK}/phase1-exploration")` | Explorer 대체, 1M 컨텍스트 |
+| Phase 1 | 요구사항 분해 초안 | `Write → prompts/phase1-req-decomposition.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {project_dir} --trace {REQ}/{TASK}/phase1-req-decomposition")` 또는 `/mst:gemini` | PM 승인 후 spec 작성 |
 | Phase 2 | 코드 구현 | `Write → prompts/phase2-impl.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-impl")` | full-auto (기본값) |
-| Phase 2 | 테스트 작성 | `Write → prompts/phase2-test.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-test")` | full-auto (기본값) |
+| Phase 2 | 테스트 작성 | `Write → prompts/phase2-test.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-test")` | Codex가 구현 코드 기반 테스트 초안 및 엣지케이스 자동 생성. 기존 패턴 분석하여 일관된 스타일 유지 |
+| Phase 2 | 테스트 자동 생성 | `Write → prompts/phase2-test-gen.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-test-gen")` | 구현 코드 기반 엣지케이스 자동 생성 |
 | Phase 3 | 코드 정확성 검증 | `Write → prompts/phase3-code-review.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {project_dir} --trace {REQ}/{TASK}/phase3-code-review")` | 분석 전용 프롬프트 |
 | Phase 3 | 전체 일관성 검토 | `Write → prompts/phase3-consistency-review.md` → `Skill(skill: "mst:gemini", args: "--prompt-file {prompt_path} --files {pattern} --trace {REQ}/{TASK}/phase3-consistency-review")` | 코드 읽기만 |
+| Phase 3 | 품질 프리체크 | `Write → prompts/phase3-quality-precheck.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {project_dir} --trace {REQ}/{TASK}/phase3-quality-precheck")` | 기계적 리뷰 (린트, 컨벤션, 네이밍) |
+| Phase 3 | 보안 스캐닝 | `Write → prompts/phase3-security-scan.md` → `Skill(skill: "mst:gemini", args: "--prompt-file {prompt_path} --files {pattern} --trace {REQ}/{TASK}/phase3-security-scan")` | 패턴 기반 취약점 스캐닝 |
 | /mst:codex, /mst:gemini | 사용자 직접 호출 | `--trace` 없이 인라인 프롬프트 그대로 사용 | 모드 무관, 결과 직접 표시 |
 
 ### Label 컨벤션
@@ -154,10 +168,15 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 절대 사용 금지
 | Phase 1 | `phase1-code-analysis` | Codex 코드 구조 분석 |
 | Phase 1 | `phase1-context-analysis` | Gemini 대규모 컨텍스트 분석 |
 | Phase 1 | `phase1-design-validation` | 설계 검증 |
+| Phase 1 | `phase1-exploration` | Gemini 코드베이스 탐색 (Explorer 대체) |
+| Phase 1 | `phase1-req-decomposition` | 요구사항 분해 초안 |
 | Phase 2 | `phase2-impl` | 코드 구현 |
 | Phase 2 | `phase2-test` | 테스트 작성 |
+| Phase 2 | `phase2-test-gen` | 테스트 자동 생성 |
 | Phase 3 | `phase3-code-review` | Codex 코드 검증 |
 | Phase 3 | `phase3-consistency-review` | Gemini 일관성 검토 |
+| Phase 3 | `phase3-quality-precheck` | Codex 기계적 리뷰 |
+| Phase 3 | `phase3-security-scan` | Gemini 보안 패턴 스캐닝 |
 | Phase 4 | `phase4-fix-RN` | 피드백 반영 수정 (N=리비전 번호) |
 </skill_routing>
 
