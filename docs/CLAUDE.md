@@ -79,6 +79,8 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 - `active: true` → Maestro 모드, OMC 오케스트레이션 차단
 - `active: false` (또는 파일 없음) → OMC 모드, Maestro 오케스트레이션 차단
 
+활성 요청 파악: `mode.json`에 `active_requests` 필드 대신, `.gran-maestro/requests/*/request.json`의 `status` 필드를 스캔하여 동적으로 판별합니다. terminal 상태(`done`, `completed`, `cancelled`, `failed`)가 아닌 요청이 활성 요청입니다.
+
 </dual_mode_rules>
 
 ---

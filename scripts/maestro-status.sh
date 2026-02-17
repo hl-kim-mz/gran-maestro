@@ -24,6 +24,20 @@ if [ -z "$MODE_FILE" ]; then
 fi
 
 ACTIVE=$(jq -r '.active // false' "$MODE_FILE" 2>/dev/null)
+BASE_DIR=$(dirname "$MODE_FILE")
+
+# Count active (non-terminal) requests by scanning request directories
+count_active_requests() {
+  local count=0
+  if [ -d "$BASE_DIR/requests" ]; then
+    for req in "$BASE_DIR"/requests/*/request.json; do
+      [ -f "$req" ] || continue
+      s=$(jq -r '.status // ""' "$req" 2>/dev/null)
+      case "$s" in done|completed|cancelled|failed) ;; *) count=$((count+1)) ;; esac
+    done
+  fi
+  echo "$count"
+}
 
 case "${1:-}" in
   --json)
@@ -33,11 +47,15 @@ case "${1:-}" in
     ;;
   --field)
     FIELD="${2:-active}"
-    jq -r ".$FIELD // empty" "$MODE_FILE" 2>/dev/null
+    if [ "$FIELD" = "active_requests" ]; then
+      count_active_requests
+    else
+      jq -r ".$FIELD // empty" "$MODE_FILE" 2>/dev/null
+    fi
     ;;
   *)
     if [ "$ACTIVE" = "true" ]; then
-      REQS=$(jq -r '.active_requests | length' "$MODE_FILE" 2>/dev/null)
+      REQS=$(count_active_requests)
       echo "on (requests: ${REQS:-0})"
     else
       echo "off"

@@ -19,8 +19,7 @@ argument-hint: "{REQ-ID} [--force]"
    - Git worktree 삭제
    - 임시 브랜치 정리
    - `request.json` 상태를 `cancelled`로 변경
-5. `.gran-maestro/mode.json`의 `active_requests`에서 제거
-6. 모든 요청이 취소/완료되고 `auto_deactivate: true`이면 → OMC 모드 복귀
+5. `.gran-maestro/requests/*/request.json`을 스캔하여 모든 요청이 terminal 상태(`done`, `completed`, `cancelled`, `failed`)이고 `auto_deactivate: true`이면 → OMC 모드 복귀
 
 ## 옵션
 

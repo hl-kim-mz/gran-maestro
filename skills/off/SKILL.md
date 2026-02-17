@@ -13,7 +13,7 @@ Gran Maestro 모드를 비활성화하고 OMC 모드로 복귀합니다.
 
 1. 플러그인 루트 경로 확인 (이 스킬의 Base directory에서 2단계 상위)
 2. `.gran-maestro/mode.json` 확인 (`active: false`이면 "이미 비활성 상태" 알림 후 종료)
-3. 활성 요청 존재 여부 확인 (`mode.json`의 `active_requests` 배열)
+3. 활성 요청 존재 여부 확인 (`.gran-maestro/requests/*/request.json`을 스캔하여 terminal 상태(`done`, `completed`, `cancelled`, `failed`)가 아닌 요청 확인)
 4. 활성 요청이 있으면:
    - `--force` 없이: 경고 표시, 계속할지 확인
    - `--force`: 각 활성 요청의 `.gran-maestro/requests/REQ-NNN/request.json`에서 `status`를 `"paused"`로 업데이트
@@ -23,7 +23,6 @@ Gran Maestro 모드를 비활성화하고 OMC 모드로 복귀합니다.
      "active": false,
      "activated_at": "{기존 값 유지}",
      "deactivated_at": "{현재 ISO timestamp}",
-     "active_requests": [],
      "auto_deactivate": true,
      "previous_mode": "omc"
    }
@@ -34,7 +33,7 @@ Gran Maestro 모드를 비활성화하고 OMC 모드로 복귀합니다.
 
 ## 자동 비활성화
 
-`auto_deactivate: true`이고 모든 `active_requests`가 완료(Phase 5)되면
+`auto_deactivate: true`이고 `.gran-maestro/requests/*/request.json`을 스캔하여 모든 요청이 terminal 상태(`done`, `completed`, `cancelled`, `failed`)이면
 자동으로 OMC 모드로 복귀합니다. 이 경우 `/mst:off`를 수동으로 호출할 필요가 없습니다.
 
 ## 옵션
@@ -77,7 +76,7 @@ Claude Code가 직접 구현 + 오케스트레이션 역할로 돌아갑니다.
 ~/.claude/scripts/maestro-status.sh -q && echo "active" || echo "inactive"
 
 # 특정 필드 조회
-~/.claude/scripts/maestro-status.sh --field active_requests
+~/.claude/scripts/maestro-status.sh --field active
 ```
 
 ## 문제 해결

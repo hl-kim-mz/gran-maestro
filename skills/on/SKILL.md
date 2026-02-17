@@ -34,7 +34,6 @@ Maestro 오케스트레이션 스킬이 활성화됩니다.
    {
      "active": true,
      "activated_at": "{현재 ISO timestamp}",
-     "active_requests": [],
      "auto_deactivate": true,
      "previous_mode": "omc"
    }
@@ -82,7 +81,7 @@ OMC 오케스트레이션 스킬이 비활성화되었습니다.
 ~/.claude/scripts/maestro-status.sh -q && echo "active" || echo "inactive"
 
 # 특정 필드 조회
-~/.claude/scripts/maestro-status.sh --field active_requests
+~/.claude/scripts/maestro-status.sh --field active
 ```
 
 ## 부트스트래핑 참조
