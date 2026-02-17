@@ -25,7 +25,6 @@ Maestro 모드가 비활성 상태이면 자동으로 활성화합니다:
      {
        "active": true,
        "activated_at": "{현재 ISO timestamp}",
-       "active_requests": [],
        "auto_deactivate": true,
        "previous_mode": "omc"
      }
@@ -35,6 +34,21 @@ Maestro 모드가 비활성 상태이면 자동으로 활성화합니다:
 8. 사용자에게 모드 전환 알림 (첫 활성화 시에만)
 
 ## 실행 프로토콜
+
+### Step 0: 아카이브 체크 (자동)
+
+config.json의 `archive.auto_archive_on_create`가 true이면:
+1. `.gran-maestro/requests/` 하위의 REQ-* 디렉토리 수 확인
+2. `archive.max_active_sessions` 초과 시:
+   - 완료된(completed/cancelled) 세션만 아카이브 대상
+   - 오래된 순 정렬 → 초과분을 `.gran-maestro/archive/`에 tar.gz 압축
+   - 원본 디렉토리 삭제
+   - `[Archive] requests {N}개 세션 아카이브됨` 알림
+3. 아카이브 완료 후 정상적으로 요청 생성 진행
+
+상세 아카이브 로직은 `/mst:archive` 스킬의 "자동 아카이브 프로토콜" 참조.
+
+### Step 1: 요청 생성
 
 1. 새 요청 ID 채번 (REQ-NNN):
    - `.gran-maestro/requests/` 하위의 기존 REQ-* 디렉토리를 스캔
@@ -56,8 +70,7 @@ Maestro 모드가 비활성 상태이면 자동으로 활성화합니다:
    }
    ```
    - `--auto` 플래그가 설정된 경우: `"auto_approve": true`로 설정
-4. `.gran-maestro/mode.json`의 `active_requests` 배열에 새 요청 ID 추가
-5. PM Conductor 역할로 Phase 1 분석 수행 (`agents/pm-conductor.md`의 `<phase1_protocol>` 준수):
+4. PM Conductor 역할로 Phase 1 분석 수행 (`agents/pm-conductor.md`의 `<phase1_protocol>` 준수):
    a. 요청 파싱 및 복잡도 분류 (simple | standard | complex)
    b. Simple → 단독 분석 / Standard·Complex → Analysis Squad 팀 소환
    c. 코드베이스 탐색 (Explorer 위임), 외부 AI 분석 (반드시 `Skill(skill: "mst:codex", ...)`, `Skill(skill: "mst:gemini", ...)` 도구로 호출 — OMC MCP 직접 호출 금지)
@@ -74,8 +87,8 @@ Maestro 모드가 비활성 상태이면 자동으로 활성화합니다:
    g. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
    h. **spec.md 파일 저장**: `.gran-maestro/requests/REQ-NNN/tasks/01/spec.md`
    i. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가
-6. ⚠️ **spec.md 작성 완료 확인** — spec.md 파일이 존재하지 않으면 이 스킬을 종료하지 않음
-7. 스펙 요약을 사용자에게 표시하고, `/mst:approve REQ-NNN`으로 승인 안내
+5. ⚠️ **spec.md 작성 완료 확인** — spec.md 파일이 존재하지 않으면 이 스킬을 종료하지 않음
+6. 스펙 요약을 사용자에게 표시하고, `/mst:approve REQ-NNN`으로 승인 안내
    - `--auto` 모드인 경우: 승인 단계 스킵, 자동으로 Phase 2 진입
 
 ## 옵션

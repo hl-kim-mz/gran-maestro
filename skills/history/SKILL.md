@@ -64,6 +64,61 @@ Phase 5: 수락 완료
 ## 옵션
 
 - `--limit {N}`: 최근 N개만 표시 (기본: 10)
+- `--archive`: 아카이브된 세션 조회
+- `--archive {ID}`: 아카이브에서 특정 세션 상세 조회
+- `--archive --type {ideation|discussion|requests}`: 특정 타입만 필터
+
+## 아카이브 조회
+
+### `--archive` (목록)
+
+1. `.gran-maestro/archive/` 디렉토리의 모든 .tar.gz 파일 스캔
+2. 각 파일의 내용 목록을 확인하여 세션 ID 추출
+3. 타입별로 그룹화하여 표시:
+
+```
+Gran Maestro — 아카이브된 세션
+═══════════════════════════════════════
+
+ideation:
+  IDN-001 ~ IDN-005  (ideation-IDN001-IDN005-20260210.tar.gz, 15.2 KB)
+  IDN-006 ~ IDN-010  (ideation-IDN006-IDN010-20260215.tar.gz, 18.7 KB)
+
+discussion:
+  DSC-001 ~ DSC-003  (discussion-DSC001-DSC003-20260212.tar.gz, 8.3 KB)
+
+requests:
+  REQ-001 ~ REQ-010  (requests-REQ001-REQ010-20260214.tar.gz, 42.1 KB)
+```
+
+`--type` 옵션으로 특정 타입만 필터링 가능.
+
+### `--archive {ID}` (상세 조회)
+
+1. `.gran-maestro/archive/`에서 해당 ID를 포함하는 .tar.gz 파일 탐색
+2. 대상 세션 디렉토리를 임시 위치에 추출:
+   ```bash
+   tar -xzf {archive_file} -C /tmp/gran-maestro-archive-view/ {session_dir}
+   ```
+3. `session.json` (또는 `request.json`)을 읽어 상세 정보 표시
+4. 주요 파일 내용 요약 표시 (synthesis.md, consensus.md 등)
+5. 임시 파일 정리
+
+```
+Gran Maestro — 아카이브 상세: IDN-003
+═══════════════════════════════════════
+
+주제: "마이크로서비스 vs 모놀리식"
+상태: completed
+생성일: 2026-01-15 10:30
+아카이브: ideation-IDN001-IDN005-20260210.tar.gz
+
+파일 목록:
+  session.json, opinion-codex.md, opinion-gemini.md,
+  opinion-claude.md, synthesis.md
+
+복원하려면: /mst:archive --restore IDN-003
+```
 
 ## 예시
 
@@ -71,6 +126,9 @@ Phase 5: 수락 완료
 /mst:history              # 전체 완료 이력
 /mst:history REQ-001      # 특정 요청 상세 이력
 /mst:history --limit 5    # 최근 5개
+/mst:history --archive              # 아카이브된 세션 목록 (모든 타입)
+/mst:history --archive IDN-003      # 아카이브에서 특정 세션 상세 조회
+/mst:history --archive --type ideation  # ideation 아카이브만 필터
 ```
 
 ## 문제 해결
@@ -78,3 +136,5 @@ Phase 5: 수락 완료
 - "완료된 요청이 없음" → 아직 Phase 5까지 완료된 요청이 없음. `/mst:list --all`로 전체 요청 상태 확인
 - "REQ-ID를 찾을 수 없음" → ID 형식이 `REQ-NNN`인지 확인. `/mst:list --completed`로 완료된 요청 ID 조회
 - "이력 데이터 불완전" → `request.json`의 Phase 기록이 누락되었을 수 있음. `.gran-maestro/requests/{REQ-ID}/` 디렉토리 내용 확인
+- "아카이브에서 ID를 찾을 수 없음" → `/mst:history --archive`로 전체 아카이브 목록을 확인하거나 `/mst:archive --list`로 상세 조회
+- "아카이브 조회 시 tar 오류" → 아카이브 파일이 손상되었을 수 있음. 파일 크기가 0이 아닌지 확인

@@ -13,6 +13,19 @@ Gran Maestro 워크플로우(REQ)와 독립적으로 실행됩니다.
 
 ## 실행 프로토콜
 
+### Step 0: 아카이브 체크 (자동)
+
+config.json의 `archive.auto_archive_on_create`가 true이면:
+1. `.gran-maestro/ideation/` 하위의 IDN-* 디렉토리 수 확인
+2. `archive.max_active_sessions` 초과 시:
+   - 완료된(completed/cancelled) 세션만 아카이브 대상
+   - 오래된 순 정렬 → 초과분을 `.gran-maestro/archive/`에 tar.gz 압축
+   - 원본 디렉토리 삭제
+   - `[Archive] ideation {N}개 세션 아카이브됨` 알림
+3. 아카이브 완료 후 정상적으로 Step 1 진행
+
+상세 아카이브 로직은 `/mst:archive` 스킬의 "자동 아카이브 프로토콜" 참조.
+
 ### Step 1: 초기화
 
 1. `.gran-maestro/ideation/` 디렉토리 존재 확인, 없으면 생성

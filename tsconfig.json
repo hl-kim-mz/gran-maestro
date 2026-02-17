@@ -13,5 +13,14 @@
     "lib": ["ES2022", "DOM"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/server.ts"]
+  "exclude": [
+    "src/server.ts",
+    "src/config.ts",
+    "src/middleware.ts",
+    "src/spa.ts",
+    "src/sse.ts",
+    "src/types.ts",
+    "src/utils.ts",
+    "src/routes"
+  ]
 }
