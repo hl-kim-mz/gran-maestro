@@ -52,19 +52,30 @@ Before declaring completion, verify:
 모든 외부 AI 호출은 내부 스킬(`/mst:codex`, `/mst:gemini`)을 경유합니다.
 직접 CLI 호출(`codex exec`, `gemini -p`)이나 MCP 도구는 사용하지 않습니다.
 
-### Codex 실행
+**CRITICAL — Prompt-File 패턴**: 워크플로우 내에서는 brief를 파일로 먼저 저장한 뒤 `--prompt-file`로 전달합니다.
+이렇게 하면 프롬프트가 Claude 컨텍스트를 통과하지 않아 토큰이 절약되고, 프롬프트 파일이 디스크에 남아 감사 추적이 가능합니다.
+
+### Codex 실행 (2단계: Write → Skill)
 ```
-/mst:codex "{brief}" --dir {WORKTREE_PATH}
+# Step 1: 템플릿 치환 후 파일에 저장
+Write → .gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/prompts/phase2-impl.md
+
+# Step 2: 파일 경로로 호출
+/mst:codex --prompt-file .gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/prompts/phase2-impl.md --dir {WORKTREE_PATH} --trace {REQ-ID}/{TASK-NUM}/phase2-impl
 ```
 
-### Gemini 실행
+### Gemini 실행 (2단계: Write → Skill)
 ```
-/mst:gemini "{brief}"
+# Step 1: 템플릿 치환 후 파일에 저장
+Write → .gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/prompts/phase2-impl.md
+
+# Step 2: 파일 경로로 호출
+/mst:gemini --prompt-file .gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/prompts/phase2-impl.md --trace {REQ-ID}/{TASK-NUM}/phase2-impl
 ```
 
 ### 결과 파일 저장이 필요한 경우
 ```
-/mst:codex "{brief}" --dir {WORKTREE_PATH} --output {exec-log-path}
+/mst:codex --prompt-file {prompt_path} --dir {WORKTREE_PATH} --output {exec-log-path}
 ```
 
 ## 피드백 라운드 시 추가 삽입

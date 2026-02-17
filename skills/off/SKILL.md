@@ -82,5 +82,5 @@ Claude Code가 직접 구현 + 오케스트레이션 역할로 돌아갑니다.
 ## 문제 해결
 
 - "Maestro 모드가 활성화되지 않음" → 이미 OMC 모드입니다. `.gran-maestro/mode.json`의 `active` 상태 확인
-- "활성 요청이 남아있음" → `--force` 옵션으로 강제 비활성화하거나, 먼저 `/mst:cancel`로 요청을 취소 또는 `/mst:approve --final`로 완료
+- "활성 요청이 남아있음" → `--force` 옵션으로 강제 비활성화하거나, 먼저 `/mst:cancel`로 요청을 취소 또는 `/mst:approve`로 완료
 - "OMC 스킬이 복원되지 않음" → 세션 재시작으로 해결. mode.json이 `active: false`인지 확인

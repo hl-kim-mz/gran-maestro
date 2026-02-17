@@ -2,7 +2,7 @@
 name: approve
 description: "스펙을 승인하거나 최종 결과물을 수락합니다. 사용자가 '승인', '진행해', 'OK 진행'을 말하거나 /mst:approve를 호출할 때 사용. Gran Maestro 워크플로우 내에서만 의미 있으며, 일반적인 확인 응답에는 사용하지 않음."
 user-invocable: true
-argument-hint: "[REQ-ID] [--final]"
+argument-hint: "[REQ-ID]"
 ---
 
 # maestro:approve
@@ -18,15 +18,15 @@ PM이 작성한 구현 스펙을 승인하거나, 완료된 결과물을 최종 
 1. `.gran-maestro/requests/` 디렉토리의 모든 `request.json`을 스캔
 2. 승인 가능한 상태의 요청을 필터링:
    - **스펙 승인 대기**: `current_phase == 1` 이고 `status`가 `phase1_analysis`가 아닌 것 (PM 분석 완료 상태), 또는 `status`가 `phase2_spec_review`인 것
-   - **최종 수락 대기** (`--final` 옵션 시): `current_phase == 3` 이고 `status`가 `phase3_review` 또는 리뷰 PASS 상태
+   - **최종 수락 대기**: `current_phase == 3` 이고 `status`가 `phase3_review` 또는 리뷰 PASS 상태
 3. REQ 번호(숫자) 오름차순으로 정렬하여 **첫 번째 요청**을 선택
 4. 승인 대기 중인 요청이 없으면 사용자에게 "승인 대기 중인 요청이 없습니다"라고 알림
 
 예시:
 ```
 /mst:approve           # REQ-002가 Phase 1 완료 대기 → REQ-002 스펙 승인
-/mst:approve --final   # REQ-001이 Phase 3 리뷰 PASS → REQ-001 최종 수락
-/mst:approve REQ-003   # 명시적으로 REQ-003 승인 (기존 동작 유지)
+/mst:approve           # REQ-001이 Phase 3 리뷰 PASS → REQ-001 최종 수락 (Phase 자동 판별)
+/mst:approve REQ-003   # 명시적으로 REQ-003 승인
 ```
 
 ### 스펙 승인 (Phase 1 → Phase 2)
@@ -111,7 +111,7 @@ Skill(skill: "mst:gemini", args: "{outsource_brief} --files {worktree_path}/**/*
 
 ### 최종 수락 (Phase 3 → Phase 5)
 
-`--final` 옵션 사용 시:
+Phase 3 리뷰 완료 상태의 요청이 선택되면 자동으로 최종 수락을 수행합니다:
 
 1. 리뷰 리포트가 PASS인지 확인
 2. 최종 요약 리포트 생성
@@ -119,21 +119,15 @@ Skill(skill: "mst:gemini", args: "{outsource_brief} --files {worktree_path}/**/*
 4. Worktree 삭제 + 브랜치 정리
 5. Phase 5 완료 처리
 
-## 옵션
-
-- `--final`: 최종 결과물 수락 (Phase 5 진입)
-
 ## 예시
 
 ```
-/mst:approve                  # 승인 대기 중인 첫 번째 요청 자동 선택 → Phase 2 진입
-/mst:approve --final          # 최종 수락 대기 중인 첫 번째 요청 자동 선택 → Phase 5 완료
-/mst:approve REQ-001          # 명시적으로 REQ-001 스펙 승인 → Phase 2 진입
-/mst:approve REQ-001 --final  # 명시적으로 REQ-001 최종 수락 → Phase 5 완료
+/mst:approve           # 승인 대기 중인 첫 번째 요청 자동 선택 (Phase에 따라 스펙 승인 또는 최종 수락)
+/mst:approve REQ-001   # 명시적으로 REQ-001 승인 (Phase에 따라 자동 판별)
 ```
 
 ## 문제 해결
 
 - "승인할 스펙이 없음" → 해당 요청이 Phase 1(PM 분석) 완료 상태인지 확인. `/mst:inspect {REQ-ID}`로 상태 조회
 - "이미 승인됨" → 해당 요청이 이미 Phase 2 이후에 있음. `/mst:inspect {REQ-ID}`로 현재 Phase 확인
-- "리뷰가 PASS가 아님" (--final 사용 시) → 리뷰 리포트에서 미충족 수락조건 확인. 피드백 루프를 먼저 완료
+- "리뷰가 PASS가 아님" → 리뷰 리포트에서 미충족 수락조건 확인. 피드백 루프를 먼저 완료
