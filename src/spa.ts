@@ -1079,7 +1079,6 @@ let ideationActiveSession = null;
 let discussionActiveSession = null;
 let openDirs = new Set();
 let treeInitialized = false;
-let prevTreeJson = '';
 const viewCache = {};
 let loadDataTimer = null;
 let pollInterval = null;
@@ -1136,7 +1135,7 @@ async function apiFetch(path, options = {}) {
 // ─── Markdown Renderer (Inline GFM-lite) ────────────────────────────────────
 function renderMarkdown(md) {
   if (!md) return '';
-  
+
   var html = md;
   var bt = String.fromCharCode(96);
   var bts = bt + bt + bt;
@@ -1144,7 +1143,7 @@ function renderMarkdown(md) {
   // 1. Escaping HTML (XSS Protection)
   html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  // 2. Code blocks
+  // 2. Code blocks (new RegExp needs \\\\  for regex metacharacters)
   var codeBlocks = [];
   var codeBlockRegex = new RegExp(bts + '([a-zA-Z0-9_]*)\\\\n([\\\\s\\\\S]*?)' + bts, 'g');
   html = html.replace(codeBlockRegex, function(match, lang, code) {
@@ -1162,20 +1161,20 @@ function renderMarkdown(md) {
     return id;
   });
 
-  // 4. Block Elements
-  var lines = html.split('\\\\n');
-  var inList = null; 
+  // 4. Block Elements (regex literals use \\\\ for regex metacharacters)
+  var lines = html.split('\\n');
+  var inList = null;
   var inTable = false;
   var inQuote = false;
-  
+
   var processedLines = lines.map(function(line, index) {
     var currentLine = line;
 
     // Horizontal Rule
-    if (/^([\\\\s]*[-*_]){3,}[\\\\s]*$/.test(currentLine)) return '<hr>';
+    if (/^(\\s*[-*_]){3,}\\s*$/.test(currentLine)) return '<hr>';
 
     // Headers
-    var headerMatch = currentLine.match(/^(#{1,6})[\\\\s]+(.*)$/);
+    var headerMatch = currentLine.match(/^(#{1,6})\\s+(.*)$/);
     if (headerMatch) {
       var level = headerMatch[1].length;
       return '<h' + level + '>' + headerMatch[2] + '</h' + level + '>';
@@ -1192,13 +1191,13 @@ function renderMarkdown(md) {
     }
 
     // Checkboxes
-    currentLine = currentLine.replace(/^[-*][\\\\s]+\\\\[ \\\\][\\\\s]+(.*)$/, '<li><input type="checkbox" disabled> $1</li>');
-    currentLine = currentLine.replace(/^[-*][\\\\s]+\\\\[x\\\\][\\\\s]+(.*)$/, '<li><input type="checkbox" checked disabled> $1</li>');
+    currentLine = currentLine.replace(/^[-*]\\s+\\[ \\]\\s+(.*)$/, '<li><input type="checkbox" disabled> $1</li>');
+    currentLine = currentLine.replace(/^[-*]\\s+\\[x\\]\\s+(.*)$/, '<li><input type="checkbox" checked disabled> $1</li>');
 
     // Lists
-    var ulMatch = currentLine.match(/^([\\\\s]*)[-*][\\\\s]+(.*)$/);
-    var olMatch = currentLine.match(/^([\\\\s]*)[0-9]+\\\\.[\\\\s]+(.*)$/);
-    
+    var ulMatch = currentLine.match(/^(\\s*)[-*]\\s+(.*)$/);
+    var olMatch = currentLine.match(/^(\\s*)[0-9]+\\.\\s+(.*)$/);
+
     if (ulMatch || olMatch) {
       var type = ulMatch ? 'ul' : 'ol';
       var content = ulMatch ? ulMatch[2] : olMatch[2];
@@ -1218,11 +1217,11 @@ function renderMarkdown(md) {
     // Tables
     if (currentLine.trim().indexOf('|') === 0 && currentLine.trim().lastIndexOf('|') === currentLine.trim().length - 1) {
       var cells = currentLine.trim().split('|').filter(function(c) { return c.length > 0; });
-      if (index + 1 < lines.length && /^([\\\\s]*\\\\|?[\\\\s]*:?-+:?[\\\\s]*\\\\|?)+[\\\\s]*$/.test(lines[index+1])) {
+      if (index + 1 < lines.length && /^(\\s*\\|?\\s*:?-+:?\\s*\\|?)+\\s*$/.test(lines[index+1])) {
         inTable = true;
         return '<table><thead><tr>' + cells.map(function(c) { return '<th>' + c.trim() + '</th>'; }).join('') + '</tr></thead><tbody>';
       } else if (inTable) {
-        if (/^([\\\\s]*\\\\|?[\\\\s]*:?-+:?[\\\\s]*\\\\|?)+[\\\\s]*$/.test(currentLine)) return ''; 
+        if (/^(\\s*\\|?\\s*:?-+:?\\s*\\|?)+\\s*$/.test(currentLine)) return '';
         return '<tr>' + cells.map(function(c) { return '<td>' + c.trim() + '</td>'; }).join('') + '</tr>';
       }
     } else if (inTable) {
@@ -1239,14 +1238,14 @@ function renderMarkdown(md) {
   if (inTable) processedLines.push('</tbody></table>');
   if (inQuote) processedLines.push('</blockquote>');
 
-  html = processedLines.join('\\\\n');
+  html = processedLines.join('\\n');
 
   // 5. Inline Elements
-  html = html.replace(/\\\\*\\\\*([^\\\\*]+)\\\\*\\\\*/g, '<strong>$1</strong>');
-  html = html.replace(/\\\\*([^\\\\*]+)\\\\*/g, '<em>$1</em>');
+  html = html.replace(/\\*\\*([^\\*]+)\\*\\*/g, '<strong>$1</strong>');
+  html = html.replace(/\\*([^\\*]+)\\*/g, '<em>$1</em>');
   html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
-  html = html.replace(/!\\\\[([^\\\\]*)\\\\]\\\\(([^\\\\)]*)\\\\)/g, '<img src="$2" alt="$1">');
-  html = html.replace(/\\\\[([^\\\\]*)\\\\]\\\\(([^\\\\)]*)\\\\)/g, '<a href="$2" target="_blank">$1</a>');
+  html = html.replace(/!\\[([^\\]]*)\\]\\(([^\\)]*)\\)/g, '<img src="$2" alt="$1">');
+  html = html.replace(/\\[([^\\]]*)\\]\\(([^\\)]*)\\)/g, '<a href="$2" target="_blank">$1</a>');
 
   // 6. Restore protected content
   inlineCodes.forEach(function(code, i) { html = html.replace('INLINE_' + i, code); });
