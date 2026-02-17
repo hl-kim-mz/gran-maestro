@@ -1195,17 +1195,12 @@ function phaseClass(phase, activePhase, reqStatus) {
 // ─── View Renderers ─────────────────────────────────────────────────────────
 
 function renderWorkflow() {
-  if (requests.length === 0) {
-    return '<div class="empty-state"><div class="icon">&#9878;</div>' +
-      '<h2>No Active Requests</h2>' +
-      '<p>Requests will appear here when Gran Maestro processes them. ' +
-      'Check that the .gran-maestro/requests/ directory exists.</p></div>';
-  }
-
   // Sort requests descending by ID
   const sortedRequests = [...requests].sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+  const activeRequests = sortedRequests.filter(req => req._location !== 'completed');
+  const completedRequests = sortedRequests.filter(req => req._location === 'completed');
 
-  return sortedRequests.map(req => {
+  const renderRequestCard = (req) => {
     const phases = [1, 2, 3, 4, 5];
     const activePhase = req.current_phase || req.phase || 1;
     const reqStatus = req.status || 'unknown';
@@ -1248,7 +1243,26 @@ function renderWorkflow() {
       '<div class="phase-row">' + phaseNodes + '</div>' +
       (tasksHtml ? '<div class="task-list">' + tasksHtml + '</div>' : '') +
       '</div>';
-  }).join('');
+  };
+
+  const activeSection = activeRequests.length > 0
+    ? activeRequests.map(renderRequestCard).join('')
+    : '<div class="empty-state"><div class="icon">&#9878;</div>' +
+      '<h2>No Active Requests</h2>' +
+      '<p>Requests will appear here when Gran Maestro processes them. ' +
+      'Check that the .gran-maestro/requests/ directory exists.</p></div>';
+  const completedSection = completedRequests.length > 0
+    ? completedRequests.map(renderRequestCard).join('')
+    : '';
+
+  return '<div class="request-section request-section--active">' +
+      '<h2>Active Requests</h2>' +
+      activeSection +
+    '</div>' +
+    '<details class="request-section request-section--completed" style="margin-top:16px">' +
+      '<summary>Completed (' + completedRequests.length + ')</summary>' +
+      (completedSection || '<div class="empty-state"><div class="icon">&#128221;</div><p>No Completed Requests</p></div>') +
+    '</details>';
 }
 
 async function toggleTaskDetail(event, el, reqId, taskId) {

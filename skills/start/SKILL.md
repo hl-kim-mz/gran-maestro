@@ -51,7 +51,7 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
 ### Step 1: 요청 생성
 
 1. 새 요청 ID 채번 (REQ-NNN):
-   - `.gran-maestro/requests/` 하위의 기존 REQ-* 디렉토리를 스캔
+   - `.gran-maestro/requests/` 하위 및 `.gran-maestro/requests/completed/` 하위의 기존 REQ-* 디렉토리를 모두 스캔
    - 최대 번호를 찾아 +1 (첫 요청이면 REQ-001)
 2. `.gran-maestro/requests/REQ-NNN/` 디렉토리 생성
    - 하위에 `tasks/`, `discussion/`, `design/` 서브디렉토리도 함께 생성

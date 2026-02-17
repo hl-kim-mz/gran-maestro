@@ -4,6 +4,15 @@ import { dirExists, listDirs, readJsonFile, readTextFile } from "../utils.ts";
 import { resolveBaseDir } from "../config.ts";
 
 const projectRequestsApi = new Hono();
+
+async function resolveRequestDir(baseDir: string, id: string): Promise<string | null> {
+  const primary = `${baseDir}/requests/${id}`;
+  if (await dirExists(primary)) return primary;
+  const completed = `${baseDir}/requests/completed/${id}`;
+  if (await dirExists(completed)) return completed;
+  return null;
+}
+
 projectRequestsApi.get("/requests", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
   if (!baseDir) {
@@ -15,15 +24,23 @@ projectRequestsApi.get("/requests", async (c) => {
     return c.json([]);
   }
 
-  const dirs = await listDirs(requestsDir);
   const requests: RequestMeta[] = [];
+  const requestDirs = (await listDirs(requestsDir)).filter((dir) => /^REQ-/.test(dir));
+  const completedRequestDirs = (await listDirs(`${requestsDir}/completed`)).filter((dir) => /^REQ-/.test(dir));
 
-  for (const dir of dirs) {
-    const reqJson = await readJsonFile<RequestMeta>(
-      `${requestsDir}/${dir}/request.json`
-    );
+  for (const dir of requestDirs) {
+    const reqJson = await readJsonFile<RequestMeta>(`${requestsDir}/${dir}/request.json`);
     if (reqJson) {
       requests.push({ ...reqJson, id: reqJson.id || dir });
+    }
+  }
+
+  for (const dir of completedRequestDirs) {
+    const reqJson = await readJsonFile<RequestMeta>(
+      `${requestsDir}/completed/${dir}/request.json`
+    );
+    if (reqJson) {
+      requests.push({ ...reqJson, id: reqJson.id || dir, _location: "completed" });
     }
   }
 
@@ -37,8 +54,13 @@ projectRequestsApi.get("/requests/:id", async (c) => {
   }
 
   const id = c.req.param("id");
+  const requestDir = await resolveRequestDir(baseDir, id);
+  if (!requestDir) {
+    return c.json({ error: "Request not found" }, 404);
+  }
+
   const reqJson = await readJsonFile<RequestMeta>(
-    `${baseDir}/requests/${id}/request.json`
+    `${requestDir}/request.json`
   );
   if (!reqJson) {
     return c.json({ error: "Request not found" }, 404);
@@ -55,7 +77,12 @@ projectRequestsApi.get("/requests/:id/tasks", async (c) => {
   }
 
   const id = c.req.param("id");
-  const tasksDir = `${baseDir}/requests/${id}/tasks`;
+  const requestDir = await resolveRequestDir(baseDir, id);
+  if (!requestDir) {
+    return c.json([]);
+  }
+
+  const tasksDir = `${requestDir}/tasks`;
   if (!(await dirExists(tasksDir))) {
     return c.json([]);
   }
@@ -85,7 +112,12 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
 
   const id = c.req.param("id");
   const taskId = c.req.param("taskId");
-  const taskDir = `${baseDir}/requests/${id}/tasks/${taskId}`;
+  const requestDir = await resolveRequestDir(baseDir, id);
+  if (!requestDir) {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  const taskDir = `${requestDir}/tasks/${taskId}`;
 
   const status = await readJsonFile<TaskMeta>(`${taskDir}/status.json`);
   const spec = await readTextFile(`${taskDir}/spec.md`);
@@ -147,7 +179,12 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/traces", async (c) => {
 
   const id = c.req.param("id");
   const taskId = c.req.param("taskId");
-  const tracesDir = `${baseDir}/requests/${id}/tasks/${taskId}/traces`;
+  const requestDir = await resolveRequestDir(baseDir, id);
+  if (!requestDir) {
+    return c.json([]);
+  }
+
+  const tracesDir = `${requestDir}/tasks/${taskId}/traces`;
 
   if (!(await dirExists(tracesDir))) {
     return c.json([]);
@@ -193,6 +230,10 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/traces/:traceFile", async (c
   const id = c.req.param("id");
   const taskId = c.req.param("taskId");
   const traceFile = c.req.param("traceFile");
+  const requestDir = await resolveRequestDir(baseDir, id);
+  if (!requestDir) {
+    return c.json({ error: "Trace file not found" }, 404);
+  }
 
   // Prevent directory traversal
   if (traceFile.includes("..") || traceFile.includes("/")) {
@@ -200,7 +241,7 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/traces/:traceFile", async (c
   }
 
   const content = await readTextFile(
-    `${baseDir}/requests/${id}/tasks/${taskId}/traces/${traceFile}`
+    `${requestDir}/tasks/${taskId}/traces/${traceFile}`
   );
   if (content === null) {
     return c.json({ error: "Trace file not found" }, 404);
