@@ -733,6 +733,80 @@ nav button.active {
   color: var(--text-secondary);
   margin-bottom: 8px;
 }
+/* Config sections */
+.config-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.config-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  user-select: none;
+}
+.config-section-header:hover {
+  background: var(--bg-hover);
+}
+.config-section-body {
+  padding: 12px 14px;
+}
+.config-section.collapsed .config-section-body {
+  display: none;
+}
+.config-field {
+  display: grid;
+  grid-template-columns: 180px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-light, rgba(128,128,128,0.1));
+}
+.config-field:last-child {
+  border-bottom: none;
+}
+.config-field label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+.config-field input[type="text"],
+.config-field input[type="number"] {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: var(--font-mono);
+  width: 100%;
+}
+.config-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.config-badge.default {
+  color: var(--text-muted);
+  background: transparent;
+}
+.config-badge.modified {
+  color: var(--yellow, #f0c040);
+  background: rgba(240,192,64,0.1);
+}
+.config-meta {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
 /* ─── Approval Banner ──────────────────────────────────────── */
 .approval-banner {
   background: linear-gradient(90deg, rgba(240,192,64,0.15), rgba(233,69,96,0.10));
@@ -1247,6 +1321,7 @@ nav button.active {
     <button data-view="ideation" onclick="switchView('ideation')">Idea (2)</button>
     <button data-view="documents" onclick="switchView('documents')">Docs (3)</button>
     <button data-view="log" onclick="switchView('log')">Log (4)</button>
+    <button data-view="settings" onclick="switchView('settings')">Settings (5)</button>
   </nav>
   <div class="search-container" id="search-container">
     <div class="search-input-wrapper">
@@ -1254,7 +1329,7 @@ nav button.active {
       <input type="text" id="workflow-search" class="search-input" placeholder="Search requests... (S)" oninput="filterWorkflow()">
     </div>
     <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 10px;">
-      <span><b>1-4</b> Views</span>
+      <span><b>1-5</b> Views</span>
       <span><b>T</b> Theme</span>
       <span><b>S</b> Search</span>
       <span><b>R</b> Refresh</span>
@@ -1293,6 +1368,8 @@ let docTree = [];
 let docContent = '';
 let docActivePath = '';
 let config = {};
+let configDefaults = {};
+let configDefaultsLoaded = false;
 let modeStatus = {};
 let sseConnected = false;
 let logContent = '';
@@ -1365,8 +1442,8 @@ window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   
   const key = e.key.toLowerCase();
-  if (key >= '1' && key <= '4') {
-    const views = ['workflow', 'ideation', 'documents', 'log'];
+  if (key >= '1' && key <= '5') {
+    const views = ['workflow', 'ideation', 'documents', 'log', 'settings'];
     switchView(views[parseInt(key) - 1]);
   } else if (key === 't') {
     toggleTheme();
@@ -1401,6 +1478,9 @@ async function refreshView(viewName) {
         ]);
         ideationSessions = results[0];
         discussionSessions = results[1];
+        break;
+      case 'settings':
+        config = await apiFetch('/config');
         break;
     }
     renderCurrentView();
@@ -2200,34 +2280,209 @@ document.addEventListener('click', function(e) {
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 function renderSettings() {
-  const configStr = JSON.stringify(config, null, 2);
-  return '<div class="settings-form">' +
-    '<h2 style="margin-bottom:16px;font-size:18px">Configuration</h2>' +
-    '<div class="form-group">' +
-      '<label>config.json</label>' +
-      '<textarea id="config-editor">' + escapeHtml(configStr) + '</textarea>' +
-    '</div>' +
-    '<div style="display:flex;gap:8px;margin-bottom:20px">' +
-      '<button class="btn" onclick="saveConfig()">Save Configuration</button>' +
+  const defaults = configDefaults || {};
+  const metaKeys = ['version', 'plugin_name', 'branding'];
+  let html = '<div class="settings-form" style="max-width:800px">' +
+    '<h2 style="margin-bottom:16px;font-size:18px">Configuration</h2>';
+
+  const keys = Object.keys(defaults);
+  for (const section of keys) {
+    const sectionDefaults = defaults[section];
+    const sectionConfig = config && Object.prototype.hasOwnProperty.call(config, section) ? config[section] : undefined;
+    if (metaKeys.includes(section)) {
+      html += renderMetaSection(section, sectionConfig ?? sectionDefaults);
+      continue;
+    }
+    if (typeof sectionDefaults === 'object' && sectionDefaults !== null && !Array.isArray(sectionDefaults)) {
+      html += renderSection(section, sectionDefaults, sectionConfig || {}, true, section);
+    } else {
+      html += renderScalarSection(section, sectionDefaults, sectionConfig, '', true);
+    }
+  }
+
+  const extraKeys = Object.keys(config || {}).filter((key) => !(key in defaults));
+  if (extraKeys.length > 0) {
+    const extraDefaults = Object.fromEntries(extraKeys.map((k) => [k, config[k]]));
+    html += renderSection('Custom (project-only)', extraDefaults, extraDefaults, true, '', false, false);
+  }
+
+  html += '</div>' +
+    '<div style="display:flex;gap:8px;margin:20px 0">' +
+      '<button class="btn" onclick="saveSettingsForm()">Save</button>' +
+      '<button class="btn btn-secondary" onclick="resetToDefaults()">Reset to Defaults</button>' +
       '<button class="btn btn-secondary" onclick="refreshConfig()">Reload</button>' +
     '</div>' +
     '<div class="mode-status">' +
       '<h3>Maestro Mode Status</h3>' +
       '<pre style="margin-top:8px">' + highlightJson(modeStatus) + '</pre>' +
-    '</div>' +
+    '</div>';
+  return html;
+}
+
+function renderMetaSection(section, value) {
+  let text = '';
+  if (typeof value === 'object' && value !== null) {
+    try { text = JSON.stringify(value, null, 2); } catch { text = String(value); }
+  } else {
+    text = String(value ?? '');
+  }
+  return '<div class="config-section" style="margin-top:8px;">' +
+    '<div class="config-section-header">' + escapeHtml(section) + '</div>' +
+    '<div class="config-meta">' + escapeHtml(text) + '</div>' +
   '</div>';
 }
 
-async function saveConfig() {
+function renderScalarSection(name, defaultValue, projectValue, sectionPath = '', compareDefaults = true) {
+  const body = renderField(name, defaultValue, projectValue, sectionPath, compareDefaults);
+  return '<div class="config-section">' +
+    '<div class="config-section-header" onclick="toggleConfigSection(this)">' +
+      '<span>' + escapeHtml(name) + '</span>' +
+      '<span>▾</span>' +
+    '</div>' +
+    '<div class="config-section-body">' + body + '</div>' +
+  '</div>';
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isDeepEqual(a, b) {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (!isPlainObject(a) || !isPlainObject(b)) return a === b;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && isDeepEqual(a[key], b[key]));
+}
+
+function getDefaultType(v) {
+  if (typeof v === 'boolean') return 'boolean';
+  if (typeof v === 'number') return 'number';
+  if (v === null) return 'null';
+  if (typeof v === 'string') return 'string';
+  return 'string';
+}
+
+function renderSection(name, defaults, projectValues, expanded = true, sectionPath = name, compareDefaults = true, canCollapse = true) {
+  const keys = Object.keys(defaults || {});
+  let body = '';
+  for (const key of keys) {
+    const defaultValue = defaults[key];
+    const projectValue = projectValues ? projectValues[key] : undefined;
+
+    if (isPlainObject(defaultValue)) {
+      body += renderSection(
+        key,
+        defaultValue,
+        projectValue || {},
+        true,
+        sectionPath ? sectionPath + '.' + key : key,
+        compareDefaults,
+        true
+      );
+    } else {
+      body += renderField(key, defaultValue, projectValue, sectionPath, compareDefaults);
+    }
+  }
+  return '<div class="config-section' + (canCollapse && !expanded ? ' collapsed' : '') + '">' +
+    '<div class="config-section-header" onclick="toggleConfigSection(this)">' +
+      '<span>' + escapeHtml(name) + '</span>' +
+      '<span>▾</span>' +
+    '</div>' +
+    '<div class="config-section-body">' + body + '</div>' +
+  '</div>';
+}
+
+function renderField(fieldKey, defaultValue, projectValue, sectionPath = '', compareDefaults = true) {
+  const value = projectValue === undefined ? defaultValue : projectValue;
+  const type = getDefaultType(defaultValue);
+  const isDefault = compareDefaults ? isDeepEqual(value, defaultValue) : true;
+  const badge = compareDefaults
+    ? (isDefault ? '<span class="config-badge default">(default)</span>' : '<span class="config-badge modified">(modified)</span>')
+    : '';
+  const valueText = value === null ? '' : escapeHtml(String(value));
+  const ds = escapeHtml(sectionPath || '');
+  let input = '';
+  if (type === 'boolean') {
+    input = '<input type="checkbox" data-section="' + ds + '" data-key="' + escapeHtml(fieldKey) + '" data-type="' + type + '" ' + (value ? 'checked' : '') + ' onclick="event.stopPropagation()">';
+  } else if (type === 'number') {
+    input = '<input type="number" data-section="' + ds + '" data-key="' + escapeHtml(fieldKey) + '" data-type="' + type + '" value="' + valueText + '">';
+  } else if (type === 'null') {
+    input = '<input type="text" placeholder="null" data-section="' + ds + '" data-key="' + escapeHtml(fieldKey) + '" data-type="' + type + '" value="' + valueText + '">';
+  } else {
+    input = '<input type="text" data-section="' + ds + '" data-key="' + escapeHtml(fieldKey) + '" data-type="' + type + '" value="' + valueText + '">';
+  }
+  return '<div class="config-field">' +
+    '<label>' + escapeHtml(fieldKey) + '</label>' +
+    '<span>' + input + '</span>' +
+    '<span>' + badge + '</span>' +
+  '</div>';
+}
+
+function toggleConfigSection(btn) {
+  const section = btn.closest('.config-section');
+  if (section) section.classList.toggle('collapsed');
+}
+
+function collectConfigFromForm() {
+  const next = {};
+  const fields = document.querySelectorAll('.settings-form [data-section][data-key][data-type]');
+  fields.forEach((el) => {
+    const section = el.getAttribute('data-section') || '';
+    const key = el.getAttribute('data-key');
+    const type = el.getAttribute('data-type');
+    if (!key || !type) return;
+
+    let value;
+    if (type === 'boolean') {
+      value = el.checked;
+    } else if (type === 'number') {
+      const parsed = parseFloat(el.value);
+      if (Number.isNaN(parsed)) {
+        throw new Error('Invalid number for ' + key);
+      }
+      value = parsed;
+    } else if (type === 'null') {
+      const raw = (el.value || '').trim();
+      value = raw === '' || raw.toLowerCase() === 'null' ? null : raw;
+    } else {
+      value = el.value;
+    }
+
+    const target = section
+      ? section.split('.').reduce((acc, part) => {
+          if (!acc[part]) acc[part] = {};
+          return acc[part];
+        }, next)
+      : next;
+    target[key] = value;
+  });
+  return next;
+}
+
+function saveSettingsForm() {
   try {
-    const editor = document.getElementById('config-editor');
-    const newConfig = JSON.parse(editor.value);
-    await apiFetch('/config', {
-      method: 'PUT',
-      body: JSON.stringify(newConfig)
+    const nextConfig = collectConfigFromForm();
+    // Preserve read-only meta fields from current config
+    var metaKeys = ['version', 'plugin_name', 'branding'];
+    metaKeys.forEach(function(mk) {
+      if (config && config[mk] !== undefined && !(mk in nextConfig)) {
+        nextConfig[mk] = config[mk];
+      }
     });
-    config = newConfig;
-    showToast('Configuration saved', 'success');
+    apiFetch('/config', {
+      method: 'PUT',
+      body: JSON.stringify(nextConfig)
+    }).then(() => {
+      config = nextConfig;
+      viewCache['settings'] = null;
+      renderCurrentView();
+      showToast('Configuration saved', 'success');
+    }).catch((e) => {
+      showToast('Error: ' + e.message, 'error');
+    });
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
   }
@@ -2236,12 +2491,27 @@ async function saveConfig() {
 async function refreshConfig() {
   try {
     config = await apiFetch('/config');
-    const editor = document.getElementById('config-editor');
-    if (editor) editor.value = JSON.stringify(config, null, 2);
+    viewCache['settings'] = null;
+    renderCurrentView();
     showToast('Configuration reloaded', 'success');
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
   }
+}
+
+function resetToDefaults() {
+  try {
+    config = JSON.parse(JSON.stringify(configDefaults || {}));
+    viewCache['settings'] = null;
+    renderCurrentView();
+    showToast('Reset to defaults (unsaved)', 'info');
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+function saveConfig() {
+  return saveSettingsForm();
 }
 
 let toastQueue = [];
@@ -2762,6 +3032,10 @@ function switchProject(projectId) {
 // ─── Data Loading ───────────────────────────────────────────────────────────
 async function loadData() {
   await loadProjects();
+  if (!configDefaultsLoaded) {
+    await loadConfigDefaults();
+    configDefaultsLoaded = true;
+  }
   try {
     // Load requests and their tasks
     requests = await apiFetch('/requests');
@@ -2801,6 +3075,14 @@ async function loadData() {
   });
 
   renderCurrentView();
+}
+
+async function loadConfigDefaults() {
+  try {
+    configDefaults = await apiFetch('/config/defaults');
+  } catch {
+    configDefaults = {};
+  }
 }
 
 // ─── SSE Connection ─────────────────────────────────────────────────────────
