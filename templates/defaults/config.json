@@ -82,6 +82,9 @@
       "claude": 1
     }
   },
+  "models": {
+    "claude": "opus"
+  },
   "cleanup": {
     "ideation_keep_count": 10,
     "discussion_keep_count": 10,

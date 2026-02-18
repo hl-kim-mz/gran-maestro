@@ -28,6 +28,7 @@ export interface AgentDefinition {
 export const agents: Record<string, AgentDefinition> = {
   // ─── Analysis Agents (Phase 1) ────────────────────────────
 
+  // NOTE: model 필드는 기본값. 실제 런타임에서는 config.json의 models.claude를 우선 참조.
   'pm-conductor': {
     name: 'pm-conductor',
     description:

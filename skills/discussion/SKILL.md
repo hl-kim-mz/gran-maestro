@@ -8,7 +8,7 @@ argument-hint: "{주제 또는 IDN-NNN} [--max-rounds {N}] [--focus {분야}]"
 # maestro:discussion
 
 설정된 AI 팀원들이 **합의에 도달할 때까지** 반복 토론합니다.  
-PM(Claude Opus 4.6)이 사회자 역할로 발산점을 식별하고, 각 AI에게 반론을 전달하며 수렴을 유도합니다.
+PM(Claude)이 사회자 역할로 발산점을 식별하고, 각 AI에게 반론을 전달하며 수렴을 유도합니다.
 이 스킬은 모드에 관계없이 사용 가능합니다 (OMC 모드, Maestro 모드 모두).
 
 ## ideation과의 차이
@@ -105,9 +105,12 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
 
 1. `roles` 키를 순회해 `rounds/00/prompts/{roleKey}-prompt.md` 작성
 2. 병렬 호출:
+
+   > **Claude 모델 결정**: config.json의 `models.claude` 값을 사용합니다 (미설정 시 `"opus"` 폴백).
+
    - `provider: "codex"`: `/mst:codex --prompt-file .../{roleKey}-prompt.md --output rounds/00/{roleKey}.md`
    - `provider: "gemini"`: `/mst:gemini --prompt-file .../{roleKey}-prompt.md --sandbox > rounds/00/{roleKey}.md`
-   - `provider: "claude"`: `Task(..., model: "opus", prompt: ".../{roleKey}-prompt.md 파일을 Read 후 rounds/00/{roleKey}.md Write")`
+   - `provider: "claude"`: `Task(..., model: "{config.models.claude}", prompt: ".../{roleKey}-prompt.md 파일을 Read 후 rounds/00/{roleKey}.md Write")`
 
 각 호출은 `run_in_background: true`.
 
@@ -132,7 +135,7 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
 역할별 동시 호출:
 - `Codex`: `/mst:codex --prompt-file rounds/NN/prompts/{roleKey}-prompt.md --output rounds/NN/{roleKey}.md`
 - `Gemini`: `/mst:gemini --prompt-file rounds/NN/prompts/{roleKey}-prompt.md > rounds/NN/{roleKey}.md`
-- `Claude`: `Task(... prompt: "prompts/{roleKey}-prompt.md")`
+- `Claude`: `Task(model: "{config.models.claude}", prompt: "prompts/{roleKey}-prompt.md")`
 
 #### 4b.5. Critic 평가
 

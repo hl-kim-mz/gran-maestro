@@ -87,7 +87,7 @@ When assembling agent teams, consider:
 Present team composition to user in spec document with rationale.
 
 Analysis Squad: /mst:gemini (codebase exploration + context analysis) + /mst:codex (code structure + req decomposition + precision symbol tracing + requirements gap analysis)
-  + Design Wing (conditional): Architect(opus) + /mst:codex(schema-designer template) + /mst:gemini(ui-designer template)
+  + Design Wing (conditional): Architect({config.models.claude}) + /mst:codex(schema-designer template) + /mst:gemini(ui-designer template)
     - Schema Designer: `agents/schema-designer.md` 템플릿 → `/mst:codex --prompt-file` (대규모 시 `/mst:gemini` 보조)
     - UI Designer: `agents/ui-designer.md` 템플릿 → `/mst:gemini --prompt-file` (1M 컨텍스트로 전체 UI 일관성 확보, 정밀 코드 구현 시 `/mst:codex` 보조)
 Review Squad: /mst:codex (quality-precheck + code-review + security-scan + consistency-review:default + security-review + quality-review + acceptance-verification)
@@ -242,7 +242,7 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 절대 사용 금지
 
 ## Model
 
-- **Recommended**: opus
+- **Recommended**: config.json `models.claude` 참조 (기본값: opus)
 - **Role**: Team Leader (Phase 1 & 3)
 
 ## Tools
