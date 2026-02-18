@@ -46,25 +46,28 @@ projectIdeationApi.get("/ideation/:id", async (c) => {
     return c.json({ error: "Session not found" }, 404);
   }
 
-  const opinionCodex = await readTextFile(`${sessionDir}/opinion-codex.md`);
-  const opinionGemini = await readTextFile(`${sessionDir}/opinion-gemini.md`);
-  const opinionClaude = await readTextFile(`${sessionDir}/opinion-claude.md`);
-  const critiqueClaude = await readTextFile(`${sessionDir}/critique-claude.md`);
-  const critiqueCodex = await readTextFile(`${sessionDir}/critique-codex.md`);
+  const opinions: Record<string, string | null> = {};
+  const roles = session.roles || {};
+  const participantKeys = Object.keys(roles);
+  const opinionKeys = participantKeys.length > 0
+    ? participantKeys
+    : ['codex', 'gemini', 'claude'];
+  for (const key of opinionKeys) {
+    opinions[key] = await readTextFile(`${sessionDir}/opinion-${key}.md`);
+  }
+
+  const critiques: Record<string, string | null> = {};
+  const critics = session.critics || {};
+  for (const key of Object.keys(critics)) {
+    critiques[key] = await readTextFile(`${sessionDir}/critique-${key}.md`);
+  }
   const synthesis = await readTextFile(`${sessionDir}/synthesis.md`);
   const discussion = await readTextFile(`${sessionDir}/discussion.md`);
 
   return c.json({
     session: { ...session, id: session.id || id },
-    opinions: {
-      codex: opinionCodex,
-      gemini: opinionGemini,
-      claude: opinionClaude,
-    },
-    critiques: {
-      claude: critiqueClaude,
-      codex: critiqueCodex,
-    },
+    opinions,
+    critiques,
     synthesis,
     discussion,
   });

@@ -49,27 +49,34 @@ projectDiscussionApi.get("/discussion/:id", async (c) => {
   // Read rounds
   const rounds: Array<{
     round: number;
-    codex: string | null;
-    gemini: string | null;
-    claude: string | null;
-    critiques: { claude: string | null; codex: string | null };
+    responses: Record<string, string | null>;
+    critiques: Record<string, string | null>;
     synthesis: string | null;
   }> = [];
 
   const roundsDir = `${sessionDir}/rounds`;
   if (await dirExists(roundsDir)) {
     const roundDirs = (await listDirs(roundsDir)).sort();
+    const roleKeys = Object.keys(session.roles || {});
+    const responseKeys = roleKeys.length > 0 ? roleKeys : ['codex', 'gemini', 'claude'];
+    const critics = session.critics || {};
+    const criticKeys = Object.keys(critics);
     for (const rd of roundDirs) {
       const roundPath = `${roundsDir}/${rd}`;
+      const responses: Record<string, string | null> = {};
+      for (const key of responseKeys) {
+        responses[key] = await readTextFile(`${roundPath}/${key}.md`);
+      }
+      const roundCritiques: Record<string, string | null> = {};
+      for (const key of criticKeys) {
+        roundCritiques[key] = await readTextFile(
+          `${roundPath}/critique-${key}.md`
+        );
+      }
       rounds.push({
         round: parseInt(rd, 10),
-        codex: await readTextFile(`${roundPath}/codex.md`),
-        gemini: await readTextFile(`${roundPath}/gemini.md`),
-        claude: await readTextFile(`${roundPath}/claude.md`),
-        critiques: {
-          claude: await readTextFile(`${roundPath}/critique-claude.md`),
-          codex: await readTextFile(`${roundPath}/critique-codex.md`),
-        },
+        responses,
+        critiques: roundCritiques,
         synthesis: await readTextFile(`${roundPath}/synthesis.md`),
       });
     }

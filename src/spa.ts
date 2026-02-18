@@ -1018,7 +1018,7 @@ nav button.active {
 }
 .opinions-columns {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
   margin-top: 12px;
 }
@@ -2146,6 +2146,11 @@ function renderIdeation() {
   if (ideationActiveSession) {
     const s = ideationActiveSession.session;
     const ops = ideationActiveSession.opinions || {};
+    const roleMap = s.roles || {};
+    let participantKeys = Object.keys(roleMap || ops || {});
+    if (participantKeys.length === 0) {
+      participantKeys = ['codex', 'gemini', 'claude'];
+    }
     const statusCls = (s.status || 'collecting').toLowerCase();
 
     let html = '<button class="ideation-back" onclick="closeIdeationDetail()">&larr; Back to sessions</button>';
@@ -2157,7 +2162,7 @@ function renderIdeation() {
 
     // Opinion progress chips
     html += '<div class="opinion-progress">';
-    ['codex', 'gemini', 'claude'].forEach(function(ai) {
+    participantKeys.forEach(function(ai) {
       const opData = (s.roles || s.opinions || {})[ai] || {};
       const st = opData.status || 'pending';
       const dotCls = st === 'done' ? 'done' : st === 'failed' ? 'failed' : st === 'pending' && statusCls === 'collecting' ? 'collecting' : 'pending';
@@ -2166,16 +2171,25 @@ function renderIdeation() {
     html += '</div></div>';
 
     // Three-column opinions
-    const hasAnyOpinion = ops.codex || ops.gemini || ops.claude;
+    let hasAnyOpinion = false;
+    for (const key of participantKeys) {
+      if (ops[key]) {
+        hasAnyOpinion = true;
+        break;
+      }
+    }
     if (hasAnyOpinion) {
       html += '<div class="opinions-columns">';
-      ['codex', 'gemini', 'claude'].forEach(function(ai) {
+      participantKeys.forEach(function(ai) {
         const role = (s.roles || {})[ai];
+        const provider = (role && role.provider) || ai;
+        const instanceTag = ai === provider ? '' : ' #' + ai.split('-').pop();
         const label = role && role.perspective
-          ? ai.charAt(0).toUpperCase() + ai.slice(1) + ' (' + escapeHtml(role.perspective) + ')'
-          : (ai === 'codex' ? 'Codex (Technical)' : ai === 'gemini' ? 'Gemini (Strategic)' : 'Claude (Critical)');
+          ? provider.charAt(0).toUpperCase() + provider.slice(1) + instanceTag +
+            ' (' + escapeHtml(role.perspective) + ')'
+          : provider.charAt(0).toUpperCase() + provider.slice(1) + instanceTag;
         const content = ops[ai];
-        html += '<div class="opinion-panel ' + ai + '"><h4>' + label + '</h4>';
+        html += '<div class="opinion-panel ' + provider + '"><h4>' + label + '</h4>';
         if (content) {
           html += '<div class="doc-content" style="background:transparent;border:none;padding:0">' + renderMarkdown(content) + '</div>';
         } else {
@@ -2188,17 +2202,16 @@ function renderIdeation() {
 
     // Critiques
     const crits = ideationActiveSession.critiques || {};
-    if (crits.claude || crits.codex) {
+    const criticKeys = Object.keys(crits);
+    if (criticKeys.length > 0) {
       html += '<div class="critiques-section"><h4>Critical Review</h4>';
-      html += '<div class="opinions-columns" style="grid-template-columns:repeat(' + (crits.codex ? '2' : '1') + ',1fr)">';
-      if (crits.claude) {
-        html += '<div class="opinion-panel critic"><h4>Claude Critic</h4>';
-        html += '<div class="doc-content" style="background:transparent;border:none;padding:0">' + renderMarkdown(crits.claude) + '</div></div>';
-      }
-      if (crits.codex) {
-        html += '<div class="opinion-panel critic"><h4>Codex Critic</h4>';
-        html += '<div class="doc-content" style="background:transparent;border:none;padding:0">' + renderMarkdown(crits.codex) + '</div></div>';
-      }
+      html += '<div class="opinions-columns" style="grid-template-columns:repeat(' + criticKeys.length + ',1fr)">';
+      criticKeys.forEach(function(criticKey) {
+        const criticProvider = (s.critics && s.critics[criticKey] && s.critics[criticKey].provider) || criticKey;
+        if (!crits[criticKey]) return;
+        html += '<div class="opinion-panel critic"><h4>' + criticProvider.charAt(0).toUpperCase() + criticProvider.slice(1) + ' Critic</h4>';
+        html += '<div class="doc-content" style="background:transparent;border:none;padding:0">' + renderMarkdown(crits[criticKey]) + '</div></div>';
+      });
       html += '</div></div>';
     }
 
@@ -2223,6 +2236,11 @@ function renderIdeation() {
   if (discussionActiveSession) {
     const s = discussionActiveSession.session;
     const rounds = discussionActiveSession.rounds || [];
+    const roleMap = s.roles || {};
+    let participantKeys = Object.keys(roleMap);
+    if (participantKeys.length === 0) {
+      participantKeys = ['codex', 'gemini', 'claude'];
+    }
     const statusCls = (s.status || 'initializing').toLowerCase();
 
     let html = '<button class="ideation-back" onclick="closeDiscussionDetail()">&larr; Back to sessions</button>';
@@ -2240,16 +2258,23 @@ function renderIdeation() {
       html += '<div class="card-title" style="font-size:14px">Round ' + r.round + '</div>';
 
       // Three-column opinions for this round
-      const hasAny = r.codex || r.gemini || r.claude;
+      const hasAny = participantKeys.some(function(ai) {
+        const roundResponses = r.responses || r;
+        return !!roundResponses[ai];
+      });
       if (hasAny) {
         html += '<div class="opinions-columns">';
-        ['codex', 'gemini', 'claude'].forEach(function(ai) {
+        participantKeys.forEach(function(ai) {
           const role = (s.roles || {})[ai];
+          const provider = (role && role.provider) || ai;
+          const instanceTag = ai === provider ? '' : ' #' + ai.split('-').pop();
           const label = role && role.perspective
-            ? ai.charAt(0).toUpperCase() + ai.slice(1) + ' (' + escapeHtml(role.perspective) + ')'
-            : ai.charAt(0).toUpperCase() + ai.slice(1);
-          const content = r[ai];
-          html += '<div class="opinion-panel ' + ai + '"><h4>' + label + '</h4>';
+            ? provider.charAt(0).toUpperCase() + provider.slice(1) + instanceTag +
+              ' (' + escapeHtml(role.perspective) + ')'
+            : provider.charAt(0).toUpperCase() + provider.slice(1) + instanceTag;
+          const roundResponses = r.responses || {};
+          const content = roundResponses[ai] || r[ai];
+          html += '<div class="opinion-panel ' + provider + '"><h4>' + label + '</h4>';
           if (content) {
             html += '<div class="doc-content" style="background:transparent;border:none;padding:0;font-size:12px">' + renderMarkdown(content) + '</div>';
           } else {
@@ -2262,17 +2287,16 @@ function renderIdeation() {
 
       // Round critiques
       const rc = r.critiques || {};
-      if (rc.claude || rc.codex) {
+      const roundCriticKeys = Object.keys(rc);
+      if (roundCriticKeys.length > 0) {
         html += '<div class="critiques-section"><h4>Critical Review</h4>';
-        html += '<div class="opinions-columns" style="grid-template-columns:repeat(' + (rc.codex ? '2' : '1') + ',1fr)">';
-        if (rc.claude) {
-          html += '<div class="opinion-panel critic"><h4>Claude Critic</h4>';
-          html += '<div class="doc-content" style="background:transparent;border:none;padding:0;font-size:12px">' + renderMarkdown(rc.claude) + '</div></div>';
-        }
-        if (rc.codex) {
-          html += '<div class="opinion-panel critic"><h4>Codex Critic</h4>';
-          html += '<div class="doc-content" style="background:transparent;border:none;padding:0;font-size:12px">' + renderMarkdown(rc.codex) + '</div></div>';
-        }
+        html += '<div class="opinions-columns" style="grid-template-columns:repeat(' + roundCriticKeys.length + ',1fr)">';
+        roundCriticKeys.forEach(function(criticKey) {
+          const criticProvider = (s.critics && s.critics[criticKey] && s.critics[criticKey].provider) || criticKey;
+          if (!rc[criticKey]) return;
+          html += '<div class="opinion-panel critic"><h4>' + criticProvider.charAt(0).toUpperCase() + criticProvider.slice(1) + ' Critic</h4>';
+          html += '<div class="doc-content" style="background:transparent;border:none;padding:0;font-size:12px">' + renderMarkdown(rc[criticKey]) + '</div></div>';
+        });
         html += '</div></div>';
       }
 
@@ -2333,8 +2357,12 @@ function renderIdeation() {
 
     // Opinion progress (ideation only)
     if (!isDiscussion && (s.opinions || s.roles)) {
+      let participantKeys = Object.keys(s.roles || s.opinions || {});
+      if (participantKeys.length === 0) {
+        participantKeys = ['codex', 'gemini', 'claude'];
+      }
       html += '<div class="opinion-progress">';
-      ['codex', 'gemini', 'claude'].forEach(function(ai) {
+      participantKeys.forEach(function(ai) {
         const opData = (s.roles || s.opinions || {})[ai] || {};
         const st = opData.status || 'pending';
         const dotCls = st === 'done' ? 'done' : st === 'failed' ? 'failed' : st === 'pending' && statusCls === 'collecting' ? 'collecting' : 'pending';

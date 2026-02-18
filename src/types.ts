@@ -42,8 +42,11 @@ export interface IdeationSession {
   status: string;
   created_at?: string;
   opinions?: Record<string, { status: string }>;
-  roles?: Record<string, { perspective: string; type: string; status: string }>;
-  critics?: Record<string, { status: string }>;
+  roles?: Record<
+    string,
+    { perspective: string; type: string; status: string; provider?: string }
+  >;
+  critics?: Record<string, { status: string; provider?: string }>;
   critic_count?: number;
   [key: string]: unknown;
 }
@@ -62,7 +65,14 @@ export interface DiscussionSession {
     divergences_before: number;
     divergences_after: number;
     status: string;
+    responses?: Record<string, string | null>;
+    critiques?: Record<string, string | null>;
   }>;
+  roles?: Record<
+    string,
+    { perspective: string; type: string; status: string; provider?: string }
+  >;
+  critics?: Record<string, { status: string; provider?: string }>;
   [key: string]: unknown;
 }
 

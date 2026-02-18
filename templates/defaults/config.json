@@ -75,6 +75,13 @@
     "opinion_char_limit": 2000,
     "critique_char_limit": 2000
   },
+  "participants": {
+    "opinion_providers": {
+      "codex": 1,
+      "gemini": 1,
+      "claude": 1
+    }
+  },
   "cleanup": {
     "ideation_keep_count": 10,
     "discussion_keep_count": 10,

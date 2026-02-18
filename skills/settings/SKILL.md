@@ -55,6 +55,27 @@ Gran Maestro의 설정을 조회하거나 변경합니다.
 | `debug.log_level` | 로그 레벨 | `info` | string |
 | `debug.log_prompts` | 프롬프트 로깅 | `false` | boolean |
 
+### participants
+| 키 | 기본값 | 설명 |
+|---|---|---|
+| `participants.opinion_providers.codex` | 1 | Codex 참여 인원수 (0=제외) |
+| `participants.opinion_providers.gemini` | 1 | Gemini 참여 인원수 (0=제외) |
+| `participants.opinion_providers.claude` | 1 | Claude 참여 인원수 (0=제외) |
+
+- 총합: 2명 이상 7명 이하
+- 프로바이더별 상한 없음
+- Critic: Claude 우선, Claude가 0명이면 Codex가 대체
+- 누락 시 기본값: `codex: 1`, `gemini: 1`, `claude: 1`
+
+예시:
+```
+participants:
+  opinion_providers:
+    codex: 2
+    gemini: 1
+    claude: 0
+```
+
 ## 예시
 
 ```

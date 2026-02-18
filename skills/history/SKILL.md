@@ -113,9 +113,9 @@ Gran Maestro — 아카이브 상세: IDN-003
 생성일: 2026-01-15 10:30
 아카이브: ideation-IDN001-IDN005-20260210.tar.gz
 
-파일 목록:
-  session.json, opinion-codex.md, opinion-gemini.md,
-  opinion-claude.md, synthesis.md
+  파일 목록:
+  session.json, opinion-{참여자}.md (참여자별),
+  synthesis.md
 
 복원하려면: /mst:archive --restore IDN-003
 ```
