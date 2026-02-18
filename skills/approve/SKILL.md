@@ -176,7 +176,59 @@ while (실행 중인 태스크가 있음):
 2. spec §5의 타입 체크 명령어 실행
 3. 결과 분기
    - **PASS**: `status`를 `review`로 전이
-   - **FAIL**: `status`를 `pre_check_failed`로 전이 후, 재실행(동일/대체 에이전트, Fallback 규칙 참조)
+   - **FAIL**: `status`를 `pre_check_failed`로 전이 → **Step 5b** (사전검증 실패 재외주 프로토콜) 진입
+
+#### Step 5b: 사전검증 실패 재외주 (Pre-check Failure Re-outsourcing)
+
+Step 5에서 FAIL 판정 시, PM이 직접 코드를 수정하지 않고 외주 에이전트에게 에러 컨텍스트와 함께 재요청합니다. 최대 재시도 횟수 소진 후에는 PM이 직접 개입합니다.
+
+##### 5b-1. 에러 출력 캡처
+
+- tsc 에러: 전체 stderr/stdout 캡처
+- 테스트 실패: 실패한 테스트 목록 + 에러 메시지 캡처
+- 에러 출력이 3000자를 초과하면 앞부분 500자 + 뒷부분 2500자로 트리밍
+
+##### 5b-2. 재시도 카운터 확인
+
+- `request.json`의 해당 태스크 `pre_check_retries` 필드 확인 (없으면 0)
+- `config.retry.max_cli_retries` (기본 2) 미만이면 → 5b-3으로 진행 (재외주)
+- 이상이면 → 5b-5로 진행 (PM 직접 개입)
+
+##### 5b-3. 에러 수정 프롬프트 생성
+
+outsource-brief 템플릿의 `<error_context>` 섹션을 활용하여 수정 프롬프트를 구성합니다:
+
+```md
+Write → .gran-maestro/requests/{REQ-ID}/tasks/{NN}/prompts/phase2-fix-R{N}.md
+```
+
+프롬프트에 포함할 내용:
+- 원본 spec.md의 수락 조건 (§3)
+- 캡처된 에러 출력 전문
+- 수정 지침: "이 에러를 수정하고, 수정 후 검증 명령어를 실행하여 통과를 확인하세요"
+- spec §5의 테스트/타입체크 명령어
+
+##### 5b-4. 동일 worktree에서 재외주 실행
+
+동일 에이전트, 동일 worktree에서 재실행합니다:
+
+```md
+Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase2-fix-R{N}")
+```
+
+- `pre_check_retries` 값을 +1 증가시키고 `request.json`에 저장
+- `status`를 `executing`으로 전이
+- 재외주 완료 후 **Step 5로 복귀** (사전검증 재실행)
+
+##### 5b-5. PM 직접 개입 (재외주 소진 시)
+
+재외주 횟수가 `config.retry.max_cli_retries`에 도달한 경우:
+
+1. PM이 에러 출력을 분석하고 직접 코드를 수정합니다
+2. 수정 후 사전검증(Step 5)을 재실행합니다
+3. `status`를 `review`로 전이 (PASS 시) 또는 사용자 개입 요청 (여전히 FAIL 시)
+
+> **주의**: PM 직접 개입은 예외적인 경우에만 발생합니다. 이 경로에 진입했다는 것은 외주 에이전트가 2회 연속 동일 에러를 해결하지 못했음을 의미합니다.
 
 #### Step 6: Phase 3 전환
 

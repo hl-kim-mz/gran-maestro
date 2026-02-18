@@ -214,7 +214,14 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 절대 사용 금지
 | cli_crash | 1회 (동일 설정) | 가능 | 최후 |
 | cli_auth_failure | 없음 | 없음 | 즉시 |
 | cli_network_error | 2회 (exponential backoff) | 없음 | 최후 |
+| pre_check_fail | 2회 (에러 컨텍스트 포함 재외주) | 가능 | PM 직접 개입 |
 | unknown | 없음 | 없음 | 즉시 |
+
+사전검증 실패(pre_check_fail) 처리:
+- 구현 완료 후 tsc/테스트 사전검증에서 에러가 발생한 경우
+- 에러 출력을 캡처하여 동일 에이전트에 재외주 (최대 2회)
+- 2회 재외주 후에도 미해결 시 PM이 직접 에러를 분석하고 코드를 수정
+- 상세 프로토콜: `skills/approve/SKILL.md` Step 5b 참조
 </fallback_policy>
 
 <failure_modes_to_avoid>

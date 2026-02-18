@@ -36,6 +36,24 @@ Before declaring completion, verify:
 {피드백 라운드 시: feedback-RN.md 내용이 여기에 삽입됨}
 {첫 실행 시: "No previous feedback. This is the initial implementation."}
 </previous_feedback>
+
+<error_context>
+{사전검증 실패 재외주 시에만 삽입됨. 첫 실행 및 피드백 재실행 시에는 이 섹션 생략}
+
+The previous implementation attempt failed pre-checks with the following errors:
+
+{ERROR_OUTPUT}
+
+Fix these errors while maintaining all acceptance criteria from the spec.
+After fixing, run the verification commands to confirm everything passes:
+- {TEST_COMMAND}
+- {TYPECHECK_COMMAND}
+
+Important:
+- Focus ONLY on fixing the reported errors
+- Do NOT introduce new features or refactoring
+- Verify your fix resolves the specific error messages shown above
+</error_context>
 </outsource_brief>
 
 ## 변수 목록
@@ -46,6 +64,9 @@ Before declaring completion, verify:
 | `{WORKTREE_PATH}` | Git worktree 경로 | `.gran-maestro/worktrees/REQ-001-01` |
 | `{SPEC_CONTENT}` | spec.md 전체 내용 | (Implementation Spec 문서) |
 | `{summary}` | 커밋 메시지용 요약 | `Add JWT auth middleware` |
+| `{ERROR_OUTPUT}` | 사전검증(tsc/test) 에러 출력 전문 (3000자 캡) | `src/foo.ts(10,5): error TS2345: ...` |
+| `{TEST_COMMAND}` | spec §5의 테스트 실행 명령어 | `npx vitest run` |
+| `{TYPECHECK_COMMAND}` | spec §5의 타입 체크 명령어 | `npx tsc --noEmit` |
 
 ## 스킬 호출 방식
 
@@ -82,3 +103,8 @@ Write → .gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/prompts/phase2-impl.m
 
 피드백 라운드(Phase 4 → Phase 2 재실행)에서는 `{previous_feedback}` 섹션에
 해당 라운드의 feedback 파일 내용이 삽입됩니다.
+
+## 사전검증 실패 재외주 시 추가 삽입
+
+사전검증 실패 재외주(Phase 2 Step 5b)에서는 `<error_context>` 섹션에
+에러 출력과 검증 명령어가 삽입됩니다. `<previous_feedback>` 섹션은 비어 있습니다.
