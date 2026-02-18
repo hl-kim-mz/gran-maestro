@@ -21,6 +21,8 @@ export interface AgentDefinition {
   capabilities?: string[];
   /** Condition for automatic spawning */
   spawnCondition?: string;
+  /** Logical category for orchestration compatibility */
+  agentCategory?: 'analysis' | 'execution' | 'review' | 'design' | 'feedback';
 }
 
 export const agents: Record<string, AgentDefinition> = {
@@ -35,6 +37,7 @@ export const agents: Record<string, AgentDefinition> = {
     systemPromptFile: 'agents/pm-conductor.md',
     provider: 'claude',
     capabilities: ['analysis', 'spec-writing', 'review', 'coordination'],
+    agentCategory: 'analysis',
   },
 
   // ─── Design Wing (Phase 1, conditional) ───────────────────
@@ -49,43 +52,7 @@ export const agents: Record<string, AgentDefinition> = {
     provider: 'claude',
     capabilities: ['system-design', 'api-design', 'module-boundaries'],
     spawnCondition: 'new_module || structural_change',
-  },
-
-  'schema-designer': {
-    name: 'schema-designer',
-    description:
-      'Design Wing — DB 스키마, 데이터 모델, ERD, 마이그레이션 계획 설계',
-    model: 'opus',
-    tools: ['Read', 'Glob', 'Grep', 'Write'],
-    systemPromptFile: 'agents/schema-designer.md',
-    provider: 'claude',
-    capabilities: ['db-schema', 'data-model', 'erd', 'migration'],
-    spawnCondition: 'data_model_change',
-  },
-
-  'ui-designer': {
-    name: 'ui-designer',
-    description:
-      'Design Wing — 화면 설계, 컴포넌트 구조, 인터랙션 흐름, 디자인 시스템',
-    model: 'opus',
-    tools: ['Read', 'Glob', 'Grep', 'Write'],
-    systemPromptFile: 'agents/ui-designer.md',
-    provider: 'claude',
-    capabilities: ['ui-spec', 'component-tree', 'interaction-flow'],
-    spawnCondition: 'frontend_ui_work',
-  },
-
-  // ─── Feedback Agent (Phase 4) ─────────────────────────────
-
-  'feedback-composer': {
-    name: 'feedback-composer',
-    description:
-      'Feedback Composer — Phase 4 피드백 문서 작성. 리뷰 결과를 정밀한 수정 지침으로 변환',
-    model: 'sonnet',
-    tools: ['Read', 'Write', 'Grep'],
-    systemPromptFile: 'agents/feedback-composer.md',
-    provider: 'claude',
-    capabilities: ['feedback', 'issue-classification', 'prioritization'],
+    agentCategory: 'design',
   },
 };
 
@@ -98,8 +65,8 @@ export const agents: Record<string, AgentDefinition> = {
  * | Explorer (/mst:codex) | codex (precision symbol tracing) | analysis | 1 |
  * | Analyst (/mst:codex) | codex (requirements gap analysis) | analysis | 1 |
  * | Architect | architect | analysis | 1 |
- * | Schema Designer | schema-designer | analysis | 1 |
- * | UI Designer | ui-designer | analysis | 1 |
+ * | Schema Designer | (스킬 전환: skills/schema-designer/) | analysis | 1 |
+ * | UI Designer | (스킬 전환: skills/ui-designer/) | analysis | 1 |
  * | Codex Developer | codex-dev (agents.json) | execution | 2 |
  * | Gemini Developer | gemini-dev (agents.json) | execution | 2 |
  * | Security Reviewer (/mst:codex) | codex (security review) | review | 3 |
@@ -107,12 +74,14 @@ export const agents: Record<string, AgentDefinition> = {
  * | Verifier (/mst:codex) | codex (acceptance verification) | review | 3 |
  * | Codex Reviewer | codex-reviewer (agents.json) | review | 3 |
  * | Gemini Reviewer | gemini-reviewer (agents.json) | review | 3 |
- * | Feedback Composer | feedback-composer | — | 4 |
+ * | Feedback Composer | (스킬 전환: skills/feedback-composer/) | — | 4 |
  *
  * Note: Execution agents (codex-dev, gemini-dev) and review agents
  * (codex-reviewer, gemini-reviewer) are defined in the runtime
  * agents.json file at .gran-maestro/agents.json, not here.
  * They are invoked via CLI (Phase 2) or MCP (Phase 1, 3).
+ * Schema Designer, UI Designer, Feedback Composer are migrated to skills
+ * and are called through /mst:* Skill invocations.
  *
  * The outsource-brief.md is a template (not an agent).
  * PM Conductor substitutes variables and passes it to CLI agents.

@@ -1,10 +1,9 @@
-> **DEPRECATED**: 이 파일은 스킬로 전환되었습니다. `skills/schema-designer/SKILL.md`를 참조하세요.
-> 이 파일은 호환성을 위해 유지되며, 향후 버전에서 제거될 예정입니다.
+# mst:schema-designer
 
-# Schema Designer Template (Design Wing)
+DB 스키마, 데이터 모델, ERD, 마이그레이션 계획을 설계하는 Design Wing 템플릿 스킬입니다.
+PM Conductor가 변수를 치환하여 `/mst:codex`로 실행합니다.
 
-Analysis Squad의 Design Wing 멤버. DB 스키마, 데이터 모델, ERD, 마이그레이션 계획을 설계합니다.
-이 파일은 에이전트가 아닌 **템플릿**으로, PM Conductor가 변수를 치환하여 `/mst:codex`로 실행합니다.
+## 실행 프로토콜
 
 <schema_designer>
 <role>

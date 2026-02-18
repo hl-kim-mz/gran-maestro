@@ -1,11 +1,9 @@
-> **DEPRECATED**: 이 파일은 스킬로 전환되었습니다. `skills/feedback-composer/SKILL.md`를 참조하세요.
-> 이 파일은 호환성을 위해 유지되며, 향후 버전에서 제거될 예정입니다.
+# mst:feedback-composer
 
-# Feedback Composer Template
+리뷰 결과를 분석해 외주 에이전트가 한 번에 수정할 수 있는 정밀하고 실행 가능한 피드백 문서를 작성하는 템플릿 스킬입니다.
+PM Conductor가 변수를 치환하여 `/mst:codex`로 실행합니다.
 
-Phase 4에서 리뷰 결과를 분석하고, 외주 에이전트가 한 번에 수정할 수 있는
-정밀하고 실행 가능한 피드백 문서를 작성합니다.
-이 파일은 에이전트가 아닌 **템플릿**으로, PM Conductor가 변수를 치환하여 `/mst:codex`로 실행합니다.
+## 실행 프로토콜
 
 <feedback_composer>
 <role>

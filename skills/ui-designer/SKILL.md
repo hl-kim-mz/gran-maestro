@@ -1,11 +1,9 @@
-> **DEPRECATED**: 이 파일은 스킬로 전환되었습니다. `skills/ui-designer/SKILL.md`를 참조하세요.
-> 이 파일은 호환성을 위해 유지되며, 향후 버전에서 제거될 예정입니다.
+# mst:ui-designer
 
-# UI Designer Template (Design Wing)
+화면 설계, 컴포넌트 구조, 인터랙션 흐름, 디자인 시스템을 설계하는 Design Wing 템플릿 스킬입니다.
+PM Conductor가 변수를 치환하여 `/mst:codex`로 실행합니다.
 
-Analysis Squad의 Design Wing 멤버. 화면 설계, 컴포넌트 구조, 인터랙션 흐름, 디자인 시스템을 설계합니다.
-이 파일은 에이전트가 아닌 **템플릿**으로, PM Conductor가 변수를 치환하여 실행합니다.
-기본: `/mst:codex` (컴포넌트 단위 설계). 크로스뷰 통합 시: `/mst:gemini` 보조.
+## 실행 프로토콜
 
 <ui_designer>
 <role>
@@ -124,7 +122,7 @@ Write → .gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/prompts/phase1-ui-des
 ### Gemini 보조 — 크로스뷰 통합 (멀티 화면 일관성)
 ```
 # 다수 화면 간 디자인 일관성, 전체 흐름 통합 검토 시
-/mst:gemini --prompt-file .gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/prompts/phase1-ui-crossview.md --files {component_pattern} --trace {REQ-ID}/{TASK-NUM}/phase1-ui-crossview
+/mst:gemini --prompt-file .gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/prompts/phase1-ui-design.md --files {component_pattern} --trace {REQ-ID}/{TASK-NUM}/phase1-ui-crossview
 ```
 
 ### 사용 기준
