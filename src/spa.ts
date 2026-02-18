@@ -2750,7 +2750,7 @@ function renderIdeation() {
   const allSessions = [];
   ideationSessions.forEach(function(s) { allSessions.push({ ...s, _type: 'ideation' }); });
   discussionSessions.forEach(function(s) { allSessions.push({ ...s, _type: 'discussion' }); });
-  allSessions.sort(function(a, b) { return (b.created_at || '').localeCompare(a.created_at || ''); });
+  allSessions.sort(function(a, b) { var numA = parseInt((a.id || '').replace(/\D+/g, '')) || 0; var numB = parseInt((b.id || '').replace(/\D+/g, '')) || 0; return numB - numA; });
 
   if (allSessions.length === 0) {
     return ideaHeader +
