@@ -49,6 +49,7 @@
     "max_active_sessions": 20,
     "archive_retention_days": null,
     "auto_archive_on_create": true,
+    "auto_archive_on_complete": true,
     "archive_directory": ".gran-maestro/archive"
   },
   "notifications": {
