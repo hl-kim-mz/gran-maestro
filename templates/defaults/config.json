@@ -75,6 +75,11 @@
     "opinion_char_limit": 2000,
     "critique_char_limit": 2000
   },
+  "collaborative_debug": {
+    "finding_char_limit": 3000,
+    "merge_wait_ms": 60000,
+    "auto_trigger_from_start": true
+  },
   "participants": {
     "opinion_providers": {
       "codex": 1,
@@ -83,11 +88,25 @@
     }
   },
   "models": {
-    "claude": "opus"
+    "claude": {
+      "pm_conductor": "opus",
+      "architect": "opus",
+      "ideation": "opus",
+      "discussion": "opus"
+    },
+    "developer": {
+      "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
+      "fallback": { "provider": "gemini", "model": "gemini-3-pro-preview" }
+    },
+    "reviewer": {
+      "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
+      "fallback": { "provider": "gemini", "model": "gemini-3-pro-preview" }
+    }
   },
   "cleanup": {
     "ideation_keep_count": 10,
     "discussion_keep_count": 10,
+    "debug_keep_count": 10,
     "old_request_threshold_hours": 24
   }
 }

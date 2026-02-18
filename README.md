@@ -102,6 +102,45 @@ PM이 사회자 역할로 발산점을 식별하고 수렴을 유도합니다.
 
 > **참고**: 대시보드(`/mst:dashboard`)는 현재 개발 중입니다. 터미널에서 `/mst:list`와 `/mst:inspect`로 상태를 확인할 수 있습니다.
 
+## 모델 설정
+
+`.gran-maestro/config.json`의 `models` 섹션에서 모든 에이전트의 모델을 한 눈에 설정합니다.
+
+### Claude 전용 역할 (opus / sonnet)
+
+| 키 | 역할 | 기본값 |
+|----|------|--------|
+| `models.claude.pm_conductor` | PM 지휘자 (Phase 1, 3) | `opus` |
+| `models.claude.architect` | 아키텍트 (Design Wing) | `opus` |
+| `models.claude.ideation` | Ideation 참여자 | `opus` |
+| `models.claude.discussion` | Discussion 참여자 | `opus` |
+
+### CLI 에이전트 (provider + model 자유 선택)
+
+| 키 | 역할 | 기본 provider | 기본 model |
+|----|------|--------------|------------|
+| `models.developer.primary` | 주 개발자 | `codex` | `gpt-5.3-codex` |
+| `models.developer.fallback` | 보조 개발자 | `gemini` | `gemini-3-pro-preview` |
+| `models.reviewer.primary` | 주 리뷰어 | `codex` | `gpt-5.3-codex` |
+| `models.reviewer.fallback` | 보조 리뷰어 | `gemini` | `gemini-3-pro-preview` |
+
+설정 예시:
+```json
+"models": {
+  "claude": { "pm_conductor": "sonnet", "architect": "opus", "ideation": "sonnet", "discussion": "sonnet" },
+  "developer": {
+    "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
+    "fallback": { "provider": "gemini", "model": "gemini-3-pro-preview" }
+  },
+  "reviewer": {
+    "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
+    "fallback": { "provider": "gemini", "model": "gemini-3-pro-preview" }
+  }
+}
+```
+
+> `/mst:settings`로 CLI에서, `/mst:dashboard`의 Settings 탭에서 변경할 수 있습니다.
+
 ## 워크플로우
 
 | Phase | 이름 | 설명 |

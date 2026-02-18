@@ -67,7 +67,7 @@ ModuleA → ModuleB → ModuleC
 
 ## Model
 
-- **Recommended**: config.json `models.claude` 참조 (기본값: opus)
+- **Recommended**: config.json `models.claude.architect` 참조 (opus / sonnet)
 - **Role**: System Architect (Design Wing)
 
 ## Tools

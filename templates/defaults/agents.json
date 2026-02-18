@@ -1,46 +1,31 @@
 {
+  "_config_ref": "모델/provider 설정은 config.json의 models 섹션을 참조",
   "execution_agents": {
-    "codex-dev": {
-      "provider": "codex",
-      "model": "gpt-5.3-codex",
-      "cli_command": "codex",
+    "primary_dev": {
       "role": "developer",
       "agent_category": "execution",
       "capabilities": ["code", "refactor", "test"],
-      "fallback": "gemini-dev",
-      "max_fallback_depth": 1
+      "cli_command_map": { "codex": "codex", "gemini": "gemini" }
     },
-    "gemini-dev": {
-      "provider": "gemini",
-      "model": "gemini-3-pro-preview",
-      "cli_command": "gemini",
+    "fallback_dev": {
       "role": "developer",
       "agent_category": "execution",
       "capabilities": ["frontend", "docs", "large-context"],
-      "fallback": "codex-dev",
-      "max_fallback_depth": 1
+      "cli_command_map": { "codex": "codex", "gemini": "gemini" }
     }
   },
   "review_agents": {
-    "codex-reviewer": {
-      "provider": "codex",
-      "model": "gpt-5.3-codex",
-      "cli_command": "codex",
+    "primary_reviewer": {
       "role": "reviewer",
       "agent_category": "review",
       "capabilities": ["code-review", "accuracy"],
-      "fallback": "gemini-reviewer",
-      "max_fallback_depth": 1
+      "cli_command_map": { "codex": "codex", "gemini": "gemini" }
     },
-    "gemini-reviewer": {
-      "provider": "gemini",
-      "model": "gemini-3-pro-preview",
-      "cli_command": "gemini",
+    "fallback_reviewer": {
       "role": "reviewer",
       "agent_category": "review",
       "capabilities": ["review", "consistency", "large-context"],
-      "fallback": null,
-      "max_fallback_depth": 0
+      "cli_command_map": { "codex": "codex", "gemini": "gemini" }
     }
   }
 }

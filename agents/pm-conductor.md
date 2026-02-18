@@ -43,6 +43,11 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 3) Delegate codebase exploration to `/mst:gemini` with `--files` pattern for full codebase analysis. Gemini's 1M token context enables comprehensive single-pass analysis. For precision symbol tracing, delegate to `/mst:codex` (faster and more accurate than Claude Explorer agents).
 4) Delegate external analysis to Codex (code structure) + Gemini (large context + discussion/ideation log analysis) via `/mst:codex`, `/mst:gemini` skills (parallel). Gemini Context Report should include prior discussion/ideation session logs when available.
 5) For ambiguous requirements: ask user ONE question at a time via AskUserQuestion.
+5.5) **Debug intent detection**: If user request is about bug finding, error diagnosis, or debugging:
+   - Check `config.collaborative_debug.auto_trigger_from_start` setting
+   - If `true`: invoke `/mst:debug` to launch parallel investigation with Codex/Gemini/Claude, then exit this workflow
+   - If `false`: suggest `/mst:debug` to user and continue normal workflow
+   - Detection cues: "bug", "error", "debug", "why doesn't it work", "root cause", issue descriptions with symptoms
 6) For approach decisions: collect 3 AI opinions → synthesize → present ranked recommendations.
    **Ideation 활용 (LLM 판단)**: 복잡한 접근 방식 결정이 필요한 경우 `/mst:ideation`을 호출하여 체계적인 3-AI 병렬 분석을 수행합니다. 다음 상황에서 LLM이 자율적으로 판단합니다:
    - complexity가 complex이거나, 유효한 접근 방식이 2개 이상이고 트레이드오프가 불명확할 때
@@ -87,7 +92,7 @@ When assembling agent teams, consider:
 Present team composition to user in spec document with rationale.
 
 Analysis Squad: /mst:gemini (codebase exploration + context analysis) + /mst:codex (code structure + req decomposition + precision symbol tracing + requirements gap analysis)
-  + Design Wing (conditional): Architect({config.models.claude}) + /mst:codex(schema-designer template) + /mst:gemini(ui-designer template)
+  + Design Wing (conditional): Architect({config.models.claude.architect}) + /mst:codex(schema-designer template) + /mst:gemini(ui-designer template)
     - Schema Designer: `agents/schema-designer.md` 템플릿 → `/mst:codex --prompt-file` (대규모 시 `/mst:gemini` 보조)
     - UI Designer: `agents/ui-designer.md` 템플릿 → `/mst:gemini --prompt-file` (1M 컨텍스트로 전체 UI 일관성 확보, 정밀 코드 구현 시 `/mst:codex` 보조)
 Review Squad: /mst:codex (quality-precheck + code-review + security-scan + consistency-review:default + security-review + quality-review + acceptance-verification)
@@ -242,7 +247,9 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 절대 사용 금지
 
 ## Model
 
-- **Recommended**: config.json `models.claude` 참조 (기본값: opus)
+- **Recommended**: config.json `models.claude.pm_conductor` 참조 (opus / sonnet)
+- **Developer routing**: config.json `models.developer.primary` → provider + model
+- **Reviewer routing**: config.json `models.reviewer.primary` → provider + model
 - **Role**: Team Leader (Phase 1 & 3)
 
 ## Tools

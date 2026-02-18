@@ -1791,7 +1791,7 @@ function renderWorkflow() {
 
   return '<div class="view-header">' +
       '<div class="view-header-title">Workflow</div>' +
-      '<button class="refresh-btn" id="refresh-btn-workflow" onclick="refreshView(\'workflow\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
+      '<button class="refresh-btn" id="refresh-btn-workflow" onclick="refreshView(\\'workflow\\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
     '</div>' +
     '<div class="workflow-layout">' +
       '<div class="workflow-list">' + listHtml + '</div>' +
@@ -1876,7 +1876,7 @@ function renderAgents() {
     '<input type="text" id="agent-filter-req" placeholder="Filter by Request ID..." oninput="filterAgents()">' +
     '<input type="text" id="agent-filter-agent" placeholder="Filter by Agent..." oninput="filterAgents()">' +
     '<div style="flex:1"></div>' +
-    '<button class="refresh-btn" id="refresh-btn-agents" onclick="refreshView(\'agents\')" style="margin-right:8px"><span class="refresh-icon">&#x21bb;</span></button>' +
+    '<button class="refresh-btn" id="refresh-btn-agents" onclick="refreshView(\\'agents\\')" style="margin-right:8px"><span class="refresh-icon">&#x21bb;</span></button>' +
     '<div class="live-indicator"><div class="dot"></div> LIVE</div>' +
     '</div>';
 
@@ -1923,7 +1923,7 @@ function renderDocuments() {
   const contentHtml = docContent || '<div class="empty-state" style="padding:40px"><p>Select a file from the tree to view its contents.</p></div>';
   return '<div class="view-header">' +
     '<div class="view-header-title">Documents</div>' +
-    '<button class="refresh-btn" id="refresh-btn-documents" onclick="refreshView(\'documents\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
+    '<button class="refresh-btn" id="refresh-btn-documents" onclick="refreshView(\\'documents\\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
     '</div>' +
     '<div class="doc-layout">' +
     '<div class="doc-tree">' + treeHtml + '</div>' +
@@ -2017,7 +2017,7 @@ function renderLog() {
 
   const toolbar = '<div class="log-toolbar">' +
     '<select onchange="selectLogTask(this.value)" style="min-width:320px">' + options + '</select>' +
-    '<button class="refresh-btn" id="refresh-btn-log" onclick="refreshView(\'log\')" style="margin-left:auto"><span class="refresh-icon">&#x21bb;</span></button>' +
+    '<button class="refresh-btn" id="refresh-btn-log" onclick="refreshView(\\'log\\')" style="margin-left:auto"><span class="refresh-icon">&#x21bb;</span></button>' +
     '</div>';
 
   if (!logSelectedTask) {
@@ -2071,7 +2071,7 @@ function scrollLogToBottom() {
 function renderDependencies() {
   const depHeader = '<div class="view-header">' +
     '<div class="view-header-title">Dependencies</div>' +
-    '<button class="refresh-btn" id="refresh-btn-dependencies" onclick="refreshView(\'dependencies\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
+    '<button class="refresh-btn" id="refresh-btn-dependencies" onclick="refreshView(\\'dependencies\\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
     '</div>';
   // Collect requests that have blockedBy or blocks relationships
   const hasRelation = requests.filter(r =>
@@ -2291,6 +2291,29 @@ function renderSettings() {
     const sectionConfig = config && Object.prototype.hasOwnProperty.call(config, section) ? config[section] : undefined;
     if (metaKeys.includes(section)) {
       html += renderMetaSection(section, sectionConfig ?? sectionDefaults);
+      continue;
+    }
+    // Add description hints for models section
+    if (section === 'models') {
+      html += '<div class="config-section">' +
+        '<div class="config-section-header" onclick="toggleConfigSection(this)"><span>models</span><span>&#9662;</span></div>' +
+        '<div class="config-section-body">' +
+          '<div style="font-size:11px;color:var(--text-muted);padding:4px 0 8px;border-bottom:1px solid var(--border);margin-bottom:8px">' +
+            '<b>claude</b>: Claude 전용 역할 (opus / sonnet) &nbsp;|&nbsp; ' +
+            '<b>developer</b> &amp; <b>reviewer</b>: CLI 에이전트 (provider + model 자유 선택)' +
+          '</div>';
+      const modelsDefaults = sectionDefaults || {};
+      const modelsConfig = sectionConfig || {};
+      for (const sub of Object.keys(modelsDefaults)) {
+        const subDef = modelsDefaults[sub];
+        const subCfg = modelsConfig[sub] || {};
+        if (typeof subDef === 'object' && subDef !== null) {
+          html += renderSection(sub, subDef, subCfg, true, 'models.' + sub);
+        } else {
+          html += renderField(sub, subDef, subCfg, 'models', true);
+        }
+      }
+      html += '</div></div>';
       continue;
     }
     if (typeof sectionDefaults === 'object' && sectionDefaults !== null && !Array.isArray(sectionDefaults)) {
@@ -2722,7 +2745,7 @@ function renderIdeation() {
   // List view — merge ideation + discussion sessions
   const ideaHeader = '<div class="view-header">' +
     '<div class="view-header-title">Ideation &amp; Discussion</div>' +
-    '<button class="refresh-btn" id="refresh-btn-ideation" onclick="refreshView(\'ideation\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
+    '<button class="refresh-btn" id="refresh-btn-ideation" onclick="refreshView(\\'ideation\\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
     '</div>';
   const allSessions = [];
   ideationSessions.forEach(function(s) { allSessions.push({ ...s, _type: 'ideation' }); });
