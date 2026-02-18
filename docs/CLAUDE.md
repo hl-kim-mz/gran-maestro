@@ -148,7 +148,7 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 ### Phase 1: PM 분석
 - **주체**: PM Conductor (+ Analysis Squad 팀)
 - **산출물**: 구현 스펙 (spec.md)
-- **팀 구성**: Explorer x2 + Analyst + Design Wing (조건부) + `/mst:codex` / `/mst:gemini`
+- **팀 구성**: Design Wing (조건부) + `/mst:codex` (코드 구조 분석 + 정밀 심볼 추적 + 요구사항 갭 분석) / `/mst:gemini` (광역 탐색)
 
 ### Phase 2: 외주 실행
 - **주체**: `/mst:codex` / `/mst:gemini` 스킬
@@ -158,7 +158,7 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 ### Phase 3: PM 리뷰
 - **주체**: PM Conductor (+ Review Squad 팀)
 - **산출물**: 리뷰 리포트 (review-RN.md)
-- **팀 구성**: Security + Quality + Verifier + `/mst:codex` / `/mst:gemini`
+- **팀 구성**: `/mst:codex` (보안 검증 + 품질 검증 + 수락 조건 검증) / `/mst:gemini` (대규모 변경 일관성 검토)
 
 ### Phase 4: 피드백 루프
 - **주체**: Feedback Composer
@@ -182,10 +182,8 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 | 에이전트 | 모델 | 역할 |
 |---------|------|------|
 | PM Conductor | opus | 팀 리더, 스펙 작성 |
-| Explorer x2 | opus | 코드베이스 병렬 탐색 |
-| Analyst | opus | 요구사항 갭 분석 |
-| `/mst:codex` | gpt-5.3-codex | 코드 구조 분석 |
-| `/mst:gemini` | gemini-3-pro-preview | 대규모 컨텍스트 분석 |
+| `/mst:codex` | gpt-5.3-codex | 코드 구조 분석 + 정밀 심볼 추적 + 요구사항 갭 분석 |
+| `/mst:gemini` | gemini-3-pro-preview | 대규모 컨텍스트 분석 + 광역 코드베이스 탐색 |
 
 ### Design Wing (Phase 1 — 조건부 소환)
 
@@ -200,11 +198,8 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 | 에이전트 | 모델 | 역할 |
 |---------|------|------|
 | PM Conductor | opus | 팀 리더, 리뷰 종합 |
-| Security Reviewer | opus | 보안 검증 |
-| Quality Reviewer | opus | 코드 품질 검증 |
-| Verifier | opus | 수락 조건 검증 |
-| `/mst:codex` | gpt-5.3-codex | 코드 정확성 검증 |
-| `/mst:gemini` | gemini-3-pro-preview | 전체 일관성 검토 |
+| `/mst:codex` | gpt-5.3-codex | 코드 정확성 + 보안 + 품질 + 수락 조건 검증 |
+| `/mst:gemini` | gemini-3-pro-preview | 전체 일관성 검토 (대규모 변경 시) |
 
 </agent_team>
 

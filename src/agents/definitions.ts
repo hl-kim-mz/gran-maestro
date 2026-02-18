@@ -95,16 +95,16 @@ export const agents: Record<string, AgentDefinition> = {
  * | 논리 역할 | agents.json 키 | 유형 | Phase |
  * |----------|----------------|------|-------|
  * | PM Conductor | pm-conductor | analysis | 1, 3 |
- * | Explorer Agent | (Claude Code Team) | analysis | 1 |
- * | Analyst Agent | (Claude Code Team) | analysis | 1 |
+ * | Explorer (/mst:codex) | codex (precision symbol tracing) | analysis | 1 |
+ * | Analyst (/mst:codex) | codex (requirements gap analysis) | analysis | 1 |
  * | Architect | architect | analysis | 1 |
  * | Schema Designer | schema-designer | analysis | 1 |
  * | UI Designer | ui-designer | analysis | 1 |
  * | Codex Developer | codex-dev (agents.json) | execution | 2 |
  * | Gemini Developer | gemini-dev (agents.json) | execution | 2 |
- * | Security Reviewer | (Claude Code Team) | — | 3 |
- * | Quality Reviewer | (Claude Code Team) | — | 3 |
- * | Verifier | (Claude Code Team) | — | 3 |
+ * | Security Reviewer (/mst:codex) | codex (security review) | review | 3 |
+ * | Quality Reviewer (/mst:codex) | codex (quality review) | review | 3 |
+ * | Verifier (/mst:codex) | codex (acceptance verification) | review | 3 |
  * | Codex Reviewer | codex-reviewer (agents.json) | review | 3 |
  * | Gemini Reviewer | gemini-reviewer (agents.json) | review | 3 |
  * | Feedback Composer | feedback-composer | — | 4 |

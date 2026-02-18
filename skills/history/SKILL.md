@@ -40,7 +40,7 @@ Gran Maestro — REQ-001 이력
 ═══════════════════════════════════════
 
 Phase 1: PM 분석 (45m)
-  - Analysis Squad: Explorer x2 + Analyst + Architect
+  - Analysis Squad: Analyst + Architect + /mst:codex + /mst:gemini
   - 스펙: 3개 태스크, 8개 수락조건
 
 Phase 2: 외주 실행 (2h 15m)
@@ -49,7 +49,7 @@ Phase 2: 외주 실행 (2h 15m)
   - REQ-001-03: codex (38s) — 유저 모델 테스트
 
 Phase 3: PM 리뷰 (30m)
-  - Review Squad: Security + Quality + Verifier
+  - Review Squad: /mst:codex (security + quality + verification)
   - 결과: PARTIAL (AC-2 미충족)
 
 Phase 4: 피드백 1회 (45m)

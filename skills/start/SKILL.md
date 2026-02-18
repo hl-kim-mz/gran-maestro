@@ -77,7 +77,7 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
 4. PM Conductor 역할로 Phase 1 분석 수행 (`agents/pm-conductor.md`의 `<phase1_protocol>` 준수):
    a. 요청 파싱 및 복잡도 분류 (simple | standard | complex)
    b. Simple → 단독 분석 / Standard·Complex → Analysis Squad 팀 소환
-   c. 코드베이스 탐색 (Explorer 위임), 외부 AI 분석 (반드시 `Skill(skill: "mst:codex", ...)`, `Skill(skill: "mst:gemini", ...)` 도구로 호출 — OMC MCP 직접 호출 금지)
+   c. 코드베이스 탐색 (`/mst:codex`로 정밀 심볼 추적, `/mst:gemini`로 광역 탐색 위임), 외부 AI 분석 (반드시 `Skill(skill: "mst:codex", ...)`, `Skill(skill: "mst:gemini", ...)` 도구로 호출 — OMC MCP 직접 호출 금지)
    d. 모호한 요구사항은 사용자에게 질문 (AskUserQuestion, 한 번에 하나씩)
    e. 접근 방식 결정 시: 3 AI 의견 수집 → 종합 → 순위별 추천
       - **Ideation 자동 트리거 (LLM 판단)**: 아래 조건 중 하나라도 해당하면 `/mst:ideation`을 호출하여 체계적인 3-AI 분석을 수행합니다. LLM이 상황을 종합적으로 판단하여 결정합니다:
