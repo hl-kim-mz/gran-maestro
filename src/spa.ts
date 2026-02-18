@@ -159,6 +159,54 @@ nav button.active {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
+nav kbd {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 5px;
+  margin-left: 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  vertical-align: middle;
+  box-shadow: 0 1px 0 var(--border);
+}
+nav button.active kbd {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tab-count {
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.search-container kbd {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 1px 4px;
+  margin: 0 1px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  box-shadow: 0 1px 0 var(--border);
+}
 
 /* ─── Cards ─────────────────────────────────────────────────── */
 .card {
@@ -1317,11 +1365,11 @@ nav button.active {
     <div class="notif-list" id="notif-list"></div>
   </div>
   <nav>
-    <button class="active" data-view="workflow" onclick="switchView('workflow')">Workflow (1)</button>
-    <button data-view="ideation" onclick="switchView('ideation')">Idea (2)</button>
-    <button data-view="documents" onclick="switchView('documents')">Docs (3)</button>
-    <button data-view="log" onclick="switchView('log')">Log (4)</button>
-    <button data-view="settings" onclick="switchView('settings')">Settings (5)</button>
+    <button class="active" data-view="workflow" onclick="switchView('workflow')">Workflow <kbd>1</kbd></button>
+    <button data-view="ideation" onclick="switchView('ideation')">Idea <kbd>2</kbd></button>
+    <button data-view="documents" onclick="switchView('documents')">Docs <kbd>3</kbd></button>
+    <button data-view="log" onclick="switchView('log')">Log <kbd>4</kbd></button>
+    <button data-view="settings" onclick="switchView('settings')">Settings <kbd>5</kbd></button>
   </nav>
   <div class="search-container" id="search-container">
     <div class="search-input-wrapper">
@@ -1329,10 +1377,10 @@ nav button.active {
       <input type="text" id="workflow-search" class="search-input" placeholder="Search requests... (S)" oninput="filterWorkflow()">
     </div>
     <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 10px;">
-      <span><b>1-5</b> Views</span>
-      <span><b>T</b> Theme</span>
-      <span><b>S</b> Search</span>
-      <span><b>R</b> Refresh</span>
+      <span><kbd>1</kbd>-<kbd>5</kbd> Views</span>
+      <span><kbd>T</kbd> Theme</span>
+      <span><kbd>S</kbd> Search</span>
+      <span><kbd>R</kbd> Refresh</span>
     </div>
   </div>
   <div class="approval-banner" id="approval-banner" style="display:none">
@@ -2991,6 +3039,33 @@ function patchCards(main, newHtml) {
   }
 }
 
+function updateTabCounts() {
+  const activeRequests = requests.filter(r => {
+    const st = (r.status || '').toLowerCase();
+    return st.startsWith('phase1') || st.startsWith('phase2') || st.startsWith('phase3') || st.startsWith('phase4');
+  }).length;
+  const ideationCount = (ideationSessions || []).length;
+
+  const tabs = { workflow: activeRequests, ideation: ideationCount };
+  Object.entries(tabs).forEach(([view, count]) => {
+    const btn = document.querySelector('nav button[data-view="' + view + '"]');
+    if (!btn) return;
+    let badge = btn.querySelector('.tab-count');
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'tab-count';
+        const kbd = btn.querySelector('kbd');
+        if (kbd) btn.insertBefore(badge, kbd);
+        else btn.appendChild(badge);
+      }
+      badge.textContent = String(count);
+    } else if (badge) {
+      badge.remove();
+    }
+  });
+}
+
 function renderCurrentView() {
   const main = document.getElementById('main-content');
   if (!main) return;
@@ -3021,6 +3096,7 @@ function renderCurrentView() {
     main.scrollTop = scrollTop;
   }
   updateApprovalBanner();
+  updateTabCounts();
 }
 
 // ─── Project Selector ───────────────────────────────────────────────────────
