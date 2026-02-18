@@ -257,6 +257,104 @@ nav button.active {
   font-size: 14px;
   margin: 0 2px;
 }
+
+/* ─── Workflow: Master-Detail Layout ──────────────────────── */
+.workflow-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  height: calc(100vh - 130px);
+}
+@media (max-width: 768px) {
+  .workflow-layout { grid-template-columns: 1fr; }
+}
+.workflow-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.workflow-list-item {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+  background: var(--bg-secondary);
+}
+.workflow-list-item:hover {
+  border-color: var(--border);
+  background: var(--bg-primary);
+}
+.workflow-list-item.active {
+  border-color: var(--accent);
+  background: var(--bg-card);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.workflow-list-item .wli-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.workflow-list-item .wli-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.workflow-list-item .wli-progress {
+  height: 3px;
+  background: var(--bg-primary);
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.workflow-list-item .wli-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--green));
+  border-radius: 2px;
+  transition: width 0.4s;
+}
+.workflow-list-item .wli-status {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.workflow-list-item .wli-status.s-active { background: rgba(59,130,246,0.12); color: var(--accent); }
+.workflow-list-item .wli-status.s-completed { background: rgba(78,204,163,0.12); color: var(--green); }
+.workflow-list-item .wli-status.s-failed { background: rgba(220,53,69,0.12); color: var(--red); }
+.workflow-list-item .wli-status.s-pending { background: rgba(255,193,7,0.12); color: var(--yellow); }
+.workflow-detail {
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.workflow-detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  height: 100%;
+}
+.workflow-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 12px 4px;
+}
+
 @keyframes pulse-phase {
   0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
   50% { box-shadow: 0 0 8px 4px rgba(59, 130, 246, 0.15); }
@@ -934,21 +1032,24 @@ nav button.active {
 
 /* ─── Ideation View ────────────────────────────────────────── */
 .ideation-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .ideation-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 12px 16px;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .ideation-card:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 12px rgba(233, 69, 96, 0.15);
+  background: var(--bg-primary);
 }
 .ideation-card.active {
   border-color: var(--accent);
@@ -1143,12 +1244,9 @@ nav button.active {
   </div>
   <nav>
     <button class="active" data-view="workflow" onclick="switchView('workflow')">Workflow (1)</button>
-    <button data-view="agents" onclick="switchView('agents')">Agents (2)</button>
+    <button data-view="ideation" onclick="switchView('ideation')">Idea (2)</button>
     <button data-view="documents" onclick="switchView('documents')">Docs (3)</button>
     <button data-view="log" onclick="switchView('log')">Log (4)</button>
-    <button data-view="ideation" onclick="switchView('ideation')">Idea (5)</button>
-    <button data-view="dependencies" onclick="switchView('dependencies')">Deps (6)</button>
-    <button data-view="settings" onclick="switchView('settings')">Set (7)</button>
   </nav>
   <div class="search-container" id="search-container">
     <div class="search-input-wrapper">
@@ -1156,7 +1254,7 @@ nav button.active {
       <input type="text" id="workflow-search" class="search-input" placeholder="Search requests... (S)" oninput="filterWorkflow()">
     </div>
     <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 10px;">
-      <span><b>1-7</b> Views</span>
+      <span><b>1-4</b> Views</span>
       <span><b>T</b> Theme</span>
       <span><b>S</b> Search</span>
       <span><b>R</b> Refresh</span>
@@ -1209,6 +1307,7 @@ let discussionActiveSession = null;
 let openDirs = new Set();
 let treeInitialized = false;
 const viewCache = {};
+let selectedRequestId = '';
 let loadDataTimer = null;
 let dirtyLoadTimer = null;
 let pollInterval = null;
@@ -1266,8 +1365,8 @@ window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   
   const key = e.key.toLowerCase();
-  if (key >= '1' && key <= '7') {
-    const views = ['workflow', 'agents', 'documents', 'log', 'ideation', 'dependencies', 'settings'];
+  if (key >= '1' && key <= '4') {
+    const views = ['workflow', 'ideation', 'documents', 'log'];
     switchView(views[parseInt(key) - 1]);
   } else if (key === 't') {
     toggleTheme();
@@ -1316,7 +1415,7 @@ async function refreshView(viewName) {
 
 function filterWorkflow() {
   const query = (document.getElementById('workflow-search')?.value || '').toLowerCase();
-  document.querySelectorAll('.request-card').forEach(el => {
+  document.querySelectorAll('.workflow-list-item').forEach(el => {
     const text = el.textContent.toLowerCase();
     el.style.display = text.includes(query) ? '' : 'none';
   });
@@ -1520,17 +1619,60 @@ function phaseClass(phase, activePhase, reqStatus) {
 // ─── View Renderers ─────────────────────────────────────────────────────────
 
 function renderWorkflow() {
-  // Sort requests descending by ID
   const sortedRequests = [...requests].sort((a, b) => (b.id || '').localeCompare(a.id || ''));
   const activeRequests = sortedRequests.filter(req => req._location !== 'completed');
   const completedRequests = sortedRequests.filter(req => req._location === 'completed');
 
-  const renderRequestCard = (req) => {
+  // Auto-select first request if none selected
+  if (!selectedRequestId && sortedRequests.length > 0) {
+    selectedRequestId = sortedRequests[0].id;
+  }
+
+  // Left panel: compact request list
+  const renderListItem = (req) => {
+    const reqStatus = req.status || 'unknown';
+    const isCompleted = ['completed','done','success'].includes(reqStatus.toLowerCase());
+    const isFailed = ['failed','error'].includes(reqStatus.toLowerCase());
+    const isPending = ['pending','queued','phase1_analysis','phase1_spec_review'].includes(reqStatus.toLowerCase());
+    const statusCls = isCompleted ? 's-completed' : isFailed ? 's-failed' : isPending ? 's-pending' : 's-active';
+    const statusLabel = isCompleted ? 'Done' : isFailed ? 'Fail' : isPending ? 'Wait' : 'Active';
+    const activePhase = req.current_phase || req.phase || 1;
+    const progress = isCompleted ? 100 : Math.round(((activePhase - 1) / 5) * 100);
+    const isActive = selectedRequestId === req.id;
+
+    return '<div class="workflow-list-item' + (isActive ? ' active' : '') + '" onclick="selectRequest(\\'' + escapeHtml(req.id) + '\\')">' +
+      '<div class="wli-title">' + escapeHtml(req.id) +
+        '<span class="wli-status ' + statusCls + '">' + statusLabel + '</span>' +
+      '</div>' +
+      '<div class="wli-meta">' + escapeHtml(req.title || 'Untitled') + '</div>' +
+      '<div class="wli-progress"><div class="wli-progress-fill" style="width:' + progress + '%"></div></div>' +
+      '</div>';
+  };
+
+  let listHtml = '';
+  if (activeRequests.length > 0) {
+    listHtml += '<div class="workflow-section-label">Active</div>';
+    listHtml += activeRequests.map(renderListItem).join('');
+  }
+  if (completedRequests.length > 0) {
+    listHtml += '<div class="workflow-section-label" style="margin-top:12px">Completed</div>';
+    listHtml += completedRequests.map(renderListItem).join('');
+  }
+  if (sortedRequests.length === 0) {
+    listHtml = '<div class="empty-state" style="padding:20px"><p>No requests</p></div>';
+  }
+
+  // Right panel: selected request detail
+  const selectedReq = sortedRequests.find(r => r.id === selectedRequestId);
+  let detailHtml = '';
+  if (selectedReq) {
+    const req = selectedReq;
     const phases = [1, 2, 3, 4, 5];
     const activePhase = req.current_phase || req.phase || 1;
     const reqStatus = req.status || 'unknown';
     const isCompleted = ['completed','done','success'].includes(reqStatus.toLowerCase());
-    
+    const progress = isCompleted ? 100 : Math.round(((activePhase - 1) / 5) * 100);
+
     const phaseNodes = phases.map((p, i) => {
       const cls = phaseClass(p, activePhase, reqStatus);
       const node = '<div class="phase-node ' + cls + '">Phase ' + p + '</div>';
@@ -1546,56 +1688,41 @@ function renderWorkflow() {
       ? '<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(78,204,163,0.15);color:var(--green);margin-left:8px">COMPLETED</span>'
       : '';
 
-    // Calculate progress
-    const progress = isCompleted ? 100 : Math.round(((activePhase - 1) / 5) * 100);
-
-    const tasksHtml = (req._tasks || []).map(t => {
+    const tasksHtml = (req._tasks || []).map((t, idx) => {
+      const taskNum = parseInt(t.id, 10) || (idx + 1);
       return '<div class="task-item" onclick="toggleTaskDetail(event, this, \\'' + escapeHtml(req.id) + '\\', \\'' + escapeHtml(t.id) + '\\')">' +
         '<div class="task-main">' +
           taskStatusIcon(t.status) +
-          '<span class="task-name">' + escapeHtml(t.id) + '</span>' +
-          (t.agent ? '<span class="task-agent">' + escapeHtml(t.agent) + '</span>' : '') +
+          '<span class="task-name">Task ' + taskNum + (t.agent ? ' <span class=\\'task-agent\\'>' + escapeHtml(t.agent) + '</span>' : '') + '</span>' +
         '</div>' +
         '<div class="task-detail"></div>' +
         '</div>';
     }).join('');
 
-    const isFailed = ['failed','error'].includes(reqStatus.toLowerCase());
-    const isPending = ['pending','queued','phase1_analysis','phase1_spec_review'].includes(reqStatus.toLowerCase());
-    const statusClass = isCompleted ? 'status-completed' : isFailed ? 'status-failed' : isPending ? 'status-pending' : 'status-active';
-
-    return '<div class="card request-card ' + statusClass + '" data-req-id="' + escapeHtml(req.id) + '">' +
-      '<div class="card-title">' + escapeHtml(req.id) + ': ' + escapeHtml(req.title || 'Untitled') + completedBadge + blockedBadge + '</div>' +
+    detailHtml = '<div class="card-title">' + escapeHtml(req.id) + ': ' + escapeHtml(req.title || 'Untitled') + completedBadge + blockedBadge + '</div>' +
       '<div class="card-subtitle">Status: ' + escapeHtml(reqStatus) +
       ' | Phase: ' + activePhase + (req.completed_at ? ' | Completed: ' + new Date(req.completed_at).toLocaleString() : '') + '</div>' +
       '<div class="progress-container"><div class="progress-fill" style="width:' + progress + '%"></div></div>' +
       '<div class="phase-row">' + phaseNodes + '</div>' +
-      (tasksHtml ? '<div class="task-list">' + tasksHtml + '</div>' : '') +
-      '</div>';
-  };
-
-  const activeSection = activeRequests.length > 0
-    ? activeRequests.map(renderRequestCard).join('')
-    : '<div class="empty-state"><div class="icon">&#9878;</div>' +
-      '<h2>No Active Requests</h2>' +
-      '<p>Requests will appear here when Gran Maestro processes them. ' +
-      'Check that the .gran-maestro/requests/ directory exists.</p></div>';
-  const completedSection = completedRequests.length > 0
-    ? completedRequests.map(renderRequestCard).join('')
-    : '';
+      (tasksHtml ? '<div class="task-list">' + tasksHtml + '</div>' : '');
+  } else {
+    detailHtml = '<div class="workflow-detail-empty">Select a request from the list</div>';
+  }
 
   return '<div class="view-header">' +
       '<div class="view-header-title">Workflow</div>' +
       '<button class="refresh-btn" id="refresh-btn-workflow" onclick="refreshView(\'workflow\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
     '</div>' +
-    '<div class="request-section request-section--active">' +
-      '<h2>Active Requests</h2>' +
-      activeSection +
-    '</div>' +
-    '<details class="request-section request-section--completed" style="margin-top:16px">' +
-      '<summary>Completed (' + completedRequests.length + ')</summary>' +
-      (completedSection || '<div class="empty-state"><div class="icon">&#128221;</div><p>No Completed Requests</p></div>') +
-    '</details>';
+    '<div class="workflow-layout">' +
+      '<div class="workflow-list">' + listHtml + '</div>' +
+      '<div class="workflow-detail" id="workflow-detail">' + detailHtml + '</div>' +
+    '</div>';
+}
+
+function selectRequest(reqId) {
+  selectedRequestId = reqId;
+  delete viewCache['workflow'];
+  renderCurrentView();
 }
 
 async function toggleTaskDetail(event, el, reqId, taskId) {
@@ -1733,14 +1860,16 @@ function renderTree(nodes, depth, parentPath) {
       if (!treeInitialized && depth < 2) openDirs.add(nodePath);
       const isOpen = openDirs.has(nodePath);
       return '<div class="tree-dir ' + (isOpen ? 'open' : '') + '" data-path="' + escapeHtml(nodePath) + '" onclick="toggleTreeDir(this)">' +
-        escapeHtml(n.name) + '</div>' +
+        '&#128193; ' + escapeHtml(n.name) + '</div>' +
         '<div class="tree-children ' + (isOpen ? '' : 'collapsed') + '">' +
         renderTree(n.children || [], depth + 1, nodePath) +
         '</div>';
     }
     const activeClass = docActivePath === n.path ? 'active' : '';
+    const ext = n.name.split('.').pop().toLowerCase();
+    const fileIcon = ext === 'json' ? '&#128196;' : ext === 'md' ? '&#128221;' : '&#128196;';
     return '<div class="tree-item ' + activeClass + '" onclick="loadFile(\\'' + escapeHtml(n.path).replace(/'/g, "\\\\'") + '\\')">' +
-      escapeHtml(n.name) + '</div>';
+      fileIcon + ' ' + escapeHtml(n.name) + '</div>';
   }).join('');
 }
 
@@ -1783,8 +1912,9 @@ async function loadFile(path) {
 function renderLog() {
   let options = '<option value="">-- Select a file --</option>';
 
-  // Request-level files
-  requests.forEach(req => {
+  // Request-level files (limit to 20 most recent)
+  const recentRequests = [...requests].sort((a, b) => (b.id || '').localeCompare(a.id || '')).slice(0, 20);
+  recentRequests.forEach(req => {
     const reqFiles = ['request.json', 'design/spec.md', 'discussion/feedback.md'];
     options += '<optgroup label="' + escapeHtml(req.id) + ' (' + escapeHtml(req.status || '?') + ')">';
     reqFiles.forEach(f => {
@@ -2345,32 +2475,12 @@ function renderIdeation() {
       : 'loadIdeationSession(\\'' + escapeHtml(s.id) + '\\')';
 
     html += '<div class="ideation-card" onclick="' + onclick + '">';
-    html += '<div class="card-title">';
-    html += '<span style="font-size:11px;padding:1px 6px;border-radius:3px;margin-right:6px;background:' + (isDiscussion ? 'rgba(240,192,64,0.15);color:var(--yellow)' : 'rgba(100,200,120,0.15);color:var(--green)') + '">' + (isDiscussion ? 'DSC' : 'IDN') + '</span>';
-    html += escapeHtml(s.id) + '</div>';
-    html += '<div style="font-size:13px;color:var(--text-primary);margin-bottom:8px">' + escapeHtml(s.topic || '') + '</div>';
-    html += '<div class="card-subtitle"><span class="ideation-status ' + statusCls + '">' + escapeHtml(s.status || 'collecting') + '</span>';
-    if (isDiscussion && s.current_round != null) html += ' &middot; Round ' + s.current_round + '/' + (s.max_rounds || 5);
-    if (s.focus) html += ' &middot; ' + escapeHtml(s.focus);
-    if (s.created_at) html += ' &middot; ' + new Date(s.created_at).toLocaleDateString();
-    html += '</div>';
-
-    // Opinion progress (ideation only)
-    if (!isDiscussion && (s.opinions || s.roles)) {
-      let participantKeys = Object.keys(s.roles || s.opinions || {});
-      if (participantKeys.length === 0) {
-        participantKeys = ['codex', 'gemini', 'claude'];
-      }
-      html += '<div class="opinion-progress">';
-      participantKeys.forEach(function(ai) {
-        const opData = (s.roles || s.opinions || {})[ai] || {};
-        const st = opData.status || 'pending';
-        const dotCls = st === 'done' ? 'done' : st === 'failed' ? 'failed' : st === 'pending' && statusCls === 'collecting' ? 'collecting' : 'pending';
-        html += '<div class="opinion-chip"><div class="op-dot ' + dotCls + '"></div>' + ai + '</div>';
-      });
-      html += '</div>';
-    }
-
+    html += '<span style="font-size:11px;padding:1px 6px;border-radius:3px;font-weight:600;background:' + (isDiscussion ? 'rgba(240,192,64,0.15);color:var(--yellow)' : 'rgba(100,200,120,0.15);color:var(--green)') + '">' + (isDiscussion ? 'DSC' : 'IDN') + '</span>';
+    html += '<span style="font-size:13px;font-weight:600;color:var(--text-secondary);min-width:80px">' + escapeHtml(s.id) + '</span>';
+    html += '<span style="font-size:13px;color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(s.topic || '') + '</span>';
+    html += '<span class="ideation-status ' + statusCls + '">' + escapeHtml(s.status || 'collecting') + '</span>';
+    if (isDiscussion && s.current_round != null) html += '<span style="font-size:11px;color:var(--text-muted)">R' + s.current_round + '/' + (s.max_rounds || 5) + '</span>';
+    if (s.created_at) html += '<span style="font-size:11px;color:var(--text-muted);min-width:80px;text-align:right">' + new Date(s.created_at).toLocaleDateString() + '</span>';
     html += '</div>';
   });
   html += '</div>';
@@ -2455,6 +2565,7 @@ function updateApprovalBanner() {
 
 // ─── View Switching ─────────────────────────────────────────────────────────
 function switchView(view) {
+  delete viewCache[currentView]; // Invalidate cache of view being left
   ideationActiveSession = null;
   discussionActiveSession = null;
   currentView = view;
@@ -2475,6 +2586,38 @@ function patchCards(main, newHtml) {
   const temp = document.createElement('div');
   temp.innerHTML = newHtml;
 
+  // With the new master-detail layout, patch the detail panel content
+  const oldDetail = main.querySelector('.workflow-detail');
+  const newDetail = temp.querySelector('.workflow-detail');
+  if (oldDetail && newDetail) {
+    // Update list items
+    const oldList = main.querySelector('.workflow-list');
+    const newList = temp.querySelector('.workflow-list');
+    if (oldList && newList) oldList.innerHTML = newList.innerHTML;
+
+    // Preserve task expansion in detail
+    const hasExpanded = oldDetail.querySelector('.task-item.expanded');
+    if (!hasExpanded) {
+      oldDetail.innerHTML = newDetail.innerHTML;
+    } else {
+      // Update non-task parts
+      const oldTitle = oldDetail.querySelector('.card-title');
+      const newTitle = newDetail.querySelector('.card-title');
+      if (oldTitle && newTitle && oldTitle.innerHTML !== newTitle.innerHTML) oldTitle.innerHTML = newTitle.innerHTML;
+      const oldSub = oldDetail.querySelector('.card-subtitle');
+      const newSub = newDetail.querySelector('.card-subtitle');
+      if (oldSub && newSub && oldSub.innerHTML !== newSub.innerHTML) oldSub.innerHTML = newSub.innerHTML;
+      const oldFill = oldDetail.querySelector('.progress-fill');
+      const newFill = newDetail.querySelector('.progress-fill');
+      if (oldFill && newFill) oldFill.style.width = newFill.style.width;
+      const oldPhases = oldDetail.querySelector('.phase-row');
+      const newPhases = newDetail.querySelector('.phase-row');
+      if (oldPhases && newPhases && oldPhases.innerHTML !== newPhases.innerHTML) oldPhases.innerHTML = newPhases.innerHTML;
+    }
+    return;
+  }
+
+  // Fallback: old card-based patching
   const oldCards = main.querySelectorAll('[data-req-id]');
   const newCards = temp.querySelectorAll('[data-req-id]');
 
@@ -2576,7 +2719,7 @@ function renderCurrentView() {
   if (viewCache[currentView] !== html) {
     viewCache[currentView] = html;
     // Use card-level patching for workflow to avoid flickering
-    if (currentView === 'workflow' && main.querySelector('[data-req-id]')) {
+    if (currentView === 'workflow' && main.querySelector('.workflow-layout')) {
       patchCards(main, html);
     } else {
       main.innerHTML = html;
