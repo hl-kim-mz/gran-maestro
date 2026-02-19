@@ -18,6 +18,15 @@ export interface RequestMeta {
   [key: string]: unknown;
 }
 
+export interface SessionParticipant {
+  key: string;
+  role?: string;
+  perspective?: string;
+  type?: string;
+  status?: string;
+  provider?: string;
+}
+
 export interface TaskMeta {
   id: string;
   requestId: string;
@@ -42,10 +51,12 @@ export interface IdeationSession {
   status: string;
   created_at?: string;
   opinions?: Record<string, { status: string }>;
+  participants?: SessionParticipant[];
   roles?: Record<
     string,
     { perspective: string; type: string; status: string; provider?: string }
   >;
+  participant_config?: Record<string, number>;
   critics?: Record<string, { status: string; provider?: string }>;
   critic_count?: number;
   [key: string]: unknown;
@@ -60,6 +71,11 @@ export interface DiscussionSession {
   max_rounds: number;
   current_round: number;
   created_at?: string;
+  participants?: SessionParticipant[];
+  roles?: Record<
+    string,
+    { perspective: string; type: string; status: string; provider?: string }
+  >;
   rounds?: Array<{
     round: number;
     divergences_before: number;
@@ -68,10 +84,6 @@ export interface DiscussionSession {
     responses?: Record<string, string | null>;
     critiques?: Record<string, string | null>;
   }>;
-  roles?: Record<
-    string,
-    { perspective: string; type: string; status: string; provider?: string }
-  >;
   critics?: Record<string, { status: string; provider?: string }>;
   [key: string]: unknown;
 }

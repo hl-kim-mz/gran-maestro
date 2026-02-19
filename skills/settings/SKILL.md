@@ -49,6 +49,12 @@ Gran Maestro의 설정을 조회하거나 변경합니다.
 | `retry.backoff_base_ms` | 재시도 백오프 기준 (ms) | `1000` | number |
 | `history.retention_days` | 이력 보존 기간 (일) | `30` | number |
 | `history.auto_archive` | 자동 아카이브 | `true` | boolean |
+| `ideation.agents.codex` | 1 | Ideation Codex 참여 인원수 (0=제외) | number |
+| `ideation.agents.gemini` | 1 | Ideation Gemini 참여 인원수 (0=제외) | number |
+| `ideation.agents.claude` | 1 | Ideation Claude 참여 인원수 (0=제외) | number |
+| `discussion.agents.codex` | 1 | Discussion Codex 참여 인원수 (0=제외) | number |
+| `discussion.agents.gemini` | 1 | Discussion Gemini 참여 인원수 (0=제외) | number |
+| `discussion.agents.claude` | 1 | Discussion Claude 참여 인원수 (0=제외) | number |
 | `notifications.terminal` | 터미널 알림 활성화 | `true` | boolean |
 | `notifications.dashboard` | 대시보드 알림 활성화 | `true` | boolean |
 | `debug.enabled` | 디버그 모드 | `false` | boolean |
@@ -66,9 +72,20 @@ Gran Maestro의 설정을 조회하거나 변경합니다.
 - 프로바이더별 상한 없음
 - Critic: Claude 우선, Claude가 0명이면 Codex가 대체
 - 누락 시 기본값: `codex: 1`, `gemini: 1`, `claude: 1`
+- `ideation.agents`와 `discussion.agents`가 우선 사용되며, `participants.opinion_providers`는 하위 호환 fallback입니다.
 
 예시:
 ```
+ideation:
+  agents:
+    codex: 2
+    gemini: 1
+    claude: 0
+discussion:
+  agents:
+    codex: 1
+    gemini: 2
+    claude: 1
 participants:
   opinion_providers:
     codex: 2

@@ -56,14 +56,14 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
   "max_rounds": "{config.json의 discussion.default_max_rounds}",
   "current_round": 0,
   "created_at": "ISO-timestamp",
-  "roles": {
-    "codex": { "perspective": "", "type": "opinion", "status": "pending", "provider": "codex" },
-    "codex-2": { "perspective": "", "type": "opinion", "status": "pending", "provider": "codex" },
-    "codex-3": { "perspective": "", "type": "opinion", "status": "pending", "provider": "codex" },
-    "gemini": { "perspective": "", "type": "opinion", "status": "pending", "provider": "gemini" },
-    "gemini-2": { "perspective": "", "type": "opinion", "status": "pending", "provider": "gemini" },
-    "claude": { "perspective": "", "type": "opinion", "status": "pending", "provider": "claude" }
-  },
+  "participants": [
+    { "key": "architect(codex)", "role": "architect", "perspective": "", "type": "opinion", "status": "pending", "provider": "codex" },
+    { "key": "ux(codex)", "role": "ux", "perspective": "", "type": "opinion", "status": "pending", "provider": "codex" },
+    { "key": "security(codex)", "role": "security", "perspective": "", "type": "opinion", "status": "pending", "provider": "codex" },
+    { "key": "architecture(gemini)", "role": "architecture", "perspective": "", "type": "opinion", "status": "pending", "provider": "gemini" },
+    { "key": "cost(gemini)", "role": "cost", "perspective": "", "type": "opinion", "status": "pending", "provider": "gemini" },
+    { "key": "risk(claude)", "role": "risk", "perspective": "", "type": "opinion", "status": "pending", "provider": "claude" }
+  ],
   "critics": {
     "claude": { "status": "pending", "provider": "claude" }
   },
@@ -73,19 +73,20 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
 }
 ```
 
-`roles`는 config의 `participants.opinion_providers`를 읽어 다음 규칙으로 생성합니다.
-### roles 동적 생성 규칙 (공통)
+`participants`는 config의 `discussion.agents`를 읽어 다음 규칙으로 생성합니다.
+### participants 동적 생성 규칙 (공통)
 1. 각 provider(codex, gemini, claude)의 count를 읽음
-2. count == 1이면 키 이름은 provider 그대로
-3. count > 1이면 첫 번째는 `{provider}`, 이후는 `{provider}-2`, `{provider}-3` ...
-4. 각 role 객체에 `provider` 필드를 기록하여 실제 호출 대상을 식별
+2. count == 1이면 key는 `{role}(provider)` 형태로 생성
+3. count > 1이면 role 키를 순차 생성해 `{role}(provider)` 형태로 유지
+4. 각 participant 항목에 `provider` 필드를 기록하여 실제 호출 대상을 식별
 5. 합계 검증: 2~7명, 위반 시 에러 후 중단
+6. count가 0이면 해당 provider는 완전 skip
 
 `participants` 키가 없으면 기본값 `{ codex:1, gemini:1, claude:1 }` 사용.
 
 ### Step 1.5: PM 역할 배정
 
-PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `critics`를 결정합니다.
+PM이 주제/포커스를 분석해 `participants` 수만큼 관점을 배정하고 `critics`를 결정합니다.
 
 - Codex/Gemini/Claude 강점에 맞춰 관점 배정
 - Critic 규칙
@@ -93,7 +94,7 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
   - Claude 0명: Codex 1명, 다음 Gemini
   - critic_count 2: 1순위가 Claude(또는 대체), 2순위 Codex(또는 Gemini)
 
-`session.json`에 `roles`, `critics`, `critic_count`, `participant_config`, `status: "initializing"` 기록.
+`session.json`에 `participants`, `critics`, `critic_count`, `participant_config`, `status: "initializing"` 기록.
 
 ### AUTO-CONTINUE 원칙 (CRITICAL)
 
@@ -114,12 +115,12 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
 **입력이 IDN-NNN인 경우**
 
 1. 아이디에 해당하는 ideation의 의견 파일들을 `rounds/00/`로 복사
-   - `rounds/00/{roleKey}.md`
+   - `rounds/00/{participant.key}.md`
 2. 초기 `synthesis.md`(또는 합성 결과) 기준으로 Step 4로 진입
 
 **새 주제인 경우**
 
-1. `roles` 키를 순회해 `rounds/00/prompts/{roleKey}-prompt.md` 작성
+1. `participants`를 순회해 `rounds/00/prompts/{participant.key}-prompt.md` 작성
 2. 병렬 호출:
 
    > **모델 결정**: config.json `models.claude.discussion` 참조 (opus / sonnet)
@@ -129,7 +130,7 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
      Task(
        subagent_type: "general-purpose",
        run_in_background: true,
-       prompt: "Skill(skill: 'mst:codex', args: '--prompt-file {absolute_path}/rounds/00/prompts/{roleKey}-prompt.md --output {absolute_path}/rounds/00/{roleKey}.md') 실행 후 완료 보고"
+      prompt: "Skill(skill: 'mst:codex', args: '--prompt-file {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md --output {absolute_path}/rounds/00/{participant.key}.md') 실행 후 완료 보고"
      )
      ```
    - `provider: "gemini"`:
@@ -137,7 +138,7 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
      Task(
        subagent_type: "general-purpose",
        run_in_background: true,
-       prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/00/prompts/{roleKey}-prompt.md --sandbox > {absolute_path}/rounds/00/{roleKey}.md') 실행 후 완료 보고"
+      prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md --sandbox > {absolute_path}/rounds/00/{participant.key}.md') 실행 후 완료 보고"
      )
      ```
    - `provider: "claude"`:
@@ -146,7 +147,7 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
        subagent_type: "general-purpose",
        model: "{config.models.claude.discussion}",
        run_in_background: true,
-       prompt: "{absolute_path}/rounds/00/prompts/{roleKey}-prompt.md 파일을 Read하고 지시에 따라 분석. 결과를 {absolute_path}/rounds/00/{roleKey}.md에 Write. 완료 후 '완료'"
+      prompt: "{absolute_path}/rounds/00/prompts/{participant.key}-prompt.md 파일을 Read하고 지시에 따라 분석. 결과를 {absolute_path}/rounds/00/{participant.key}.md에 Write. 완료 후 '완료'"
      )
      ```
 
@@ -155,8 +156,8 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
 ### Step 3: PM 초기 종합
 
 `rounds/00/synthesis.md` 생성 절차:
-- 의견 목록: `rounds/00/{roleKey}.md` 순회
-- 템플릿: `templates/discussion-round-synthesis.md` + `provider/perspective` 동적 표기
+- 의견 목록: `rounds/00/{participant.key}.md` 순회
+- 템플릿: `templates/discussion-round-synthesis.md` + `role/provider` 동적 표기
 - 결과 저장 후 `status: "debating"`, `current_round: 0`
 
 ### Step 4: 토론 라운드 (반복)
@@ -164,8 +165,8 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
 #### 4a. PM이 맞춤 프롬프트 작성
 
 이전 라운드에서 수렴되지 않은 발산점을 기반으로 각 역할에 적합한 반론형 프롬프트 작성:
-- 응답 파일명: `rounds/NN/{roleKey}.md`
-- 프롬프트 파일: `rounds/NN/prompts/{roleKey}-prompt.md`
+- 응답 파일명: `rounds/NN/{participant.key}.md`
+- 프롬프트 파일: `rounds/NN/prompts/{participant.key}-prompt.md`
 - 핵심: 이전 라운드 입장 요약 + 타 AI의 반론 반영
 
 #### 4b. 역할 기반 병렬 호출
@@ -176,7 +177,7 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
   Task(
     subagent_type: "general-purpose",
     run_in_background: true,
-    prompt: "Skill(skill: 'mst:codex', args: '--prompt-file {absolute_path}/rounds/NN/prompts/{roleKey}-prompt.md --output {absolute_path}/rounds/NN/{roleKey}.md') 실행 후 완료 보고"
+    prompt: "Skill(skill: 'mst:codex', args: '--prompt-file {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md --output {absolute_path}/rounds/NN/{participant.key}.md') 실행 후 완료 보고"
   )
   ```
 - `provider: "gemini"`:
@@ -184,7 +185,7 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
   Task(
     subagent_type: "general-purpose",
     run_in_background: true,
-    prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/NN/prompts/{roleKey}-prompt.md > {absolute_path}/rounds/NN/{roleKey}.md') 실행 후 완료 보고"
+    prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md > {absolute_path}/rounds/NN/{participant.key}.md') 실행 후 완료 보고"
   )
   ```
 - `provider: "claude"`:
@@ -193,7 +194,7 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
     subagent_type: "general-purpose",
     model: "{config.models.claude.discussion}",
     run_in_background: true,
-    prompt: "{absolute_path}/rounds/NN/prompts/{roleKey}-prompt.md 파일을 Read하고 지시에 따라 분석. 결과를 {absolute_path}/rounds/NN/{roleKey}.md에 Write. 완료 후 '완료'"
+    prompt: "{absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md 파일을 Read하고 지시에 따라 분석. 결과를 {absolute_path}/rounds/NN/{participant.key}.md에 Write. 완료 후 '완료'"
   )
   ```
 
@@ -233,7 +234,7 @@ PM이 주제/포커스를 분석해 `roles` 수만큼 관점을 배정하고 `cr
 
 #### 4c. 라운드 종합
 
-- 입력: `rounds/{NN-1}/synthesis.md` + `rounds/NN/{roleKey}.md` + `rounds/NN/critique-{criticKey}.md`
+- 입력: `rounds/{NN-1}/synthesis.md` + `rounds/NN/{participant.key}.md` + `rounds/NN/critique-{criticKey}.md`
 - 템플릿: `templates/discussion-round-synthesis.md`의 동적 표 사용
 - 출력: `rounds/NN/synthesis.md`
 - `status`, `current_round` 업데이트
@@ -247,8 +248,8 @@ PM이 4c 결과의 합의 정도를 판정:
 ### Step 5: 합의문 작성
 
 최종 consensus.md를 생성.
-- 참여자 목록: `roles` 키/Provider를 동적 나열
-- 미합의 사항: `roles` 기준 행 반복
+- 참여자 목록: `participants` 키/Provider를 동적 나열
+- 미합의 사항: `participants` 기준 행 반복
 - 각 라운드 합의 이력 및 critic 기여 기록 반영
 
 ## 에러 처리
@@ -266,10 +267,10 @@ PM이 4c 결과의 합의 정도를 판정:
 ├── rounds/
 │   ├── 00/
 │   │   ├── prompts/
-│   │   │   ├── {roleKey}-prompt.md
+│   │   │   ├── {participant.key}-prompt.md
 │   │   │   ├── critique-{criticKey}-prompt.md
 │   │   │   └── synthesis-prompt.md
-│   │   ├── {roleKey}.md
+│   │   ├── {participant.key}.md
 │   │   ├── critique-{criticKey}.md
 │   │   └── synthesis.md
 │   └── ...
@@ -283,4 +284,4 @@ PM이 4c 결과의 합의 정도를 판정:
 
 ## 참고
 
-총합 2~7명 규칙 및 roles/critics의 동적 배정은 ideation과 동일.
+총합 2~7명 규칙 및 participants/critics의 동적 배정은 ideation과 동일.
