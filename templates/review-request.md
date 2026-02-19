@@ -4,7 +4,7 @@
 - Worktree: {{WORKTREE_PATH}}
 - Base branch: {{BASE_BRANCH}}
 
-## 변경 의도
+## 변경 의도 (PM 작성 — 1~3줄 자유 형식)
 
 {{INTENT}}
 

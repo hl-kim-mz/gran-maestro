@@ -297,11 +297,14 @@ spec.md에 에이전트가 지정되어 있으면 그대로 사용합니다. 지
 Write -> .gran-maestro/requests/{REQ-ID}/tasks/{NN}/prompts/phase2-impl.md
 ```
 
-Brief에는 반드시 다음이 포함되어야 합니다.
-- 구현할 내용 요약 (spec §1, §4)
-- 수정 대상 파일 목록 (spec §2)
-- 수락 조건 전체 (spec §3)
-- 테스트 실행 명령어 (spec §5)
+브리프는 `templates/impl-request.md` 템플릿을 사용합니다.
+PM이 작성하는 항목:
+- `{{IMPL_CONTEXT}}`: 3~5줄 자유 형식 — 무엇을, 왜, 어떻게 + 주의사항
+
+자동 채움 항목:
+- `{{SPEC_PATH}}`: spec.md 파일 경로 (에이전트가 직접 읽음)
+- `{{WORKTREE_PATH}}`, `{{REQ_ID}}`, `{{TASK_ID}}`: 자동 주입
+- `{{PREV_FEEDBACK_PATH}}`: 첫 실행 시 "N/A", 재실행 시 feedback 파일 경로
 
 ##### 4c. 독립 태스크 동시 실행
 

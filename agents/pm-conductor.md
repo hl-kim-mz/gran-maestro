@@ -98,6 +98,11 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 8.5) On Phase 4 entry, delegate feedback document generation to `/mst:codex` using `agents/feedback-composer.md` template.
    - 템플릿 변수 치환: {TASK_ID}, {ROUND_NUM}, {SPEC_CONTENT}, {REVIEW_REPORTS}, {PREVIOUS_FEEDBACK}
    - `Write → prompts/phase4-feedback.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --output {feedback_path} --trace {REQ}/{TASK}/phase4-feedback")`
+8.6) Phase 4 수정 요청 (fix round): feedback-composer가 feedback-R{N}.md를 생성한 후, `templates/fix-request.md` 브리프를 사용하여 Phase 2 재실행을 디스패치한다.
+   - `{{FIX_CONTEXT}}` (3~5줄): 핵심 이슈와 수정 방향 작성 (PM 직접 작성)
+   - `{{REVIEW_REPORT_PATH}}`: review-R{N}.md 파일 경로 (에이전트가 직접 읽음)
+   - `{{SPEC_PATH}}`: spec.md 파일 경로 (에이전트가 직접 읽음)
+   - `Write → prompts/phase4-fix-R{N}.md` → 동일 에이전트 + 동일 worktree로 재외주
 9) Save review report to .gran-maestro/requests/REQ-XXX/tasks/NN/review-RN.md.
 </phase3_protocol>
 
@@ -183,9 +188,9 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 절대 사용 금지
 | Phase 1 | 스키마 설계 | `Write → prompts/phase1-schema-design.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --output {design_path}/data-model.md --trace {REQ}/{TASK}/phase1-schema-design")` | schema-designer 템플릿 사용 |
 | Phase 1 | UI 설계 | `Write → prompts/phase1-ui-design.md` → `Skill(skill: "mst:gemini", args: "--prompt-file {prompt_path} --files {component_pattern} --output {design_path}/ui-spec.md --trace {REQ}/{TASK}/phase1-ui-design")` | ui-designer 템플릿 사용, Gemini 1M 컨텍스트로 전체 UI 일관성 확보 |
 | Phase 1 | UI 크로스뷰 통합 | `Write → prompts/phase1-ui-crossview.md` → `Skill(skill: "mst:gemini", args: "--prompt-file {prompt_path} --files {component_pattern} --trace {REQ}/{TASK}/phase1-ui-crossview")` | 다수 화면 일관성 검토 |
-| Phase 2 | 코드 구현 (백엔드/로직) | `Write → prompts/phase2-impl.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-impl")` | full-auto (기본값) |
-| Phase 2 | 코드 구현 (프론트엔드/UI) | `Write → prompts/phase2-impl-ui.md` → `Skill(skill: "mst:gemini", args: "--prompt-file {prompt_path} --files {component_pattern} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-impl-ui")` | 프론트엔드 UI 태스크 시 Gemini 우선 라우팅 |
-| Phase 2 | 코드 구현 (claude-dev) | `Write → prompts/phase2-impl.md` → `Skill(skill: "mst:claude", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-impl")` | /mst:claude 서브에이전트 위임 |
+| Phase 2 | 코드 구현 (백엔드/로직) | `Write → prompts/phase2-impl.md` (impl-request.md 브리프 — `{{IMPL_CONTEXT}}` 3~5줄 작성, 에이전트가 spec 직접 탐색) → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-impl")` | impl-request.md 사용 (기본값) |
+| Phase 2 | 코드 구현 (프론트엔드/UI) | `Write → prompts/phase2-impl-ui.md` (impl-request.md 브리프) → `Skill(skill: "mst:gemini", args: "--prompt-file {prompt_path} --files {component_pattern} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-impl-ui")` | 프론트엔드 UI 태스크 시 Gemini 우선 라우팅 |
+| Phase 2 | 코드 구현 (claude-dev) | `Write → prompts/phase2-impl.md` (impl-request.md 브리프) → `Skill(skill: "mst:claude", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-impl")` | /mst:claude 서브에이전트 위임 |
 | Phase 2 | 테스트 작성 | `Write → prompts/phase2-test.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-test")` | Codex가 구현 코드 기반 테스트 초안 및 엣지케이스 자동 생성. 기존 패턴 분석하여 일관된 스타일 유지 |
 | Phase 2 | 테스트 자동 생성 | `Write → prompts/phase2-test-gen.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ}/{TASK}/phase2-test-gen")` | 구현 코드 기반 엣지케이스 자동 생성 |
 | Phase 3 | 코드 정확성 검증 | `Write → prompts/phase3-code-review.md` (review-request 템플릿, Codex PERSPECTIVE) → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --trace {REQ}/{TASK}/phase3-code-review")` | self-exploration: Codex가 worktree 직접 탐색 |

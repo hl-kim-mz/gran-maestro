@@ -1,5 +1,9 @@
 # Outsource Brief Template
 
+> ⚠️ **대체됨**: Phase 2 구현 요청은 `templates/impl-request.md`를 사용합니다.
+> Phase 4 수정 요청은 `templates/fix-request.md`를 사용합니다.
+> 이 파일은 하위 호환 및 `<error_context>` 재외주 시나리오를 위해 유지됩니다.
+
 Phase 2에서 `/mst:codex` / `/mst:gemini` 스킬에 전달하는 프롬프트 템플릿입니다.
 이 파일은 에이전트가 아닌 **템플릿**으로, PM Conductor가 변수를 치환하여 사용합니다.
 
