@@ -2612,16 +2612,115 @@ function processToastQueue() {
 
 // ─── Ideation View ──────────────────────────────────────────────────────────
 
+function normalizeProviderFromKey(key) {
+  const match = key.match(/\(([^()]+)\)$/);
+  return match ? match[1] : key;
+}
+
+function normalizeRoleFromKey(key) {
+  const match = key.match(/^(.+)\(([^()]+)\)$/);
+  return match ? match[1] : key;
+}
+
+function normalizeParticipantStatus(value) {
+  if (value && typeof value === 'object' && typeof value.status === 'string') return value.status;
+  return 'pending';
+}
+
+function capitalizeWord(word) {
+  return word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : '';
+}
+
+function normalizeText(str) {
+  return String(str || '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function capitalizeRoleLabel(raw) {
+  return normalizeText(raw).split(' ').map(capitalizeWord).join(' ');
+}
+
+function getSessionParticipants(session, fallbackOpinions) {
+  if (session && Array.isArray(session.participants) && session.participants.length > 0) {
+    return session.participants.map(function(p) {
+      return {
+        key: p.key,
+        role: p.role || normalizeRoleFromKey(p.key || ''),
+        perspective: p.perspective || '',
+        status: p.status || normalizeParticipantStatus(p),
+        provider: p.provider || normalizeProviderFromKey(p.key || ''),
+      };
+    });
+  }
+
+  if (session && session.roles && typeof session.roles === 'object') {
+    const roleMap = session.roles;
+    const keys = Object.keys(roleMap);
+    if (keys.length > 0) {
+      return keys.map(function(key) {
+        const role = roleMap[key] || {};
+        return {
+          key: key,
+          role: (role.role || normalizeRoleFromKey(key)),
+          perspective: role.perspective || '',
+          status: normalizeParticipantStatus(role),
+          provider: role.provider || normalizeProviderFromKey(key),
+        };
+      });
+    }
+  }
+
+  if (fallbackOpinions && typeof fallbackOpinions === 'object') {
+    const keys = Object.keys(fallbackOpinions);
+    if (keys.length > 0) {
+      return keys.map(function(key) {
+        return {
+          key: key,
+          role: normalizeRoleFromKey(key),
+          perspective: '',
+          status: normalizeParticipantStatus(fallbackOpinions[key]),
+          provider: normalizeProviderFromKey(key),
+        };
+      });
+    }
+  }
+
+  return ['codex', 'gemini', 'claude'].map(function(key) {
+    return {
+      key: key,
+      role: key,
+      perspective: '',
+      status: 'pending',
+      provider: key,
+    };
+  });
+}
+
+function participantProviderClass(provider) {
+  const normalized = (provider || '').toLowerCase();
+  return ['codex', 'gemini', 'claude'].includes(normalized) ? normalized : '';
+}
+
+function participantLabel(participant) {
+  const provider = (participant.provider || '').toLowerCase();
+  const role = participant.role || participant.key || '';
+  if (!role) return capitalizeWord(provider);
+
+  const roleNormalized = normalizeText(role);
+  const roleLabel = capitalizeRoleLabel(roleNormalized);
+  if (roleNormalized && roleNormalized.toLowerCase() === provider.toLowerCase()) return capitalizeWord(provider);
+  return roleLabel + ' (' + capitalizeWord(provider) + ')';
+}
+
 function renderIdeation() {
   // Detail view for a specific ideation session
   if (ideationActiveSession) {
     const s = ideationActiveSession.session;
     const ops = ideationActiveSession.opinions || {};
-    const roleMap = s.roles || {};
-    let participantKeys = Object.keys(roleMap || ops || {});
-    if (participantKeys.length === 0) {
-      participantKeys = ['codex', 'gemini', 'claude'];
-    }
+    const participants = getSessionParticipants(s, ops);
+    const participantKeys = participants.map(function(p) { return p.key; });
     const statusCls = (s.status || 'collecting').toLowerCase();
 
     let html = '<button class="ideation-back" onclick="closeIdeationDetail()">&larr; Back to sessions</button>';
@@ -2634,9 +2733,12 @@ function renderIdeation() {
     // Opinion progress chips
     html += '<div class="opinion-progress">';
     participantKeys.forEach(function(ai) {
-      const opData = (s.roles || s.opinions || {})[ai] || {};
-      const st = opData.status || 'pending';
-      const dotCls = st === 'done' ? 'done' : st === 'failed' ? 'failed' : st === 'pending' && statusCls === 'collecting' ? 'collecting' : 'pending';
+      const participant = participants.find(function(p) { return p.key === ai; }) || { status: 'pending', provider: ai };
+      const st = participant.status || 'pending';
+      const dotCls = st === 'done' ? 'done' : st === 'failed' ? 'failed'
+        : st === 'pending' && statusCls === 'collecting' ? 'collecting'
+        : participant.status === 'pending' ? 'pending'
+          : participant.status;
       html += '<div class="opinion-chip"><div class="op-dot ' + dotCls + '"></div>' + ai + '</div>';
     });
     html += '</div></div>';
@@ -2652,15 +2754,21 @@ function renderIdeation() {
     if (hasAnyOpinion) {
       html += '<div class="opinions-columns">';
       participantKeys.forEach(function(ai) {
-        const role = (s.roles || {})[ai];
-        const provider = (role && role.provider) || ai;
-        const instanceTag = ai === provider ? '' : ' #' + ai.split('-').pop();
-        const label = role && role.perspective
-          ? provider.charAt(0).toUpperCase() + provider.slice(1) + instanceTag +
-            ' (' + escapeHtml(role.perspective) + ')'
-          : provider.charAt(0).toUpperCase() + provider.slice(1) + instanceTag;
+        const role = participants.find(function(p) { return p.key === ai; }) || {
+          key: ai,
+          role: ai,
+          perspective: '',
+          provider: ai,
+          status: 'pending',
+        };
+        const providerLabel = participantLabel(role);
+        const perspective = role.perspective || '';
+        const label = perspective
+          ? providerLabel + ' — ' + escapeHtml(perspective)
+          : providerLabel;
         const content = ops[ai];
-        html += '<div class="opinion-panel ' + provider + '"><h4>' + label + '</h4>';
+        const panelClass = participantProviderClass(role.provider);
+        html += '<div class="opinion-panel' + (panelClass ? ' ' + panelClass : '') + '"><h4>' + label + '</h4>';
         if (content) {
           html += '<div class="doc-content" style="background:transparent;border:none;padding:0">' + renderMarkdown(content) + '</div>';
         } else {
@@ -2703,15 +2811,12 @@ function renderIdeation() {
     return html;
   }
 
-  // Detail view for a specific discussion session
+    // Detail view for a specific discussion session
   if (discussionActiveSession) {
     const s = discussionActiveSession.session;
     const rounds = discussionActiveSession.rounds || [];
-    const roleMap = s.roles || {};
-    let participantKeys = Object.keys(roleMap);
-    if (participantKeys.length === 0) {
-      participantKeys = ['codex', 'gemini', 'claude'];
-    }
+    const participants = getSessionParticipants(s, {});
+    const participantKeys = participants.map(function(p) { return p.key; });
     const statusCls = (s.status || 'initializing').toLowerCase();
 
     let html = '<button class="ideation-back" onclick="closeDiscussionDetail()">&larr; Back to sessions</button>';
@@ -2736,16 +2841,22 @@ function renderIdeation() {
       if (hasAny) {
         html += '<div class="opinions-columns">';
         participantKeys.forEach(function(ai) {
-          const role = (s.roles || {})[ai];
-          const provider = (role && role.provider) || ai;
-          const instanceTag = ai === provider ? '' : ' #' + ai.split('-').pop();
-          const label = role && role.perspective
-            ? provider.charAt(0).toUpperCase() + provider.slice(1) + instanceTag +
-              ' (' + escapeHtml(role.perspective) + ')'
-            : provider.charAt(0).toUpperCase() + provider.slice(1) + instanceTag;
+          const participant = participants.find(function(p) { return p.key === ai; }) || {
+            key: ai,
+            role: ai,
+            provider: ai,
+            perspective: '',
+            status: 'pending',
+          };
+          const providerLabel = participantLabel(participant);
+          const perspective = participant.perspective || '';
+          const label = perspective
+            ? providerLabel + ' — ' + escapeHtml(perspective)
+            : providerLabel;
           const roundResponses = r.responses || {};
           const content = roundResponses[ai] || r[ai];
-          html += '<div class="opinion-panel ' + provider + '"><h4>' + label + '</h4>';
+          const panelClass = participantProviderClass(participant.provider);
+          html += '<div class="opinion-panel' + (panelClass ? ' ' + panelClass : '') + '"><h4>' + label + '</h4>';
           if (content) {
             html += '<div class="doc-content" style="background:transparent;border:none;padding:0;font-size:12px">' + renderMarkdown(content) + '</div>';
           } else {

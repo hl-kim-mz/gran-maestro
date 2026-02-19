@@ -117,7 +117,7 @@ Gran Maestro — 아카이브 상세: IDN-003
 아카이브: ideation-IDN001-IDN005-20260210.tar.gz
 
   파일 목록:
-  session.json, opinion-{참여자}.md (참여자별),
+  session.json, opinion-{역할(provider)}.md (참여자별),
   synthesis.md
 
 복원하려면: /mst:archive --restore IDN-003

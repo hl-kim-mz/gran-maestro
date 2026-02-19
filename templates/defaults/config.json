@@ -67,12 +67,22 @@
     "log_prompts": false
   },
   "discussion": {
+    "agents": {
+      "codex": 1,
+      "gemini": 1,
+      "claude": 1
+    },
     "response_char_limit": 2000,
     "critique_char_limit": 2000,
     "default_max_rounds": 5,
     "max_rounds_upper_limit": 10
   },
   "ideation": {
+    "agents": {
+      "codex": 1,
+      "gemini": 1,
+      "claude": 1
+    },
     "opinion_char_limit": 2000,
     "critique_char_limit": 2000
   },
