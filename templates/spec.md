@@ -76,3 +76,19 @@
 - 실행: {codex-dev | gemini-dev} ({작업 유형}) — fallback: {대안 에이전트}
 - 리뷰: {gemini-reviewer | codex-reviewer} ({리뷰 유형})
 - 사유: {PM이 이 팀을 선택한 이유}
+
+## 9. 팀 판단 기반 결정 (Team-Assisted Decisions)
+
+> 이 섹션은 PM이 AI 팀 판단을 활용한 경우에만 포함됩니다.
+
+### 요구사항 명확화 (해당 시)
+- 판단 유형: ideation | discussion
+- 주제: {모호했던 요구사항 주제}
+- 결정 내용: {팀 결론 요약}
+- 근거 파일: `discussion/req-ambiguity-{synthesis|consensus}.md`
+
+### 접근 방식 결정 (해당 시)
+- 판단 유형: ideation
+- 주제: {접근법 결정 주제}
+- 결정 내용: {팀 추천 방향 요약}
+- 근거 파일: `discussion/req-approach-synthesis.md`

@@ -98,9 +98,19 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
       - plan.json 또는 plan.md 미존재 시 경고 후 사일런트 모드로 자동 전환
    e. **모호한 요구사항 처리**:
       [--plan 제공된 경우]: plans/PLN-NNN/plan.json + plans/PLN-NNN/plan.md를 Read하고 결정 사항을 따름.
-      [--plan 없는 경우]:   가장 합리적인 가정을 수립하고 계속 진행.
-                            가정 내용은 spec.md "가정 사항" 섹션에 기록.
-                            어느 경우에도 사용자에게 질문하지 않음.
+      [--plan 없는 경우]: PM이 요구사항 모호함 수준을 평가:
+        - **경미한 모호함 (minor)**: 합리적인 가정 수립 → spec.md "가정 사항" 섹션에 기록 → 진행
+        - **중요한 모호함 (significant)**: 팀 판단 프로세스 실행 (사용자에게 질문하지 않음):
+            1. PM 자율 판단으로 ideation / discussion 선택:
+               - ideation: 복수 해석이 가능하고 다각도 비교 분석이 필요한 경우
+               - discussion: 리스크가 크거나 팀 합의가 필요한 경우
+            2. `Skill(skill: "mst:ideation"/"mst:discussion", args: "{모호한 요구사항 주제}")` 실행
+            3. `synthesis.md` / `consensus.md`에서 핵심 3~5개 추출 → 사용자에게 요약 표시
+               (형태: "[AI 팀 의견] 위 내용을 바탕으로 spec을 작성합니다." — 응답 대기 없이 자동 진행)
+            4. 결과 파일을 `REQ-NNN/discussion/`에 복사 저장:
+               - ideation 결과 → `discussion/req-ambiguity-synthesis.md`
+               - discussion 결과 → `discussion/req-ambiguity-consensus.md`
+            5. spec.md `## 9. 팀 판단 기반 결정` 섹션에 결정 내용 기록
    f. **디버그 의도 감지 (LLM 판단)**: 사용자 요청이 버그 탐지, 문제 원인 분석, 디버깅 목적으로 판단되면:
       - `config.collaborative_debug.auto_trigger_from_start`가 `true`인 경우: `/mst:debug`를 자동 호출하여 병렬 조사를 수행하고, 이 워크플로우를 종료합니다
       - `false`인 경우: 사용자에게 `/mst:debug`를 사용할 수 있다고 안내한 뒤 일반 워크플로우로 진행합니다
@@ -112,6 +122,7 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
         - 아키텍처 변경, 보안 설계, 성능 최적화 등 고영향 의사결정이 필요한 경우
         - PM이 단독 판단에 확신이 부족한 경우
       - Ideation 결과(`synthesis.md`)의 추천 방향을 spec 작성에 반영합니다
+      - Ideation 결과(`synthesis.md`)를 `discussion/req-approach-synthesis.md`에 복사 저장합니다
       - 단순(simple) 요청이나 접근 방식이 명백한 경우에는 ideation 없이 진행합니다
    h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용)
       - `--plan` 없이 진행한 경우 spec.md에는 `## 가정 사항 (Assumptions)` 섹션을 포함
