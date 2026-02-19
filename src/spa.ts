@@ -550,6 +550,17 @@ nav button.active kbd {
   margin-left: 8px;
 }
 
+.plan-badge {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--blue-light);
+  background: rgba(79, 140, 255, 0.12);
+  border: 1px solid rgba(79, 140, 255, 0.35);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-left: 8px;
+}
+
 /* ─── Agent Activity Stream ─────────────────────────────────── */
 .activity-stream {
   display: flex;
@@ -1322,6 +1333,57 @@ nav button.active kbd {
 }
 .request-section--completed summary:hover { color: var(--text-primary); }
 
+/* ─── Plans View ─────────────────────────────────────────── */
+.plans-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.plan-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.plan-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-primary);
+}
+.plan-card-meta {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.plan-status {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+}
+.plan-status.active {
+  background: rgba(59,130,246,0.12);
+  color: var(--accent);
+}
+.plan-status.completed {
+  background: rgba(78, 204, 163, 0.15);
+  color: var(--green);
+}
+.plan-status.failed {
+  background: rgba(220,53,69,0.12);
+  color: var(--red);
+}
+.plan-status.pending {
+  background: rgba(255,193,7,0.12);
+  color: var(--yellow);
+}
+
 /* ─── Card update animation ───────────────────────────────── */
 .card-updated {
   animation: cardPulse 0.4s ease-out;
@@ -1370,6 +1432,7 @@ nav button.active kbd {
     <button data-view="documents" onclick="switchView('documents')">Docs <kbd>3</kbd></button>
     <button data-view="log" onclick="switchView('log')">Log <kbd>4</kbd></button>
     <button data-view="settings" onclick="switchView('settings')">Settings <kbd>5</kbd></button>
+    <button data-view="plans" onclick="switchView('plans')">Plans <kbd>6</kbd></button>
   </nav>
   <div class="search-container" id="search-container">
     <div class="search-input-wrapper">
@@ -1377,7 +1440,7 @@ nav button.active kbd {
       <input type="text" id="workflow-search" class="search-input" placeholder="Search requests... (S)" oninput="filterWorkflow()">
     </div>
     <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 10px;">
-      <span><kbd>1</kbd>-<kbd>5</kbd> Views</span>
+      <span><kbd>1</kbd>-<kbd>6</kbd> Views</span>
       <span><kbd>T</kbd> Theme</span>
       <span><kbd>S</kbd> Search</span>
       <span><kbd>R</kbd> Refresh</span>
@@ -1411,6 +1474,7 @@ function getApiBase() {
 }
 let currentView = 'workflow';
 let requests = [];
+let plans = [];
 let agentActivities = [];
 let docTree = [];
 let docContent = '';
@@ -1490,8 +1554,8 @@ window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   
   const key = e.key.toLowerCase();
-  if (key >= '1' && key <= '5') {
-    const views = ['workflow', 'ideation', 'documents', 'log', 'settings'];
+  if (key >= '1' && key <= '6') {
+    const views = ['workflow', 'ideation', 'documents', 'log', 'settings', 'plans'];
     switchView(views[parseInt(key) - 1]);
   } else if (key === 't') {
     toggleTheme();
@@ -1515,6 +1579,9 @@ async function refreshView(viewName) {
         break;
       case 'documents':
         docTree = await apiFetch('/tree');
+        break;
+      case 'plans':
+        plans = await apiFetch('/plans').catch(() => []);
         break;
       case 'log':
         if (logSelectedTask) { await selectLogTask(logSelectedTask); }
@@ -1767,10 +1834,12 @@ function renderWorkflow() {
     const activePhase = req.current_phase || req.phase || 1;
     const progress = isCompleted ? 100 : Math.round(((activePhase - 1) / 5) * 100);
     const isActive = selectedRequestId === req.id;
+    const planBadge = req.source_plan ? '<span class="plan-badge">PLN: ' + escapeHtml(String(req.source_plan)) + '</span>' : '';
 
     return '<div class="workflow-list-item' + (isActive ? ' active' : '') + '" onclick="selectRequest(\\'' + escapeHtml(req.id) + '\\')">' +
       '<div class="wli-title">' + escapeHtml(req.id) +
         '<span class="wli-status ' + statusCls + '">' + statusLabel + '</span>' +
+        planBadge +
       '</div>' +
       '<div class="wli-meta">' + escapeHtml(req.title || 'Untitled') + '</div>' +
       '<div class="wli-progress"><div class="wli-progress-fill" style="width:' + progress + '%"></div></div>' +
@@ -1851,6 +1920,43 @@ function selectRequest(reqId) {
   selectedRequestId = reqId;
   delete viewCache['workflow'];
   renderCurrentView();
+}
+
+function renderPlans() {
+  const sortedPlans = [...plans].sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+  const header = '<div class="view-header">' +
+      '<div class="view-header-title">Plans</div>' +
+      '<button class="refresh-btn" id="refresh-btn-plans" onclick="refreshView(\\'plans\\')"><span class="refresh-icon">&#x21bb;</span> Refresh</button>' +
+    '</div>';
+
+  if (sortedPlans.length === 0) {
+    return header + '<div class="empty-state"><div class="icon">&#128196;</div><h2>No plans yet</h2><p>Run planning steps to create PLN entries.</p></div>';
+  }
+
+  const cards = sortedPlans.map(plan => {
+    const linkedCount = Array.isArray(plan.linked_requests) ? plan.linked_requests.length : 0;
+    const linkedLabel = linkedCount + ' linked request' + (linkedCount === 1 ? '' : 's');
+    const statusText = (plan.status || 'unknown');
+    const status = statusText.toLowerCase();
+    const statusCls = status === 'completed' || status === 'done' || status === 'success'
+      ? 'completed'
+      : status === 'failed' || status === 'error'
+        ? 'failed'
+        : status === 'active' || status === 'running' || status === 'in_progress'
+          ? 'active'
+          : 'pending';
+    const created = plan.created_at ? new Date(plan.created_at).toLocaleString() : 'No timestamp';
+
+    return '<div class="plan-card">' +
+      '<div>' +
+        '<div class="card-title" style="margin-bottom:6px;font-size:15px;">' + escapeHtml(plan.id || 'PLN-UNKNOWN') + ': ' + escapeHtml(plan.title || 'Untitled') + '</div>' +
+        '<div class="plan-card-meta">Status: ' + escapeHtml(statusText) + ' · Created: ' + escapeHtml(created) + ' · ' + escapeHtml(linkedLabel) + '</div>' +
+      '</div>' +
+      '<span class="plan-status ' + statusCls + '">' + escapeHtml(statusText) + '</span>' +
+    '</div>';
+  }).join('');
+
+  return header + '<div class="plans-grid">' + cards + '</div>';
 }
 
 async function toggleTaskDetail(event, el, reqId, taskId) {
@@ -3156,8 +3262,9 @@ function updateTabCounts() {
     return st.startsWith('phase1') || st.startsWith('phase2') || st.startsWith('phase3') || st.startsWith('phase4');
   }).length;
   const ideationCount = (ideationSessions || []).length;
+  const planCount = (plans || []).length;
 
-  const tabs = { workflow: activeRequests, ideation: ideationCount };
+  const tabs = { workflow: activeRequests, ideation: ideationCount, plans: planCount };
   Object.entries(tabs).forEach(([view, count]) => {
     const btn = document.querySelector('nav button[data-view="' + view + '"]');
     if (!btn) return;
@@ -3191,6 +3298,7 @@ function renderCurrentView() {
     case 'documents': html = renderDocuments(); break;
     case 'log': html = renderLog(); break;
     case 'ideation': html = renderIdeation(); break;
+    case 'plans': html = renderPlans(); break;
     case 'dependencies': html = renderDependencies(); break;
     case 'settings': html = renderSettings(); break;
   }
@@ -3255,6 +3363,7 @@ async function loadData() {
       } catch { req._tasks = []; }
     }
   } catch { requests = []; }
+  try { plans = await apiFetch('/plans'); } catch { plans = []; }
 
   try { config = await apiFetch('/config'); } catch { config = {}; }
   try { modeStatus = await apiFetch('/mode'); } catch { modeStatus = {}; }

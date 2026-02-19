@@ -18,6 +18,15 @@ export interface RequestMeta {
   [key: string]: unknown;
 }
 
+export interface PlanMeta {
+  id: string;
+  title?: string;
+  status?: string;
+  created_at?: string;
+  linked_requests?: string[];
+  [key: string]: unknown;
+}
+
 export interface SessionParticipant {
   key: string;
   role?: string;

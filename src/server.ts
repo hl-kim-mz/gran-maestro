@@ -21,6 +21,7 @@ import { renderSPA } from "./spa.ts";
 import { projectConfigApi } from "./routes/config.ts";
 import { projectDiscussionApi } from "./routes/discussion.ts";
 import { projectIdeationApi } from "./routes/ideation.ts";
+import { projectPlansApi } from "./routes/plans.ts";
 import { projectRequestsApi } from "./routes/requests.ts";
 import { projectTreeApi } from "./routes/tree.ts";
 import { projectRegistryApi } from "./routes/projects.ts";
@@ -45,6 +46,7 @@ const projectApi = new Hono();
 
 projectApi.route("/", projectConfigApi);
 projectApi.route("/", projectRequestsApi);
+projectApi.route("/", projectPlansApi);
 projectApi.route("/", projectIdeationApi);
 projectApi.route("/", projectDiscussionApi);
 projectApi.route("/", projectTreeApi);
