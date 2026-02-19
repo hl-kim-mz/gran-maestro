@@ -10,6 +10,7 @@ Subcommands:
   request history     [--all]
   request filter      [--phase N] [--status STATUS] [--priority LEVEL] [--format json]
   request count       [--active | --all | --completed]
+  request cancel      <REQ-ID>
 
   plan list
   plan inspect       <PLN-ID>
@@ -220,6 +221,21 @@ def cmd_request_count(args):
         count += 1
     print(count)
     return 0
+
+
+def cmd_request_cancel(args):
+    req_id = args.req_id.upper()
+    for rid, path, data in iter_request_dirs(include_completed=True):
+        if rid == req_id:
+            if data.get("status") == "cancelled":
+                print(f"{req_id} is already cancelled.")
+                return 0
+            data["status"] = "cancelled"
+            save_json(path / "request.json", data)
+            print(f"Cancelled: {req_id}")
+            return 0
+    print(f"Error: {req_id} not found.", file=sys.stderr)
+    return 1
 
 
 def cmd_plan_list(args):
@@ -496,6 +512,9 @@ def build_parser():
     req_count.add_argument("--all", dest="scope", action="store_const", const="all")
     req_count.add_argument("--completed", dest="scope", action="store_const", const="completed")
 
+    req_cancel = req_sub.add_parser("cancel")
+    req_cancel.add_argument("req_id")
+
     # --- plan ---
     plan = sub.add_parser("plan")
     plan_sub = plan.add_subparsers(dest="subcommand")
@@ -579,6 +598,7 @@ def main():
         ("request", "history"): cmd_request_history,
         ("request", "filter"): cmd_request_filter,
         ("request", "count"): cmd_request_count,
+        ("request", "cancel"): cmd_request_cancel,
         ("plan", "list"): cmd_plan_list,
         ("plan", "count"): cmd_plan_count,
         ("plan", "inspect"): cmd_plan_inspect,
