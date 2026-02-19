@@ -37,7 +37,7 @@ Gran Maestro 세션을 일괄 정리하는 스킬입니다. 한 번의 호출로
 ### 인자 없음: 정리 대상 미리보기
 
 1. `config.json`에서 `cleanup` 설정 로드 (없으면 기본값 사용)
-2. `config.json`에서 `archive` 설정 로드 (`archive_directory` 참조)
+2. `config.json`에서 `archive` 설정 로드
 3. 각 타입별 현황 스캔:
 
    **Ideation**:
@@ -100,10 +100,10 @@ Gran Maestro — Cleanup 미리보기
 5. 나머지 중 `status`가 `completed`인 세션만 아카이브 대상 선별
    - **진행 중 세션 보호**: `completed`가 아닌 세션은 keep count 초과여도 보호
 6. 아카이브 대상이 있으면:
-   - `.gran-maestro/archive/` 디렉토리 생성 (없으면)
+   - `.gran-maestro/ideation/archived/` 디렉토리 생성 (없으면)
    - tar.gz 압축:
      ```bash
-     tar -czf .gran-maestro/archive/ideation-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
+     tar -czf .gran-maestro/ideation/archived/ideation-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
        -C .gran-maestro/ideation {IDN-001} {IDN-002} ...
      ```
    - 원본 디렉토리 삭제
@@ -121,7 +121,7 @@ Gran Maestro — Cleanup 미리보기
 4. 아카이브 대상이 있으면:
    - tar.gz 압축:
      ```bash
-     tar -czf .gran-maestro/archive/requests-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
+     tar -czf .gran-maestro/requests/archived/requests-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
        -C .gran-maestro/requests {REQ-001} {REQ-002} ...
      ```
    - 원본 디렉토리 삭제
@@ -159,7 +159,7 @@ Gran Maestro — Cleanup 미리보기
 5. 사용자가 선택한 요청을 아카이브:
    - 선택된 각 요청을 개별 tar.gz로 압축 (다른 요청과 묶지 않음):
      ```bash
-     tar -czf .gran-maestro/archive/requests-{REQ-ID}-{YYYYMMDD}.tar.gz \
+     tar -czf .gran-maestro/requests/archived/requests-{REQ-ID}-{YYYYMMDD}.tar.gz \
        -C .gran-maestro/requests {REQ-ID}
      ```
    - 원본 디렉토리 삭제
@@ -241,5 +241,5 @@ Gran Maestro — Cleanup 모의 실행
 
 - "정리 대상이 없습니다" → 모든 세션이 keep count 이내이고, completed requests가 없으며, 오래된 활성 requests가 없는 상태
 - "진행 중 세션은 정리할 수 없습니다" → Step 1/2는 자동으로 진행 중 세션을 보호합니다. 강제로 정리하려면 `/mst:archive --run`을 사용하세요
-- "tar 오류" → 디스크 공간 확인, `.gran-maestro/archive/` 디렉토리 쓰기 권한 확인
+- "tar 오류" → 디스크 공간 확인, `{type}/archived/` 디렉토리 쓰기 권한 확인
 - "복원이 필요합니다" → `/mst:archive --restore {ID}`를 사용하세요. cleanup 스킬은 복원 기능을 제공하지 않습니다

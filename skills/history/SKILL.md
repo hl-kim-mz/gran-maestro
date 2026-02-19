@@ -75,7 +75,7 @@ Phase 5: 수락 완료
 
 ### `--archive` (목록)
 
-1. `.gran-maestro/archive/` 디렉토리의 모든 .tar.gz 파일 스캔
+1. 각 `.gran-maestro/{ideation,discussion,requests,debug}/archived/` 디렉토리의 .tar.gz 파일 스캔
 2. 각 파일의 내용 목록을 확인하여 세션 ID 추출
 3. 타입별로 그룹화하여 표시:
 
@@ -98,7 +98,7 @@ requests:
 
 ### `--archive {ID}` (상세 조회)
 
-1. `.gran-maestro/archive/`에서 해당 ID를 포함하는 .tar.gz 파일 탐색
+1. ID 접두사(REQ/IDN/DSC/DBG)로 타입을 결정하고 `.gran-maestro/{type_dir}/archived/`에서 해당 ID를 포함하는 .tar.gz 파일 탐색
 2. 대상 세션 디렉토리를 임시 위치에 추출:
    ```bash
    tar -xzf {archive_file} -C /tmp/gran-maestro-archive-view/ {session_dir}

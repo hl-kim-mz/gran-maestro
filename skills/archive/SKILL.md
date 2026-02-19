@@ -8,7 +8,7 @@ argument-hint: "[--run [--type {ideation|discussion|requests}]] [--restore {ID}]
 # maestro:archive
 
 Gran Maestro 세션 아카이브를 관리합니다.
-타입별(ideation/discussion/requests) 최근 N개 세션만 활성 유지하고, 초과분은 `.gran-maestro/archive/`에 tar.gz 압축 보관합니다.
+타입별(ideation/discussion/requests) 최근 N개 세션만 활성 유지하고, 초과분은 각 타입 디렉토리 하위 `archived/`에 tar.gz 압축 보관합니다.
 
 ## 설정 참조
 
@@ -19,7 +19,7 @@ Gran Maestro 세션 아카이브를 관리합니다.
 | `max_active_sessions` | 20 | 타입별 활성 유지 갯수 |
 | `archive_retention_days` | null | null=영구 보존, 숫자=N일 후 아카이브 자동 삭제 |
 | `auto_archive_on_create` | true | 새 세션 생성 시 자동 아카이브 체크 |
-| `archive_directory` | `.gran-maestro/archive` | 아카이브 저장 경로 |
+| `archive_directory` | `{type_dir}/archived` | 타입별 아카이브 저장 경로 (자동) |
 
 ## 실행 프로토콜
 
@@ -30,8 +30,8 @@ Gran Maestro 세션 아카이브를 관리합니다.
    - `.gran-maestro/ideation/` → IDN-* 디렉토리 수
    - `.gran-maestro/discussion/` → DSC-* 디렉토리 수
    - `.gran-maestro/requests/` → REQ-* 디렉토리 수
-3. `.gran-maestro/archive/` 디렉토리 스캔:
-   - 타입별 아카이브 파일(.tar.gz) 수
+3. 각 타입의 `archived/` 디렉토리 스캔:
+   - `.gran-maestro/{ideation,discussion,requests,debug}/archived/` 내 .tar.gz 파일 수
    - 총 디스크 사용량
 4. 현황 표시:
 
@@ -59,10 +59,10 @@ requests     23      0         초과 (3개 아카이브 대상)
 3. **진행 중 세션 보호**: `status`가 `completed` 또는 `cancelled`이 아닌 세션은 절대 아카이브하지 않음
 4. 완료된 세션을 `created_at` 기준 오래된 순 정렬
 5. `max_active_sessions` 초과분 선별 (가장 오래된 것부터)
-6. `.gran-maestro/archive/` 디렉토리 생성 (없으면)
+6. `.gran-maestro/{type_dir}/archived/` 디렉토리 생성 (없으면)
 7. 선별된 세션을 tar.gz 압축:
    ```bash
-   tar -czf .gran-maestro/archive/{type}-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
+   tar -czf .gran-maestro/{type_dir}/archived/{type}-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
      -C .gran-maestro/{type_dir} {session_dir1} {session_dir2} ...
    ```
    - `{type}`: `ideation`, `discussion`, `requests`
@@ -87,7 +87,7 @@ requests: 3개 세션 아카이브됨
 
 ### `--restore {ID}`: 아카이브에서 세션 복원
 
-1. `.gran-maestro/archive/` 디렉토리에서 해당 ID를 포함하는 .tar.gz 파일 탐색
+1. ID 접두사(REQ/IDN/DSC/DBG)로 타입을 결정하고 `.gran-maestro/{type_dir}/archived/`에서 해당 ID를 포함하는 .tar.gz 파일 탐색
 2. 대상 아카이브 파일을 임시로 목록 확인:
    ```bash
    tar -tzf {archive_file} | grep {ID}
@@ -109,7 +109,7 @@ requests: 3개 세션 아카이브됨
 
 ### `--list`: 아카이브된 세션 목록 표시
 
-1. `.gran-maestro/archive/` 디렉토리의 모든 .tar.gz 파일 스캔
+1. 각 `.gran-maestro/{ideation,discussion,requests,debug}/archived/` 디렉토리의 모든 .tar.gz 파일 스캔
 2. 각 파일의 내용 목록 확인:
    ```bash
    tar -tzf {archive_file}
@@ -171,21 +171,30 @@ requests (1 archive):
 
 ```
 .gran-maestro/
-├── ideation/          # 최근 20개 활성 + counter.json
-├── discussion/        # 최근 20개 활성 + counter.json
-├── requests/          # 최근 20개 활성 + counter.json
-├── debug/             # counter.json
-└── archive/
-    ├── ideation-IDN001-IDN005-20260217.tar.gz
-    ├── discussion-DSC001-DSC003-20260217.tar.gz
-    └── requests-REQ001-REQ010-20260217.tar.gz
+├── ideation/
+│   ├── IDN-* (active) + counter.json
+│   └── archived/
+│       └── ideation-IDN001-IDN005-20260217.tar.gz
+├── discussion/
+│   ├── DSC-* (active) + counter.json
+│   └── archived/
+│       └── discussion-DSC001-DSC003-20260217.tar.gz
+├── requests/
+│   ├── REQ-* (active) + counter.json
+│   └── archived/
+│       └── requests-REQ001-REQ010-20260217.tar.gz
+├── debug/
+│   ├── DBG-* + counter.json
+│   └── archived/
+└── plans/
+    └── PLN-*.md
 ```
 
 ## 에러 처리
 
 | 상황 | 대응 |
 |------|------|
-| `.gran-maestro/archive/` 생성 실패 | 쓰기 권한 확인 안내 |
+| `{type_dir}/archived/` 생성 실패 | 쓰기 권한 확인 안내 |
 | tar 명령 실패 | 에러 메시지 표시, 원본 보존 (삭제하지 않음) |
 | 복원 시 ID를 찾을 수 없음 | 아카이브 목록 표시 + 올바른 ID 안내 |
 | 복원 대상 디렉토리가 이미 존재 | 덮어쓰기 전 사용자 확인 |

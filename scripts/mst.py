@@ -34,6 +34,7 @@ Subcommands:
 import argparse
 import json
 import os
+import shutil
 import sys
 import glob
 import tarfile
@@ -90,14 +91,6 @@ def plans_dir() -> Path:
     return BASE_DIR / "plans"
 
 
-def completed_dir() -> Path:
-    return BASE_DIR / "requests" / "completed"
-
-
-def archive_dir() -> Path:
-    return BASE_DIR / "archive"
-
-
 def iter_request_dirs(include_completed=False):
     """Yield (req_id, path, data) tuples."""
     for req_path in sorted(requests_dir().glob("REQ-*")):
@@ -106,13 +99,21 @@ def iter_request_dirs(include_completed=False):
         rj = load_json(req_path / "request.json")
         if rj:
             yield rj.get("id", req_path.name), req_path, rj
-    if include_completed and completed_dir().exists():
-        for req_path in sorted(completed_dir().glob("REQ-*")):
-            if not req_path.is_dir():
-                continue
-            rj = load_json(req_path / "request.json")
-            if rj:
-                yield rj.get("id", req_path.name), req_path, rj
+    if include_completed:
+        archived = type_archived_dir("req")
+        if archived.exists():
+            for arc_file in sorted(archived.glob("*.tar.gz")):
+                try:
+                    with tarfile.open(arc_file, "r:gz") as tar:
+                        for member in tar.getmembers():
+                            if (member.name.endswith("/request.json")
+                                    and member.name.count("/") == 1):
+                                f = tar.extractfile(member)
+                                if f:
+                                    rj = json.loads(f.read().decode("utf-8"))
+                                    yield rj.get("id", member.name.split("/")[0]), arc_file, rj
+                except Exception:
+                    pass
 
 
 def iter_plan_dirs():
@@ -291,6 +292,11 @@ TYPE_DIRS = {
 }
 
 
+def type_archived_dir(type_key: str) -> Path:
+    subdir, _ = TYPE_DIRS.get(type_key, ("requests", "REQ"))
+    return BASE_DIR / subdir / "archived"
+
+
 def get_counter_path(type_key: str, dir_override: str = None) -> Path:
     if dir_override:
         return Path(dir_override) / "counter.json"
@@ -323,15 +329,18 @@ def cmd_counter_peek(args):
 # ---------------------------------------------------------------------------
 
 def cmd_archive_run(args):
-    src_dir = requests_dir()
-    dst_dir = archive_dir()
+    type_key = getattr(args, "type", None) or "req"
+    subdir, prefix = TYPE_DIRS.get(type_key, ("requests", "REQ"))
+    src_dir = BASE_DIR / subdir
+    dst_dir = type_archived_dir(type_key)
     dst_dir.mkdir(parents=True, exist_ok=True)
 
-    dirs = sorted(src_dir.glob("REQ-*"))
+    dirs = sorted(src_dir.glob(f"{prefix}-*"))
     max_active = args.max or 20
+    json_file = "request.json" if type_key == "req" else "session.json"
 
     completed = [d for d in dirs if d.is_dir() and
-                 (load_json(d / "request.json") or {}).get("status") in ("completed", "cancelled")]
+                 (load_json(d / json_file) or {}).get("status") in ("completed", "cancelled")]
 
     if len(dirs) - len(completed) <= max_active:
         print("No archiving needed.")
@@ -344,7 +353,7 @@ def cmd_archive_run(args):
 
     ids = [d.name for d in to_archive]
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    archive_name = f"requests-{ids[0]}-to-{ids[-1]}-{timestamp}.tar.gz"
+    archive_name = f"{subdir}-{ids[0]}-to-{ids[-1]}-{timestamp}.tar.gz"
     archive_path = dst_dir / archive_name
 
     with tarfile.open(archive_path, "w:gz") as tar:
@@ -352,7 +361,6 @@ def cmd_archive_run(args):
             tar.add(d, arcname=d.name)
 
     for d in to_archive:
-        import shutil
         shutil.rmtree(d)
 
     print(f"Archived {len(to_archive)} sessions → {archive_name}")
@@ -360,30 +368,38 @@ def cmd_archive_run(args):
 
 
 def cmd_archive_list(args):
-    dst_dir = archive_dir()
-    if not dst_dir.exists():
+    has_any = False
+    filter_type = getattr(args, "type", None)
+    for type_key, (subdir, _) in TYPE_DIRS.items():
+        if filter_type and filter_type != type_key:
+            continue
+        archived = type_archived_dir(type_key)
+        if not archived.exists():
+            continue
+        for a in sorted(archived.glob("*.tar.gz")):
+            size_kb = a.stat().st_size // 1024
+            print(f"{a.name:<60} {size_kb:>6} KB")
+            has_any = True
+    if not has_any:
         print("No archives found.")
-        return 0
-    archives = sorted(dst_dir.glob("*.tar.gz"))
-    if not archives:
-        print("No archives found.")
-        return 0
-    for a in archives:
-        size_kb = a.stat().st_size // 1024
-        print(f"{a.name:<60} {size_kb:>6} KB")
     return 0
 
 
 def cmd_archive_restore(args):
-    dst_dir = archive_dir()
-    # Find archive containing the session
-    for arc in dst_dir.glob("*.tar.gz"):
+    target = args.archive_id.upper()
+    prefix = target[:3]
+    prefix_to_type = {"REQ": "req", "IDN": "idn", "DSC": "dsc", "DBG": "dbg"}
+    type_key = prefix_to_type.get(prefix, "req")
+    subdir, _ = TYPE_DIRS.get(type_key, ("requests", "REQ"))
+    archived = type_archived_dir(type_key)
+    restore_dir = BASE_DIR / subdir
+
+    for arc in sorted(archived.glob("*.tar.gz")):
         with tarfile.open(arc, "r:gz") as tar:
             names = tar.getnames()
-            target = args.archive_id.upper()
             matching = [n for n in names if n.startswith(target + "/") or n == target]
             if matching:
-                tar.extractall(path=requests_dir(), members=[tar.getmember(n) for n in matching])
+                tar.extractall(path=restore_dir, members=[tar.getmember(n) for n in matching])
                 print(f"Restored {target} from {arc.name}")
                 return 0
     print(f"Error: {args.archive_id} not found in any archive.", file=sys.stderr)
@@ -401,8 +417,7 @@ def cmd_cleanup(args):
         if not d.is_dir():
             continue
         data = load_json(d / "request.json") or {}
-        status = data.get("status", "")
-        if status in ("completed", "cancelled"):
+        if data.get("status") in ("completed", "cancelled"):
             stale.append((d, data))
 
     if not stale:
@@ -417,14 +432,24 @@ def cmd_cleanup(args):
         print("[dry-run] No changes made.")
         return 0
 
-    import shutil
+    dst_dir = type_archived_dir("req")
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    ids = [d.name for d in stale]
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    if len(ids) == 1:
+        archive_name = f"requests-{ids[0]}-{timestamp}.tar.gz"
+    else:
+        archive_name = f"requests-{ids[0]}-to-{ids[-1]}-{timestamp}.tar.gz"
+    archive_path = dst_dir / archive_name
+
+    with tarfile.open(archive_path, "w:gz") as tar:
+        for d, _ in stale:
+            tar.add(d, arcname=d.name)
+
     for d, _ in stale:
-        comp = completed_dir()
-        comp.mkdir(parents=True, exist_ok=True)
-        dest = comp / d.name
-        if not dest.exists():
-            d.rename(dest)
-            print(f"  Moved {d.name} → completed/")
+        shutil.rmtree(d)
+
+    print(f"Archived {len(stale)} sessions → {archive_name}")
     return 0
 
 
