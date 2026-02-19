@@ -11,6 +11,10 @@ Subcommands:
   request filter      [--phase N] [--status STATUS] [--priority LEVEL] [--format json]
   request count       [--active | --all | --completed]
 
+  plan list
+  plan inspect       <PLN-ID>
+  plan count         [--active | --all]
+
   archive run         [--type req|idn|dsc|dbg] [--max N] [--dir PATH]
   archive list        [--type TYPE]
   archive restore     <ARCHIVE-ID>
@@ -81,6 +85,10 @@ def requests_dir() -> Path:
     return BASE_DIR / "requests"
 
 
+def plans_dir() -> Path:
+    return BASE_DIR / "plans"
+
+
 def completed_dir() -> Path:
     return BASE_DIR / "requests" / "completed"
 
@@ -104,6 +112,19 @@ def iter_request_dirs(include_completed=False):
             rj = load_json(req_path / "request.json")
             if rj:
                 yield rj.get("id", req_path.name), req_path, rj
+
+
+def iter_plan_dirs():
+    """Yield (pln_id, path, data) tuples."""
+    pd = plans_dir()
+    if not pd.exists():
+        return
+    for pln_path in sorted(pd.glob("PLN-*")):
+        if not pln_path.is_dir():
+            continue
+        pj = load_json(pln_path / "plan.json")
+        if pj:
+            yield pj.get("id", pln_path.name), pln_path, pj
 
 
 def format_table_row(req_id, data):
@@ -199,6 +220,47 @@ def cmd_request_count(args):
         count += 1
     print(count)
     return 0
+
+
+def cmd_plan_list(args):
+    rows = []
+    for pln_id, path, data in iter_plan_dirs():
+        status = data.get("status", "")
+        if args.scope == "active" and status not in ("active", "in_progress"):
+            continue
+        rows.append((pln_id, data))
+
+    print(f"{'ID':<10} {'Status':<12} {'Linked':<6} {'Title'}")
+    print("-" * 80)
+    for pln_id, data in rows:
+        linked = data.get("linked_requests", [])
+        linked_count = len(linked) if isinstance(linked, list) else 0
+        title = (data.get("title") or "")[:55]
+        print(f"{pln_id:<10} {data.get('status', ''):<12} {linked_count:<6} {title}")
+    return 0
+
+
+def cmd_plan_count(args):
+    count = 0
+    for pln_id, path, data in iter_plan_dirs():
+        status = data.get("status", "")
+        if args.scope == "active" and status not in ("active", "in_progress"):
+            continue
+        if args.scope == "completed" and status != "completed":
+            continue
+        count += 1
+    print(count)
+    return 0
+
+
+def cmd_plan_inspect(args):
+    pln_id = args.pln_id.upper()
+    for pid, path, data in iter_plan_dirs():
+        if pid == pln_id:
+            print(json.dumps(data, ensure_ascii=False, indent=2))
+            return 0
+    print(f"Error: {pln_id} not found.", file=sys.stderr)
+    return 1
 
 
 # ---------------------------------------------------------------------------
@@ -434,6 +496,22 @@ def build_parser():
     req_count.add_argument("--all", dest="scope", action="store_const", const="all")
     req_count.add_argument("--completed", dest="scope", action="store_const", const="completed")
 
+    # --- plan ---
+    plan = sub.add_parser("plan")
+    plan_sub = plan.add_subparsers(dest="subcommand")
+
+    plan_list = plan_sub.add_parser("list")
+    plan_list.add_argument("--active", dest="scope", action="store_const", const="active", default="active")
+    plan_list.add_argument("--all", dest="scope", action="store_const", const="all")
+
+    plan_count = plan_sub.add_parser("count")
+    plan_count.add_argument("--active", dest="scope", action="store_const", const="active", default="active")
+    plan_count.add_argument("--all", dest="scope", action="store_const", const="all")
+    plan_count.add_argument("--completed", dest="scope", action="store_const", const="completed")
+
+    plan_inspect = plan_sub.add_parser("inspect")
+    plan_inspect.add_argument("pln_id")
+
     # --- counter ---
     ctr = sub.add_parser("counter")
     ctr_sub = ctr.add_subparsers(dest="subcommand")
@@ -501,6 +579,9 @@ def main():
         ("request", "history"): cmd_request_history,
         ("request", "filter"): cmd_request_filter,
         ("request", "count"): cmd_request_count,
+        ("plan", "list"): cmd_plan_list,
+        ("plan", "count"): cmd_plan_count,
+        ("plan", "inspect"): cmd_plan_inspect,
         ("counter", "next"): cmd_counter_next,
         ("counter", "peek"): cmd_counter_peek,
         ("archive", "run"): cmd_archive_run,

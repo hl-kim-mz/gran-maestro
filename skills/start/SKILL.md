@@ -91,11 +91,13 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
    b. Simple → 단독 분석 / Standard·Complex → Analysis Squad 팀 소환
    c. 코드베이스 탐색 (`/mst:codex`로 정밀 심볼 추적, `/mst:gemini`로 광역 탐색 위임), 외부 AI 분석 (반드시 `Skill(skill: "mst:codex", ...)`, `Skill(skill: "mst:gemini", ...)` 도구로 호출 — MCP 직접 호출 금지)
    d. `--plan` 제공 여부 처리:
-      - `/mst:plan` / `/mst:start` 요청에서 `--plan PLN-NNN` 또는 자연어 `PLN-NNN` 패턴 감지 시 `plans/PLN-NNN.md`를 Read
-      - plan.md 존재 시 Phase 1 인풋을 plan.md의 결정사항·범위·제약으로 사용
-      - plan.md 미존재 시 경고 후 사일런트 모드로 자동 전환
+      - `/mst:plan` / `/mst:start` 요청에서 `--plan PLN-NNN` 또는 자연어 `PLN-NNN` 패턴 감지 시 `plans/PLN-NNN/plan.json` 및 `plans/PLN-NNN/plan.md`를 Read
+      - plan.json/plan.md 존재 시 `request.json` 생성 단계에서 `source_plan: "PLN-NNN"`를 기록
+      - plan.json의 `linked_requests`에 현재 REQ-NNN를 추가하고, `status`가 `active`면 `in_progress`로 변경
+      - plan.md의 결정사항·범위·제약을 Phase 1 인풋으로 사용
+      - plan.json 또는 plan.md 미존재 시 경고 후 사일런트 모드로 자동 전환
    e. **모호한 요구사항 처리**:
-      [--plan 제공된 경우]: plans/PLN-NNN.md를 Read하고 결정 사항을 따름.
+      [--plan 제공된 경우]: plans/PLN-NNN/plan.json + plans/PLN-NNN/plan.md를 Read하고 결정 사항을 따름.
       [--plan 없는 경우]:   가장 합리적인 가정을 수립하고 계속 진행.
                             가정 내용은 spec.md "가정 사항" 섹션에 기록.
                             어느 경우에도 사용자에게 질문하지 않음.
