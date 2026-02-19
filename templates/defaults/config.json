@@ -100,11 +100,11 @@
   },
   "models": {
     "claude": {
-      "pm_conductor": "opus",
-      "architect": "opus",
-      "ideation": "opus",
-      "discussion": "opus",
-      "debug": "opus"
+      "pm_conductor": "sonnet",
+      "architect": "sonnet",
+      "ideation": "sonnet",
+      "discussion": "sonnet",
+      "debug": "sonnet"
     },
     "developer": {
       "primary": { "provider": "codex", "model": "gpt-5.3-codex" },

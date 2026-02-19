@@ -336,11 +336,11 @@ Bearer 토큰 인증으로 보호됩니다. 서버 시작 시 랜덤 UUID 토큰
 
 | 키 | 기본값 | 설명 |
 |----|--------|------|
-| `models.claude.pm_conductor` | `opus` | PM 지휘자 (Phase 1, 3) |
-| `models.claude.architect` | `opus` | 아키텍트 (Design Wing) |
-| `models.claude.ideation` | `opus` | Ideation 참여자 |
-| `models.claude.discussion` | `opus` | Discussion 참여자 |
-| `models.claude.debug` | `opus` | Debug 참여자 |
+| `models.claude.pm_conductor` | `sonnet` | PM 지휘자 (Phase 1, 3) |
+| `models.claude.architect` | `sonnet` | 아키텍트 (Design Wing) |
+| `models.claude.ideation` | `sonnet` | Ideation 참여자 |
+| `models.claude.discussion` | `sonnet` | Discussion 참여자 |
+| `models.claude.debug` | `sonnet` | Debug 참여자 |
 | `models.developer.primary` | `codex / gpt-5.3-codex` | 주 개발자 (provider/model) |
 | `models.developer.fallback` | `gemini / gemini-3-pro-preview` | 보조 개발자 |
 | `models.reviewer.primary` | `codex / gpt-5.3-codex` | 주 리뷰어 |
@@ -351,10 +351,10 @@ Bearer 토큰 인증으로 보호됩니다. 서버 시작 시 랜덤 UUID 토큰
 "models": {
   "claude": {
     "pm_conductor": "sonnet",
-    "architect": "opus",
+    "architect": "sonnet",
     "ideation": "sonnet",
     "discussion": "sonnet",
-    "debug": "opus"
+    "debug": "sonnet"
   },
   "developer": {
     "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
