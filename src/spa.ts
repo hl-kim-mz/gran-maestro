@@ -159,25 +159,6 @@ nav button.active {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
-nav kbd {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-  padding: 2px 5px;
-  margin-left: 6px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  background: var(--bg-primary);
-  color: var(--text-muted);
-  vertical-align: middle;
-  box-shadow: 0 1px 0 var(--border);
-}
-nav button.active kbd {
-  border-color: var(--accent);
-  color: var(--accent);
-}
 .tab-count {
   font-size: 10px;
   font-weight: 600;
@@ -1427,12 +1408,12 @@ nav button.active kbd {
     <div class="notif-list" id="notif-list"></div>
   </div>
   <nav>
-    <button class="active" data-view="workflow" onclick="switchView('workflow')">Workflow <kbd>1</kbd></button>
-    <button data-view="ideation" onclick="switchView('ideation')">Idea <kbd>2</kbd></button>
-    <button data-view="documents" onclick="switchView('documents')">Docs <kbd>3</kbd></button>
-    <button data-view="log" onclick="switchView('log')">Log <kbd>4</kbd></button>
-    <button data-view="settings" onclick="switchView('settings')">Settings <kbd>5</kbd></button>
-    <button data-view="plans" onclick="switchView('plans')">Plans <kbd>6</kbd></button>
+    <button class="active" data-view="workflow" onclick="switchView('workflow')" title="단축키: 1">Workflow</button>
+    <button data-view="ideation" onclick="switchView('ideation')" title="단축키: 2">Idea</button>
+    <button data-view="documents" onclick="switchView('documents')" title="단축키: 3">Docs</button>
+    <button data-view="log" onclick="switchView('log')" title="단축키: 4">Log</button>
+    <button data-view="settings" onclick="switchView('settings')" title="단축키: 5">Settings</button>
+    <button data-view="plans" onclick="switchView('plans')" title="단축키: 6">Plans</button>
   </nav>
   <div class="search-container" id="search-container">
     <div class="search-input-wrapper">
@@ -3273,9 +3254,7 @@ function updateTabCounts() {
       if (!badge) {
         badge = document.createElement('span');
         badge.className = 'tab-count';
-        const kbd = btn.querySelector('kbd');
-        if (kbd) btn.insertBefore(badge, kbd);
-        else btn.appendChild(badge);
+        btn.appendChild(badge);
       }
       badge.textContent = String(count);
     } else if (badge) {
