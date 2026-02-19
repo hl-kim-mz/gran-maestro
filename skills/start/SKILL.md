@@ -90,12 +90,20 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
    a. 요청 파싱 및 복잡도 분류 (simple | standard | complex)
    b. Simple → 단독 분석 / Standard·Complex → Analysis Squad 팀 소환
    c. 코드베이스 탐색 (`/mst:codex`로 정밀 심볼 추적, `/mst:gemini`로 광역 탐색 위임), 외부 AI 분석 (반드시 `Skill(skill: "mst:codex", ...)`, `Skill(skill: "mst:gemini", ...)` 도구로 호출 — MCP 직접 호출 금지)
-   d. 모호한 요구사항은 사용자에게 질문 (AskUserQuestion, 한 번에 하나씩)
-   e. **디버그 의도 감지 (LLM 판단)**: 사용자 요청이 버그 탐지, 문제 원인 분석, 디버깅 목적으로 판단되면:
+   d. `--plan` 제공 여부 처리:
+      - `/mst:plan` / `/mst:start` 요청에서 `--plan PLN-NNN` 또는 자연어 `PLN-NNN` 패턴 감지 시 `plans/PLN-NNN.md`를 Read
+      - plan.md 존재 시 Phase 1 인풋을 plan.md의 결정사항·범위·제약으로 사용
+      - plan.md 미존재 시 경고 후 사일런트 모드로 자동 전환
+   e. **모호한 요구사항 처리**:
+      [--plan 제공된 경우]: plans/PLN-NNN.md를 Read하고 결정 사항을 따름.
+      [--plan 없는 경우]:   가장 합리적인 가정을 수립하고 계속 진행.
+                            가정 내용은 spec.md "가정 사항" 섹션에 기록.
+                            어느 경우에도 사용자에게 질문하지 않음.
+   f. **디버그 의도 감지 (LLM 판단)**: 사용자 요청이 버그 탐지, 문제 원인 분석, 디버깅 목적으로 판단되면:
       - `config.collaborative_debug.auto_trigger_from_start`가 `true`인 경우: `/mst:debug`를 자동 호출하여 병렬 조사를 수행하고, 이 워크플로우를 종료합니다
       - `false`인 경우: 사용자에게 `/mst:debug`를 사용할 수 있다고 안내한 뒤 일반 워크플로우로 진행합니다
       - 디버깅 의도 판단 기준: "버그", "에러", "문제", "원인 분석", "왜 안 되는지", "디버그" 등의 키워드 + 문맥상 문제 해결 요청
-   f. 접근 방식 결정 시: 3 AI 의견 수집 → 종합 → 순위별 추천
+   g. 접근 방식 결정 시: 3 AI 의견 수집 → 종합 → 순위별 추천
       - **Ideation 자동 트리거 (LLM 판단)**: 아래 조건 중 하나라도 해당하면 `/mst:ideation`을 호출하여 체계적인 3-AI 분석을 수행합니다. LLM이 상황을 종합적으로 판단하여 결정합니다:
         - 복잡도가 `complex`로 분류된 경우
         - 접근 방식이 2개 이상이고 트레이드오프가 명확하지 않은 경우
@@ -103,10 +111,11 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
         - PM이 단독 판단에 확신이 부족한 경우
       - Ideation 결과(`synthesis.md`)의 추천 방향을 spec 작성에 반영합니다
       - 단순(simple) 요청이나 접근 방식이 명백한 경우에는 ideation 없이 진행합니다
-   g. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용)
-   h. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
-   i. **spec.md 파일 저장**: `.gran-maestro/requests/REQ-NNN/tasks/01/spec.md`
-   j. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가
+   h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용)
+      - `--plan` 없이 진행한 경우 spec.md에는 `## 가정 사항 (Assumptions)` 섹션을 포함
+   i. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
+   j. **spec.md 파일 저장**: `.gran-maestro/requests/REQ-NNN/tasks/01/spec.md`
+   k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가
 5. ⚠️ **spec.md 작성 완료 확인** — spec.md 파일이 존재하지 않으면 이 스킬을 종료하지 않음
 6. 스펙 요약을 사용자에게 표시하고, `/mst:approve REQ-NNN`으로 승인 안내
    - `--auto` 모드인 경우: 승인 단계 스킵, 자동으로 Phase 2 진입

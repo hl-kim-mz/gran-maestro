@@ -38,11 +38,34 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 </constraints>
 
 <phase1_protocol>
+Phase 1 runs in two modes:
+
+- Interactive mode (/mst:plan):
+    Q&A with user until requirements are clear.
+    Ask ONE question at a time via AskUserQuestion.
+    Output: plans/PLN-NNN.md (written only on explicit user approval).
+    Do NOT write plan.md until user approves.
+
+- Silent mode (/mst:start):
+    No user interaction. PM makes autonomous decisions.
+    If --plan PLN-NNN provided: read plans/PLN-NNN.md, follow its decisions.
+    Otherwise: make the most reasonable assumptions, document in spec.md "가정 사항".
+    Keep going without pausing.
+
 1) Parse user request. Classify complexity: simple | standard | complex.
 2) Simple: PM Conductor solo analysis. Standard/Complex: spawn Analysis Squad team.
 3) Delegate codebase exploration to `/mst:gemini` with `--files` pattern for full codebase analysis. Gemini's 1M token context enables comprehensive single-pass analysis. For precision symbol tracing, delegate to `/mst:codex` (faster and more accurate than Claude Explorer agents).
 4) Delegate external analysis to Codex (code structure) + Gemini (large context + discussion/ideation log analysis) via `/mst:codex`, `/mst:gemini` skills (parallel). Gemini Context Report should include prior discussion/ideation session logs when available.
-5) For ambiguous requirements: ask user ONE question at a time via AskUserQuestion.
+5) For ambiguous requirements:
+   [Interactive mode — /mst:plan]:
+     Ask user ONE question at a time via AskUserQuestion.
+     Do NOT write plan.md until user explicitly approves.
+
+   [Silent mode — /mst:start]:
+     Do NOT ask the user.
+     If --plan provided: follow the plan.md decisions.
+     Otherwise: make the most reasonable assumption, document in spec.md "가정 사항".
+     Keep going without pausing.
 5.5) **Debug intent detection**: If user request is about bug finding, error diagnosis, or debugging:
    - Check `config.collaborative_debug.auto_trigger_from_start` setting
    - If `true`: invoke `/mst:debug` to launch parallel investigation with Codex/Gemini/Claude, then exit this workflow
@@ -94,7 +117,23 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 5) Collect all review opinions. Synthesize into Review Report.
 6) Map results against Acceptance Criteria checklist.
 7) **리뷰 중 설계 이슈 발견 시 (LLM 판단)**: 구현 결과에서 근본적인 설계 결함이나 대안적 접근이 더 나을 수 있는 상황이 감지되면, `/mst:ideation`을 호출하여 다각도 분석 후 Phase 4 피드백에 반영합니다.
-8) Issue verdict: PASS → Phase 5, FAIL/PARTIAL → Phase 4.
+8) **가정 사항 전달 (조건부)**: spec.md에 "## 가정 사항 (Assumptions)" 섹션이 존재하면, Review Report 말미에 반드시 사용자에게 전달:
+   ```
+   ⚠️ 가정 사항 확인 필요
+
+   이번 구현에서 PM이 독자적으로 결정한 사항이 있습니다:
+
+   | 항목 | PM 가정 | 대안 |
+   |------|--------|------|
+   | {spec.md의 가정 사항 내용}  | ...    | ...  |
+
+   가정이 맞다면: 그대로 수락 (/mst:accept)
+   가정이 틀렸다면:
+     - 수정 범위가 작다면: 피드백으로 수정 (/mst:feedback)
+     - 근본적으로 다르다면: /mst:plan 으로 먼저 요구사항을 정제 후 재실행
+   ```
+   spec.md에 "가정 사항" 섹션이 없으면 이 단계를 스킵합니다.
+8.5) Issue verdict: PASS → Phase 5, FAIL/PARTIAL → Phase 4.
 8.5) On Phase 4 entry, delegate feedback document generation to `/mst:codex` using `agents/feedback-composer.md` template.
    - 템플릿 변수 치환: {TASK_ID}, {ROUND_NUM}, {SPEC_CONTENT}, {REVIEW_REPORTS}, {PREVIOUS_FEEDBACK}
    - `Write → prompts/phase4-feedback.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --output {feedback_path} --trace {REQ}/{TASK}/phase4-feedback")`
