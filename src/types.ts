@@ -24,6 +24,7 @@ export interface PlanMeta {
   status?: string;
   created_at?: string;
   linked_requests?: string[];
+  content?: string | null;
   [key: string]: unknown;
 }
 

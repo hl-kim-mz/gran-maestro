@@ -1305,6 +1305,38 @@ nav button.active {
   flex-direction: column;
   gap: 8px;
 }
+
+/* Plans: Master-Detail Layout */
+.plans-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  height: calc(100vh - 130px);
+}
+@media (max-width: 768px) {
+  .plans-layout { grid-template-columns: 1fr; }
+}
+.plans-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.plans-detail {
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.plans-detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  height: 100%;
+  font-size: 13px;
+}
 .plan-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -1317,6 +1349,10 @@ nav button.active {
   transition: border-color 0.2s, background 0.2s;
 }
 .plan-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-primary);
+}
+.plan-card.active {
   border-color: var(--accent);
   background: var(--bg-primary);
 }
@@ -1463,10 +1499,11 @@ let openDirs = new Set();
 let treeInitialized = false;
 const viewCache = {};
 let selectedRequestId = '';
+let selectedPlanId = '';
 let loadDataTimer = null;
 let dirtyLoadTimer = null;
 let pollInterval = null;
-let dirtyFlags = { requests: false, config: false, mode: false, tree: false, ideation: false, discussion: false };
+let dirtyFlags = { requests: false, config: false, mode: false, tree: false, ideation: false, discussion: false, plans: false };
 
 async function loadRequests() {
   try {
@@ -1486,13 +1523,14 @@ async function loadDirtyData() {
   if (dirtyFlags.tree) promises.push(apiFetch('/tree').then(d => { docTree = d; }).catch(() => {}));
   if (dirtyFlags.ideation) promises.push(apiFetch('/ideation').then(d => { ideationSessions = d; }).catch(() => {}));
   if (dirtyFlags.discussion) promises.push(apiFetch('/discussion').then(d => { discussionSessions = d; }).catch(() => {}));
+  if (dirtyFlags.plans) promises.push(apiFetch('/plans').then(d => { plans = d; }).catch(() => {}));
 
   // If nothing is dirty, do a full load
   if (promises.length === 0) { await loadData(); return; }
 
   await Promise.all(promises);
   // Reset dirty flags
-  dirtyFlags = { requests: false, config: false, mode: false, tree: false, ideation: false, discussion: false };
+  dirtyFlags = { requests: false, config: false, mode: false, tree: false, ideation: false, discussion: false, plans: false };
 
   renderCurrentView();
 }
@@ -1899,7 +1937,12 @@ function renderPlans() {
     return header + '<div class="empty-state"><div class="icon">&#128196;</div><h2>No plans yet</h2><p>Run planning steps to create PLN entries.</p></div>';
   }
 
-  const cards = sortedPlans.map(plan => {
+  // Auto-select first plan if none selected
+  if (!selectedPlanId && sortedPlans.length > 0) {
+    selectedPlanId = sortedPlans[0].id;
+  }
+
+  const listHtml = sortedPlans.map(plan => {
     const linkedCount = Array.isArray(plan.linked_requests) ? plan.linked_requests.length : 0;
     const linkedLabel = linkedCount + ' linked request' + (linkedCount === 1 ? '' : 's');
     const statusText = (plan.status || 'unknown');
@@ -1912,8 +1955,9 @@ function renderPlans() {
           ? 'active'
           : 'pending';
     const created = plan.created_at ? new Date(plan.created_at).toLocaleString() : 'No timestamp';
+    const isActive = selectedPlanId === plan.id;
 
-    return '<div class="plan-card">' +
+    return '<div class="plan-card' + (isActive ? ' active' : '') + '" onclick="selectPlan(\\'' + escapeHtml(plan.id) + '\\')">' +
       '<div>' +
         '<div class="card-title" style="margin-bottom:6px;font-size:15px;">' + escapeHtml(plan.id || 'PLN-UNKNOWN') + ': ' + escapeHtml(plan.title || 'Untitled') + '</div>' +
         '<div class="plan-card-meta">Status: ' + escapeHtml(statusText) + ' · Created: ' + escapeHtml(created) + ' · ' + escapeHtml(linkedLabel) + '</div>' +
@@ -1922,7 +1966,31 @@ function renderPlans() {
     '</div>';
   }).join('');
 
-  return header + '<div class="plans-grid">' + cards + '</div>';
+  const detailHtml = selectedPlanId
+    ? '<div style="color:var(--text-muted);font-size:13px;">Loading plan content...</div>'
+    : '<div class="plans-detail-empty">Select a plan to view its contents</div>';
+
+  return header +
+    '<div class="plans-layout">' +
+      '<div class="plans-list">' + listHtml + '</div>' +
+      '<div class="plans-detail" id="plan-detail">' + detailHtml + '</div>' +
+    '</div>';
+}
+
+async function selectPlan(planId) {
+  selectedPlanId = planId;
+  delete viewCache['plans'];
+  renderCurrentView();
+  try {
+    const planData = await apiFetch('/plans/' + encodeURIComponent(planId));
+    const detailEl = document.getElementById('plan-detail');
+    if (detailEl && planData) {
+      detailEl.innerHTML = renderMarkdown(planData.content || '*(내용 없음)*');
+    }
+  } catch (e) {
+    const detailEl = document.getElementById('plan-detail');
+    if (detailEl) detailEl.innerHTML = '<div style="color:var(--red);padding:12px">Failed to load plan content.</div>';
+  }
 }
 
 async function toggleTaskDetail(event, el, reqId, taskId) {
@@ -3436,10 +3504,13 @@ function connectSSE() {
       if (event.type === 'discussion_update') {
         dirtyFlags.discussion = true;
       }
+      if (event.type === 'plan_update') {
+        dirtyFlags.plans = true;
+      }
       if (event.type === 'trace_update') {
         dirtyFlags.requests = true;
       }
-      if (['task_update', 'request_update', 'phase_change', 'config_change', 'ideation_update', 'discussion_update', 'trace_update'].includes(event.type)) {
+      if (['task_update', 'request_update', 'phase_change', 'config_change', 'ideation_update', 'discussion_update', 'trace_update', 'plan_update'].includes(event.type)) {
         scheduleDirtyLoad();
       }
     } catch { /* ignore parse errors */ }
