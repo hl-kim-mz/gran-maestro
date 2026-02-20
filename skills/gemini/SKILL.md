@@ -29,6 +29,9 @@ Gemini CLI 호출의 단일 진입점입니다. Gran Maestro 워크플로우 내
 
    # 프롬프트 파일 (--prompt-file 지정 시) — 셸 치환으로 Claude 컨텍스트 미경유
    gemini -p "$(cat {prompt_file})" --model {model} --approval-mode yolo
+
+   # trace 모드 (실행 로그 기록, {task_dir}=.gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/)
+   gemini -p "$(cat {prompt_file})" --model {model} --approval-mode yolo 2>&1 | tee {task_dir}/running.log
    ```
 7. **결과 처리 분기**:
    - `--trace` 있음 → Trace 문서 작성 후 경로만 출력 (전체 stdout 반환 금지)
@@ -128,6 +131,9 @@ gemini -p "{prompt}" --model {model} --approval-mode yolo
 
 # 프롬프트 파일 — 셸 치환으로 Claude 컨텍스트 미경유
 gemini -p "$(cat {prompt_file})" --model {model} --approval-mode yolo
+
+# trace 모드 (실시간 로그 기록)
+gemini -p "$(cat {prompt_file})" --model {model} --approval-mode yolo 2>&1 | tee {task_dir}/running.log
 
 # 자동 승인
 gemini -p "{prompt}" --model {model} -y

@@ -5,12 +5,24 @@ import { resolveBaseDir } from "../config.ts";
 
 const projectRequestsApi = new Hono();
 
+function isInvalidPathPart(value: string): boolean {
+  return !value || value.includes("..") || value.includes("/") || value.includes("\\");
+}
+
 async function resolveRequestDir(baseDir: string, id: string): Promise<string | null> {
   const primary = `${baseDir}/requests/${id}`;
   if (await dirExists(primary)) return primary;
   const completed = `${baseDir}/requests/completed/${id}`;
   if (await dirExists(completed)) return completed;
   return null;
+}
+
+function splitLogLines(text: string): string[] {
+  const lines = text.split(/\r?\n/);
+  if (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  return lines;
 }
 
 projectRequestsApi.get("/requests", async (c) => {
@@ -166,6 +178,152 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
     review: review ?? null,
     feedback: feedback ?? null,
     traces: traceFiles,
+  });
+});
+
+projectRequestsApi.get("/requests/:id/tasks/:taskId/log-stream", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const requestId = c.req.param("id");
+  const taskId = c.req.param("taskId");
+  if (isInvalidPathPart(requestId) || isInvalidPathPart(taskId)) {
+    return c.json({ error: "Invalid request/task id" }, 400);
+  }
+
+  const requestDir = await resolveRequestDir(baseDir, requestId);
+  if (!requestDir) {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  const taskDir = `${requestDir}/tasks/${taskId}`;
+  try {
+    const taskStat = await Deno.stat(taskDir);
+    if (!taskStat.isDirectory) {
+      return c.json({ error: "Task not found" }, 404);
+    }
+  } catch {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  const runningLog = `${taskDir}/running.log`;
+  const decoder = new TextDecoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      let closed = false;
+      let watcher: Deno.FsWatcher | null = null;
+      let offset = 0;
+
+      const cleanup = () => {
+        closed = true;
+        if (watcher) {
+          try { watcher.close(); } catch { /* ignore */ }
+          watcher = null;
+        }
+      };
+
+      const send = async (lines: string[]) => {
+        if (closed || lines.length === 0) return;
+        const payload = JSON.stringify({
+          type: "log_line",
+          requestId,
+          taskId,
+          data: {
+            lines,
+            timestamp: new Date().toISOString(),
+          },
+        });
+        controller.enqueue(encoder.encode(`event: log_line\ndata: ${payload}\n\n`));
+      };
+
+      const sendInitialContent = async () => {
+        try {
+          const bytes = await Deno.readFile(runningLog);
+          offset = bytes.length;
+          await send(splitLogLines(decoder.decode(bytes)));
+        } catch {
+          offset = 0;
+        }
+      };
+
+      const sendNewContent = async () => {
+        try {
+          const bytes = await Deno.readFile(runningLog);
+          if (bytes.length < offset) {
+            offset = 0;
+          }
+          const added = bytes.slice(offset);
+          offset = bytes.length;
+          if (added.length === 0) return;
+          await send(splitLogLines(decoder.decode(added)));
+        } catch {
+          // ignore read errors
+        }
+      };
+
+      const waitForFile = async () => {
+        while (!closed) {
+          try {
+            await Deno.stat(runningLog);
+            return;
+          } catch {
+            watcher = Deno.watchFs(taskDir);
+            for await (const event of watcher) {
+              if (closed) break;
+              const matched = event.paths.some((path) =>
+                path.endsWith("/running.log") || path.endsWith("\\running.log")
+              );
+              if (matched) {
+                break;
+              }
+            }
+            if (closed) break;
+            watcher?.close();
+            watcher = null;
+          }
+        }
+      };
+
+      c.req.raw.signal?.addEventListener("abort", () => {
+        cleanup();
+        try {
+          controller.close();
+        } catch { /* ignore */ }
+      }, { once: true });
+
+      try {
+        await waitForFile();
+        if (closed) return;
+        await sendInitialContent();
+        watcher = Deno.watchFs(taskDir);
+        for await (const event of watcher) {
+          if (closed) break;
+          const isRunningLog = event.paths.some((path) =>
+            path.endsWith("/running.log") || path.endsWith("\\running.log")
+          );
+          if (!isRunningLog) continue;
+          await sendNewContent();
+        }
+      } finally {
+        cleanup();
+        try {
+          controller.close();
+        } catch { /* ignore */ }
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
   });
 });
 

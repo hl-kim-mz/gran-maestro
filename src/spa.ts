@@ -447,6 +447,14 @@ nav button.active {
   background: var(--accent);
   color: white;
 }
+.task-detail-tabs .live-dot {
+  color: var(--gray);
+  margin-left: 4px;
+  font-size: 11px;
+}
+.task-detail-tabs .live-dot.running {
+  color: var(--red);
+}
 .task-detail-content {
   font-size: 12px;
   line-height: 1.5;
@@ -1488,6 +1496,7 @@ let modeStatus = {};
 let sseConnected = false;
 let logContent = '';
 let logSelectedTask = '';
+let taskLogStream = null;
 let notifications = [];
 let notificationUnread = 0;
 let showNotificationPanel = false;
@@ -1817,6 +1826,82 @@ function taskStatusIcon(status) {
   }
 }
 
+function isTaskRunningStatus(status) {
+  const lowerStatus = (status || '').toLowerCase();
+  return lowerStatus === 'running' || lowerStatus === 'executing';
+}
+
+function taskLogStreamKey(reqId, taskId) {
+  return String(reqId) + '|' + String(taskId);
+}
+
+function taskLogContainerId(reqId, taskId) {
+  const safeReq = String(reqId).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeTask = String(taskId).replace(/[^a-zA-Z0-9_-]/g, '_');
+  return 'task-live-' + safeReq + '-' + safeTask;
+}
+
+function closeTaskLogStream(key) {
+  if (taskLogStream && taskLogStream.key === key) {
+    taskLogStream.es.close();
+    taskLogStream = null;
+  }
+}
+
+function closeTaskLogStreamForTask(reqId, taskId) {
+  closeTaskLogStream(taskLogStreamKey(reqId, taskId));
+}
+
+function closeAllTaskLogStreams() {
+  if (taskLogStream) {
+    taskLogStream.es.close();
+    taskLogStream = null;
+  }
+}
+
+function openTaskLogStream(reqId, taskId, containerId) {
+  closeAllTaskLogStreams();
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  container.textContent = '';
+  const url = getApiBase() + '/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId) + '/log-stream?token=' + TOKEN;
+  const es = new EventSource(url);
+  const key = taskLogStreamKey(reqId, taskId);
+  taskLogStream = { key: key, es: es };
+
+  es.addEventListener('log_line', (event) => {
+    if (!taskLogStream || taskLogStream.key !== key) return;
+    let payload;
+    try {
+      payload = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (!payload || payload.type !== 'log_line') return;
+    const lines = payload.data && payload.data.lines;
+    if (!Array.isArray(lines) || lines.length === 0) return;
+    const target = document.getElementById(containerId);
+    if (!target) return;
+    lines.forEach((line) => {
+      target.textContent += String(line) + '\n';
+    });
+    target.scrollTop = target.scrollHeight;
+  });
+
+  es.onerror = () => {
+    if (!taskLogStream || taskLogStream.key !== key) return;
+    const target = document.getElementById(containerId);
+    if (target && target.textContent === '') {
+      target.textContent = '(waiting for logs...)';
+    }
+    es.close();
+    if (taskLogStream && taskLogStream.key === key) {
+      taskLogStream = null;
+    }
+  };
+}
+
 function phaseClass(phase, activePhase, reqStatus) {
   if (!activePhase) return '';
   const p = typeof phase === 'number' ? phase : parseInt(phase);
@@ -1944,6 +2029,7 @@ function renderWorkflow() {
 }
 
 function selectRequest(reqId) {
+  closeAllTaskLogStreams();
   selectedRequestId = reqId;
   delete viewCache['workflow'];
   renderCurrentView();
@@ -2091,53 +2177,74 @@ async function toggleTaskDetail(event, el, reqId, taskId) {
   event.stopPropagation();
   const isExpanding = !el.classList.contains('expanded');
   el.classList.toggle('expanded');
-  
-  if (isExpanding) {
-    const detailEl = el.querySelector('.task-detail');
-    detailEl.innerHTML = '<div style="padding:10px;text-align:center">Loading task details...</div>';
-    
-    try {
-      const data = await apiFetch('/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId));
-      
-      const renderContent = (tab) => {
-        const contentEl = el.querySelector('.task-detail-content');
-        if (tab === 'spec') {
-          contentEl.innerHTML = renderMarkdown(data.spec || 'No spec available');
-        } else if (tab === 'review') {
-          contentEl.innerHTML = renderMarkdown(data.review || 'No review yet');
-        } else if (tab === 'traces') {
-          if (!data.traces || data.traces.length === 0) {
-            contentEl.innerHTML = '<div style="color:var(--text-muted);padding:8px">No traces found</div>';
-          } else {
-            contentEl.innerHTML = data.traces.map(t => 
-              '<div class="trace-item" onclick="loadTrace(event, \\'' + reqId + '\\', \\'' + taskId + '\\', \\'' + t + '\\', this.parentElement)">' + escapeHtml(t) + '</div>'
-            ).join('');
-          }
-        }
-        
-        // Update active tab
-        el.querySelectorAll('.task-detail-tabs button').forEach(btn => {
-          btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
-        });
-      };
 
-      detailEl.innerHTML = 
-        '<div class="task-detail-tabs">' +
-          '<button class="active" data-tab="spec" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'spec\\')">Spec</button>' +
-          '<button data-tab="review" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'review\\')">Review</button>' +
-          '<button data-tab="traces" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'traces\\')">Traces</button>' +
-        '</div>' +
-        '<div class="task-detail-content"></div>';
+  if (!isExpanding) {
+    closeTaskLogStreamForTask(reqId, taskId);
+    return;
+  }
+  closeAllTaskLogStreams();
+  
+  const detailEl = el.querySelector('.task-detail');
+  detailEl.innerHTML = '<div style="padding:10px;text-align:center">Loading task details...</div>';
+  
+  try {
+    const data = await apiFetch('/requests/' + encodeURIComponent(reqId) + '/tasks/' + encodeURIComponent(taskId));
+    const taskStatusValue = (data.status && data.status.status) || data.status || '';
+    const isRunning = isTaskRunningStatus(taskStatusValue);
+
+    const renderContent = (tab) => {
+      const contentEl = el.querySelector('.task-detail-content');
+      if (!contentEl) return;
+      const previousTab = el.getAttribute('data-task-tab') || '';
+      if (previousTab === 'live' && tab !== 'live') {
+        closeTaskLogStreamForTask(reqId, taskId);
+      }
+
+      if (tab === 'spec') {
+        contentEl.innerHTML = renderMarkdown(data.spec || 'No spec available');
+      } else if (tab === 'review') {
+        contentEl.innerHTML = renderMarkdown(data.review || 'No review yet');
+      } else if (tab === 'traces') {
+        if (!data.traces || data.traces.length === 0) {
+          contentEl.innerHTML = '<div style="color:var(--text-muted);padding:8px">No traces found</div>';
+        } else {
+          contentEl.innerHTML = data.traces.map(t =>
+            '<div class="trace-item" onclick="loadTrace(event, \\\'' + reqId + '\\\\', \\\'' + taskId + '\\\\', \\\'' + t + '\\\\', this.parentElement)">' + escapeHtml(t) + '</div>'
+          ).join('');
+        }
+      } else if (tab === 'live') {
+        const liveContainerId = taskLogContainerId(reqId, taskId);
+        contentEl.innerHTML = '<div class="log-content" id="' + liveContainerId +
+          '" style="height:220px;overflow-y:auto;white-space:pre-wrap"></div>';
+        openTaskLogStream(reqId, taskId, liveContainerId);
+      }
       
-      // Attach renderer to element for tab switching
-      el.renderTaskContent = (tab) => {
-        renderContent(tab);
-      };
-      
-      renderContent('spec');
-    } catch (e) {
-      detailEl.innerHTML = '<div style="color:var(--red);padding:10px">Error loading task details: ' + escapeHtml(e.message) + '</div>';
-    }
+      // Update active tab
+      el.querySelectorAll('.task-detail-tabs button').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+      });
+
+      el.setAttribute('data-task-tab', tab);
+    };
+
+    detailEl.innerHTML = 
+      '<div class="task-detail-tabs">' +
+        '<button class="active" data-tab="spec" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'spec\\')">Spec</button>' +
+        '<button data-tab="review" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'review\\')">Review</button>' +
+        '<button data-tab="traces" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'traces\\')">Traces</button>' +
+        '<button data-tab="live" onclick="event.stopPropagation(); this.closest(\\'.task-item\\').renderTaskContent(\\'live\\')">▶ Live <span class="live-dot' + (isRunning ? ' running' : '') + '">●</span></button>' +
+      '</div>' +
+      '<div class="task-detail-content"></div>';
+    
+    // Attach renderer to element for tab switching
+    el.renderTaskContent = (tab) => {
+      renderContent(tab);
+    };
+    
+    el.setAttribute('data-task-tab', 'spec');
+    renderContent('spec');
+  } catch (e) {
+    detailEl.innerHTML = '<div style="color:var(--red);padding:10px">Error loading task details: ' + escapeHtml(e.message) + '</div>';
   }
 }
 
@@ -3251,6 +3358,7 @@ function updateApprovalBanner() {
 
 // ─── View Switching ─────────────────────────────────────────────────────────
 function switchView(view) {
+  closeAllTaskLogStreams();
   delete viewCache[currentView]; // Invalidate cache of view being left
   ideationActiveSession = null;
   discussionActiveSession = null;
