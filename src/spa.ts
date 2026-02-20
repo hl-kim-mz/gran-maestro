@@ -519,7 +519,7 @@ nav button.active {
 .plan-badge {
   display: inline-block;
   font-size: 11px;
-  color: var(--blue-light);
+  color: var(--accent);
   background: rgba(79, 140, 255, 0.12);
   border: 1px solid rgba(79, 140, 255, 0.35);
   border-radius: 4px;
