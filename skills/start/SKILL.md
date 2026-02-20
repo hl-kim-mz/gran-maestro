@@ -104,7 +104,7 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
             1. PM 자율 판단으로 ideation / discussion 선택:
                - ideation: 복수 해석이 가능하고 다각도 비교 분석이 필요한 경우
                - discussion: 리스크가 크거나 팀 합의가 필요한 경우
-            2. `Skill(skill: "mst:ideation"/"mst:discussion", args: "{모호한 요구사항 주제}")` 실행
+            2. `Skill(skill: "mst:ideation"/"mst:discussion", args: "{모호한 요구사항 주제} --from-start")` 실행
             3. `synthesis.md` / `consensus.md`에서 핵심 3~5개 추출 → 사용자에게 요약 표시
                (형태: "[AI 팀 의견] 위 내용을 바탕으로 spec을 작성합니다." — 응답 대기 없이 자동 진행)
             4. 결과 파일을 `REQ-NNN/discussion/`에 복사 저장:
@@ -116,7 +116,7 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
       - `false`인 경우: 사용자에게 `/mst:debug`를 사용할 수 있다고 안내한 뒤 일반 워크플로우로 진행합니다
       - 디버깅 의도 판단 기준: "버그", "에러", "문제", "원인 분석", "왜 안 되는지", "디버그" 등의 키워드 + 문맥상 문제 해결 요청
    g. 접근 방식 결정 시: 3 AI 의견 수집 → 종합 → 순위별 추천
-      - **Ideation 자동 트리거 (LLM 판단)**: 아래 조건 중 하나라도 해당하면 `/mst:ideation`을 호출하여 체계적인 3-AI 분석을 수행합니다. LLM이 상황을 종합적으로 판단하여 결정합니다:
+      - **Ideation 자동 트리거 (LLM 판단)**: 아래 조건 중 하나라도 해당하면 `Skill(skill: "mst:ideation", args: "{주제} --from-start")`로 호출하여 체계적인 3-AI 분석을 수행합니다. LLM이 상황을 종합적으로 판단하여 결정합니다:
         - 복잡도가 `complex`로 분류된 경우
         - 접근 방식이 2개 이상이고 트레이드오프가 명확하지 않은 경우
         - 아키텍처 변경, 보안 설계, 성능 최적화 등 고영향 의사결정이 필요한 경우
