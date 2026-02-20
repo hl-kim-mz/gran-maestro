@@ -2,7 +2,7 @@
 name: dashboard
 description: "로컬 대시보드 서버를 시작하거나 엽니다. 사용자가 '대시보드', '대시보드 열어', '모니터링'을 말하거나 /mst:dashboard를 호출할 때 사용. CLI 터미널 상태 확인에는 /mst:list 또는 /mst:inspect를 사용."
 user-invocable: true
-argument-hint: "[--port {포트}] [--stop]"
+argument-hint: "[--port {포트}] [--stop] [--restart]"
 ---
 
 # maestro:dashboard
@@ -35,6 +35,7 @@ deno --version
 
 ### 4. 인자 파싱
 - `--stop`: 서버 중지 플래그
+- `--restart`: 서버 재시작 플래그 (--stop 후 즉시 재시작)
 - `--port <N>`: 포트 번호 (기본값: 3847)
 
 ### 5. `--stop` 처리
@@ -43,6 +44,16 @@ HUB_PID=$(cat ~/.gran-maestro-hub/hub.pid 2>/dev/null)
 if [ -n "$HUB_PID" ]; then kill $HUB_PID; fi
 ```
 성공 시 사용자에게 중지 확인 메시지 출력 후 종료
+
+### 5-1. `--restart` 처리
+`--restart` 플래그가 있으면:
+1. `--stop`과 동일한 방식으로 실행 중인 서버를 중지
+   ```bash
+   HUB_PID=$(cat ~/.gran-maestro-hub/hub.pid 2>/dev/null)
+   if [ -n "$HUB_PID" ]; then kill $HUB_PID; fi
+   ```
+2. 1초 대기 (포트 해제 보장)
+3. 6단계(포트 사용 중 확인)부터 정상 시작 흐름으로 진행
 
 ### 6. 포트 사용 중 확인
 ```bash
@@ -111,19 +122,22 @@ Browser opened with project token
 
 - `--port {N}`: 포트 변경 (기본: 3847)
 - `--stop`: 실행 중인 대시보드 서버 중지
+- `--restart`: 실행 중인 서버를 중지하고 재시작
 
 ## 예시
 
 ```
 /mst:dashboard              # 대시보드 시작 + 현재 프로젝트 등록
 /mst:dashboard --stop       # 대시보드 중지
+/mst:dashboard --restart    # 대시보드 재시작
 /mst:dashboard --port 8080  # 커스텀 포트
+/mst:dashboard --restart --port 8080  # 포트 변경 후 재시작
 ```
 
 ## 문제 해결
 
 - "Deno를 찾을 수 없음" → `deno --version`으로 설치 확인. https://deno.land 에서 설치
-- "포트가 이미 사용 중" → 기존 대시보드가 실행 중일 수 있음. `/mst:dashboard --stop`으로 중지 후 재시작. 또는 `--port`로 다른 포트 사용
+- "포트가 이미 사용 중" → `/mst:dashboard --restart`로 재시작. 또는 `/mst:dashboard --stop`으로 중지 후 재시작. 또는 `--port`로 다른 포트 사용
 - "서버 시작 실패" → `/tmp/gran-maestro-hub.log` 로그 파일 확인. Deno 권한 문제 시 `--allow-net` 등 플래그 확인
 - "브라우저가 열리지 않음" → 토큰 URL을 수동으로 복사하여 브라우저에 입력
 - "서버가 시작되지 않음" → `~/.gran-maestro-hub/` 디렉토리 권한 확인
