@@ -14,9 +14,14 @@ export const HUB_DIR = `${Deno.env.get("HOME")}/.gran-maestro-hub`;
 
 export let AUTH_TOKEN: string = crypto.randomUUID();
 export let registry: Registry = { projects: [] };
+export let AUTH_REQUIRED = true;
 
 export function setAuthToken(token: string): void {
   AUTH_TOKEN = token;
+}
+
+export function setAuthRequired(required: boolean): void {
+  AUTH_REQUIRED = required;
 }
 
 export function setRegistry(nextRegistry: Registry): void {

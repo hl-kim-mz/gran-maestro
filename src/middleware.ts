@@ -1,17 +1,19 @@
-import { AUTH_TOKEN, loadConfig } from "./config.ts";
+import { AUTH_REQUIRED, AUTH_TOKEN } from "./config.ts";
 
 export async function authMiddleware(c: any, next: any) {
   const path = c.req.path;
 
-  // Skip auth for favicon and static assets
-  if (path === "/favicon.ico" || path.startsWith("/static/")) {
+  // Skip auth for favicon, static assets, and auth status endpoint
+  if (
+    path === "/favicon.ico" ||
+    path.startsWith("/static/") ||
+    path === "/api/auth/status"
+  ) {
     await next();
     return;
   }
 
-  // Check if auth is disabled via config
-  const config = await loadConfig();
-  if (config.dashboard_auth === false) {
+  if (!AUTH_REQUIRED) {
     await next();
     return;
   }

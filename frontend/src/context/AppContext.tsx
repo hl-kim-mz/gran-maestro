@@ -14,6 +14,7 @@ interface AppContextType {
   setProjectId: (id: string) => void;
   projects: Project[];
   sseStatus: SSEStatus;
+  authRequired: boolean;
   notifications: any[];
   addNotification: (notification: any) => void;
   clearNotifications: () => void;
@@ -28,6 +29,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [projectId, setProjectIdState] = useState<string>(initialProjectId);
   const [projects, setProjects] = useState<Project[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [authRequired, setAuthRequired] = useState<boolean>(true);
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
   );
@@ -48,15 +50,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
+  useEffect(() => {
+    fetch('/api/auth/status')
+      .then((response) => response.json())
+      .then((data: { auth_required: boolean }) => {
+        setAuthRequired(data.auth_required);
+      })
+      .catch(() => {
+        // keep default true
+      });
+  }, []);
+
   // Load project list on mount
   useEffect(() => {
-    if (!token) return;
+    if (authRequired && !token) return;
     apiFetch<Project[]>('/api/projects', token).then((data) => {
       setProjects(data);
     }).catch((err) => {
       console.error('Failed to fetch projects:', err);
     });
-  }, [token]);
+  }, [token, authRequired]);
 
   const onSseEvent = useCallback((event: any) => {
     setNotifications(prev => [event, ...prev].slice(0, 50));
@@ -80,6 +93,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setProjectId,
       projects,
       sseStatus,
+      authRequired,
       notifications,
       addNotification,
       clearNotifications,

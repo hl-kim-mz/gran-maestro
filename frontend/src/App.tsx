@@ -14,11 +14,11 @@ import { DocumentsView } from './views/DocumentsView';
 import { SettingsView } from './views/SettingsView';
 
 function AppContent() {
-  const { token } = useAppContext();
+  const { token, authRequired } = useAppContext();
   const [activeTab, setActiveTab] = useState('plans');
   const [showShortcuts, setShowShortcuts] = useState(false);
 
-  if (!token) {
+  if (authRequired && !token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-8">
         <div className="max-w-md w-full border rounded-lg p-8 shadow-lg text-center bg-card">

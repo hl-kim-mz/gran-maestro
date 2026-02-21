@@ -30,6 +30,7 @@ import { projectRegistryApi } from "./routes/projects.ts";
 import {
   AUTH_TOKEN,
   BASE_DIR,
+  AUTH_REQUIRED,
   DEFAULT_PORT,
   HOST,
   HUB_DIR,
@@ -38,6 +39,7 @@ import {
   loadConfig,
   loadRegistry,
   registry,
+  setAuthRequired,
   setAuthToken,
   setRegistry,
 } from "./config.ts";
@@ -55,6 +57,10 @@ projectApi.route("/", projectDiscussionApi);
 projectApi.route("/", projectTreeApi);
 
 app.use("*", authMiddleware);
+
+app.get("/api/auth/status", (c) => {
+  return c.json({ auth_required: AUTH_REQUIRED });
+});
 
 app.route("/api/projects", projectRegistryApi);
 app.route("/api/projects/:projectId", projectApi);
@@ -146,13 +152,14 @@ async function main() {
   }
 
   const config = await loadConfig();
+  setAuthRequired(config.dashboard_auth !== false);
   const port = config.dashboard_port ?? DEFAULT_PORT;
 
   console.log(BANNER);
   console.log(`  Dashboard: http://localhost:${port}?token=${AUTH_TOKEN}`);
   console.log(`  Host:      ${HOST}`);
   console.log(`  Port:      ${port}`);
-  console.log(`  Auth:      ${config.dashboard_auth === false ? "disabled" : "enabled"}`);
+  console.log(`  Auth:      ${!AUTH_REQUIRED ? "disabled" : "enabled"}`);
   console.log(`  Hub dir:   ${HUB_DIR}`);
   console.log(`  Projects:  ${registry.projects.length}`);
   console.log("");
