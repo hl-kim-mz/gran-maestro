@@ -6,7 +6,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { Badge } from '@/components/ui/badge';
+import { ClipboardList } from 'lucide-react';
 
 export function PlansView() {
   const { token, projectId } = useAppContext();
@@ -109,9 +111,11 @@ export function PlansView() {
             </ScrollArea>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Select a plan to view details
-          </div>
+          <EmptyState
+            icon={<ClipboardList className="h-8 w-8" />}
+            title="플랜을 선택하세요"
+            description="왼쪽 목록에서 플랜을 클릭하면 상세 내용을 볼 수 있어요"
+          />
         )}
       </div>
     </div>

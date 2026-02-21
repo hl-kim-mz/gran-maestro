@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MessageSquare, Lightbulb, Users } from 'lucide-react';
 
@@ -140,9 +141,11 @@ export function IdeationView() {
             </Tabs>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Select a session to view details
-          </div>
+          <EmptyState
+            icon={<Lightbulb className="h-8 w-8" />}
+            title="세션을 선택하세요"
+            description="왼쪽 목록에서 아이디에이션 또는 토론 세션을 클릭하세요"
+          />
         )}
       </div>
     </div>

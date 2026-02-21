@@ -5,13 +5,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { JsonViewer } from '@/components/shared/JsonViewer';
+import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Folder,
   File,
   ChevronRight,
   FileText,
   FileJson,
-  FileCode
+  FileCode,
+  FolderOpen
 } from 'lucide-react';
 import {
   Collapsible,
@@ -174,9 +176,11 @@ export function DocumentsView() {
             </ScrollArea>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Select a file to view content
-          </div>
+          <EmptyState
+            icon={<FolderOpen className="h-8 w-8" />}
+            title="파일을 선택하세요"
+            description="왼쪽 파일 트리에서 파일을 클릭하면 내용을 볼 수 있어요"
+          />
         )}
       </div>
     </div>

@@ -7,7 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Terminal, Activity } from 'lucide-react';
+import { Terminal, Activity, GitBranch } from 'lucide-react';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 export function WorkflowView() {
   const { token, projectId } = useAppContext();
@@ -213,17 +214,21 @@ export function WorkflowView() {
                     </TabsContent>
                   </Tabs>
                 ) : (
-                  <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                    Select a task to view execution details
-                  </div>
+                  <EmptyState
+                    icon={<Terminal className="h-8 w-8" />}
+                    title="태스크를 선택하세요"
+                    description="왼쪽 태스크 목록에서 항목을 클릭하면 실행 로그를 볼 수 있어요"
+                  />
                 )}
               </div>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Select a request to view workflow
-          </div>
+          <EmptyState
+            icon={<GitBranch className="h-8 w-8" />}
+            title="요청을 선택하세요"
+            description="왼쪽 목록에서 요청을 클릭하면 워크플로우를 확인할 수 있어요"
+          />
         )}
       </div>
     </div>

@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { Bug } from 'lucide-react';
 
 export function DebugView() {
@@ -111,9 +112,11 @@ export function DebugView() {
             </ScrollArea>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Select a debug session to view details
-          </div>
+          <EmptyState
+            icon={<Bug className="h-8 w-8" />}
+            title="디버그 세션을 선택하세요"
+            description="왼쪽 목록에서 디버그 세션을 클릭하면 리포트를 볼 수 있어요"
+          />
         )}
       </div>
     </div>
