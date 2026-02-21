@@ -9,6 +9,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Save, RefreshCcw } from 'lucide-react';
 
+function isObject(v: any) {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function deepSet(obj: any, path: string[], value: any): any {
+  if (path.length === 0) return value;
+  const [head, ...rest] = path;
+  return { ...obj, [head]: deepSet(obj?.[head] ?? {}, rest, value) };
+}
+
 export function SettingsView() {
   const { token, projectId } = useAppContext();
   const [config, setConfig] = useState<any>(null);
@@ -55,6 +65,63 @@ export function SettingsView() {
     }
   }
 
+  function renderField(path: string[], key: string, value: any, depth = 0) {
+    const indent = depth * 16;
+
+    if (isObject(value)) {
+      return (
+        <div key={key}>
+          <div style={{ paddingLeft: indent }} className="text-xs font-semibold text-muted-foreground py-1 mt-2">
+            {key}
+          </div>
+          <div className="space-y-4">
+            {Object.entries(value).map(([subKey, subVal]) => renderField([...path, key], subKey, subVal, depth + 1))}
+          </div>
+        </div>
+      );
+    }
+
+    const fullPath = [...path, key];
+
+    return (
+      <Card key={key} style={{ marginLeft: indent }}>
+        <CardContent className="p-4 flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="text-sm font-semibold font-mono">{key}</div>
+          </div>
+          <div className="flex-1 max-w-md flex justify-end">
+            {value === null ? (
+              <Input
+                value=""
+                placeholder="null"
+                className="text-right font-mono"
+                onChange={(e) => {
+                  const val = e.target.value === '' ? null : e.target.value;
+                  setConfig((current: any) => deepSet(current, fullPath, val));
+                }}
+              />
+            ) : typeof value === 'boolean' ? (
+              <Switch
+                checked={value}
+                onCheckedChange={(checked) => setConfig((current: any) => deepSet(current, fullPath, checked))}
+              />
+            ) : (
+              <Input
+                value={value}
+                type={typeof value === 'number' ? 'number' : 'text'}
+                className="text-right font-mono"
+                onChange={(e) => {
+                  const val = typeof value === 'number' ? Number(e.target.value) : e.target.value;
+                  setConfig((current: any) => deepSet(current, fullPath, val));
+                }}
+              />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!projectId) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -71,6 +138,9 @@ export function SettingsView() {
   }
 
   if (!config) return <div className="p-8 text-center">Failed to load config.</div>;
+
+  const topLevelPrimitives = Object.entries(config).filter(([, value]) => !isObject(value));
+  const sections = Object.entries(config).filter(([, value]) => isObject(value));
 
   return (
     <ScrollArea className="h-full">
@@ -91,48 +161,29 @@ export function SettingsView() {
         </div>
 
         <div className="space-y-8">
-          {Object.entries(config).map(([section, values]: [string, any]) => (
-            <section key={section}>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">{section}</h3>
+          {topLevelPrimitives.length > 0 && (
+            <section>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">Plugin Info</h3>
               <div className="grid grid-cols-1 gap-4">
-                {Object.entries(values).map(([key, value]: [string, any]) => (
+                {topLevelPrimitives.map(([key, value]) => (
                   <Card key={key}>
                     <CardContent className="p-4 flex items-center justify-between gap-4">
                       <div className="space-y-1">
                         <div className="text-sm font-semibold font-mono">{key}</div>
-                        <div className="text-xs text-muted-foreground">Description for {key} could go here.</div>
-                      </div>
-                      <div className="flex-1 max-w-md flex justify-end">
-                        {typeof value === 'boolean' ? (
-                          <Switch
-                            checked={value}
-                            onCheckedChange={(checked) => {
-                              setConfig({
-                                ...config,
-                                [section]: { ...values, [key]: checked }
-                              });
-                            }}
-                          />
-                        ) : typeof value === 'number' || typeof value === 'string' ? (
-                          <Input
-                            value={value}
-                            type={typeof value === 'number' ? 'number' : 'text'}
-                            className="text-right font-mono"
-                            onChange={(e) => {
-                              const val = typeof value === 'number' ? Number(e.target.value) : e.target.value;
-                              setConfig({
-                                ...config,
-                                [section]: { ...values, [key]: val }
-                              });
-                            }}
-                          />
-                        ) : (
-                          <pre className="text-[10px] bg-muted p-2 rounded truncate max-w-xs">{JSON.stringify(value)}</pre>
-                        )}
+                        <div className="text-xs text-muted-foreground">{String(value)}</div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            </section>
+          )}
+
+          {sections.map(([section, values]: [string, any]) => (
+            <section key={section}>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">{section}</h3>
+              <div className="grid grid-cols-1 gap-4">
+                {Object.entries(values).map(([key, value]: [string, any]) => renderField([section], key, value))}
               </div>
             </section>
           ))}
