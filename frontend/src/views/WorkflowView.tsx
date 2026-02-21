@@ -60,12 +60,17 @@ export function WorkflowView() {
       .catch(() => setTasks([]));
   }, [selectedReq?.id, token, projectId]);
 
+  const taskKey = selectedReq && selectedTask
+    ? `${selectedReq.id}/${selectedTask.id}`
+    : null;
+
   useEffect(() => {
     if (selectedReq && selectedTask) {
       startLogStream(selectedReq.id, selectedTask.id);
     }
     return () => stopLogStream();
-  }, [selectedReq?.id, selectedTask?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskKey]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -95,6 +100,7 @@ export function WorkflowView() {
         if (done) break;
         setLogs(prev => prev + decoder.decode(value, { stream: true }));
       }
+      setLogs(prev => prev || '이 태스크의 로그가 없습니다');
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error('Log stream error:', err);
@@ -142,7 +148,7 @@ export function WorkflowView() {
                     <span className="font-bold text-xs">{req.id}</span>
                     <StatusBadge status={req.status} />
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">{req.description || 'No description'}</p>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">{req.title || 'No title'}</p>
                 </CardContent>
               </Card>
             ))}
@@ -187,7 +193,7 @@ export function WorkflowView() {
               {/* Task View (Logs / Info) */}
               <div className="flex-1 flex flex-col overflow-hidden">
                 {selectedTask ? (
-                  <Tabs defaultValue="logs" className="flex-1 flex flex-col">
+                  <Tabs key={`${selectedReq?.id}-${selectedTask?.id}`} defaultValue="logs" className="flex-1 flex flex-col">
                     <div className="px-4 border-b">
                       <TabsList className="bg-transparent h-10 p-0 gap-4">
                         <TabsTrigger value="logs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
