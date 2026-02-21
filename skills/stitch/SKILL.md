@@ -11,10 +11,14 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
 
 1. `config.stitch.enabled` 확인 → false면 즉시 종료 (안내 메시지 출력)
 2. `config.stitch.auto_detect` 확인:
-   - true면: `mcp__stitch__list_projects` 호출 (30초 타임아웃)
-     - 성공: Stitch 사용 가능 → 계속
-     - 실패/타임아웃: `[Stitch] 연결 불가 — 건너뜀. /mst:stitch로 수동 실행 가능.` 출력 후 종료
    - false면: 사용자 명시 설정으로 간주 → 계속
+   - true면:
+     a. **UI 키워드 1차 필터**: 요청 텍스트/spec §1 요약에 아래 키워드 중 하나라도 포함되지 않으면 list_projects 호출 없이 skip:
+        - whitelist: `화면`, `UI`, `페이지`, `page`, `screen`, `컴포넌트`, `component`, `레이아웃`, `layout`, `디자인`, `design`, `목업`, `mockup`, `시안`, `뷰`, `view`
+     b. **세션 캐시 확인**: 현재 세션 중 이미 `list_projects`를 성공 호출한 결과가 있으면 재사용 (재호출 생략)
+     c. 캐시 미존재 시: `mcp__stitch__list_projects` 호출 (30초 타임아웃)
+        - 성공: 결과를 세션 캐시에 저장 → 계속
+        - 실패/타임아웃: `[Stitch] 연결 불가 — 건너뜀. /mst:stitch로 수동 실행 가능.` 출력 후 종료
 
 ## 프로젝트 확인/생성
 

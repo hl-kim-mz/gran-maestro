@@ -92,3 +92,9 @@
 - 주제: {접근법 결정 주제}
 - 결정 내용: {팀 추천 방향 요약}
 - 근거 파일: `discussion/req-approach-synthesis.md`
+
+## 10. UI 설계 (Stitch)
+
+> 이 섹션은 UI 화면 설계가 포함된 경우 작성합니다. `/mst:stitch --req {REQ_ID}` 실행 시 자동으로 채워집니다.
+
+- [ ] {화면명}: {Stitch URL — 미기입}

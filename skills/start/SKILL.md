@@ -82,7 +82,8 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
      "created_at": "ISO-timestamp",
      "auto_approve": false,
      "tasks": [],
-     "dependencies": { "blockedBy": [], "relatedTo": [], "blocks": [] }
+     "dependencies": { "blockedBy": [], "relatedTo": [], "blocks": [] },
+     "stitch_screens": []
    }
    ```
    - `--auto` 또는 `-a` 플래그가 인자 내 어느 위치(앞/뒤)에 있어도 감지: `"auto_approve": true`로 설정
@@ -145,10 +146,7 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
       - 명시적 디자인 요청 감지 ("화면 디자인해줘", "Stitch로", "목업", "시안" 등):
         → 즉시 `Skill(skill: "mst:stitch", args: "--req REQ-NNN {요청 내용}")` 호출
         → Stitch 완료 후 spec.md 작성 계속
-      - 새 화면 추가 또는 전체 디자인 변경 감지:
-        → spec.md의 `## Stitch 디자인` 섹션에 제안 메시지 기록:
-          `> 이 요청은 새 UI 화면을 포함합니다. 구현 전 \`/mst:stitch --req REQ-NNN {화면 설명}\`으로 먼저 화면을 설계할 수 있습니다.`
-      - 약한 신호(기존 화면 수정만) 또는 Stitch 미사용 요청: 이 단계 skip
+      - 그 외(새 화면 추가/전체 변경/약한 신호): approve Phase 2.5에서 Stitch 제안이 이루어지므로 이 단계에서 skip
    h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용)
       - `--plan` 없이 진행한 경우 spec.md에는 `## 가정 사항 (Assumptions)` 섹션을 포함
    i. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`

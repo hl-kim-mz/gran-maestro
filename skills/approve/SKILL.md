@@ -92,6 +92,15 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
 1. `.gran-maestro/requests/{REQ-ID}/tasks/` 하위 spec.md 파일 확인
    - **spec.md가 없는 경우**: Phase 1 분석이 미완료 상태. 사용자에게 알리고 PM Conductor 분석을 재실행하여 spec.md 작성 완료
 2. 스펙 요약을 사용자에게 표시
+2.5. **Phase 2.5: Stitch 디자인 제안** (단건 승인이고 `auto_approve=false`인 경우에만 실행):
+   - `config.stitch.enabled`가 false이면 skip
+   - spec.md §2 변경 범위에서 UI 관련 변경 감지:
+     - 신호: 프론트엔드 파일(`.tsx`, `.vue`, `.svelte`, `page.`, `view.` 등) 추가/수정, "화면", "UI", "페이지", "컴포넌트" 등 키워드 포함
+   - UI 관련 변경이 감지되고 `request.json`의 `stitch_screens`가 비어 있으면:
+     → 사용자에게 제안: `"이 요청에 UI 화면이 포함됩니다. 구현 전 Stitch로 화면을 설계할까요? [설계하기 / 건너뛰기]"`
+     → "설계하기" 선택: `Skill(skill: "mst:stitch", args: "--req {REQ-ID} {spec §1 요약}")` 호출 후 완료 대기, 이후 3으로 진행
+     → "건너뛰기" 선택 또는 UI 미감지: 3으로 진행
+   - `auto_approve=true` 또는 배치 모드(REQ 2건+): 이 단계 skip
 3. 승인 실행:
    - `request.json`의 `current_phase`를 2로 변경
    - `request.json`의 `status`를 `phase2_execution`으로 변경
