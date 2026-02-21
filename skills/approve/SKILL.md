@@ -390,8 +390,32 @@ while (실행 중인 태스크가 있음):
 1. spec §5의 테스트 명령어 실행
 2. spec §5의 타입 체크 명령어 실행
 3. 결과 분기
-   - **PASS**: `status`를 `review`로 전이
+   - **PASS**: `status`를 `review`로 전이 → **Step 5.5** (PM 커밋) 진입
    - **FAIL**: `status`를 `pre_check_failed`로 전이 → **Step 5b** (사전검증 실패 재외주 프로토콜) 진입
+
+#### Step 5.5: PM 커밋 (사전검증 PASS 시)
+
+Step 5에서 PASS 판정 후 PM이 직접 커밋합니다 (외주 에이전트의 `index.lock` 문제 방지).
+
+1. spec §2 변경 파일 기반 git add:
+   ```bash
+   git -C {worktree_path} add {spec §2에 명시된 파일 목록}
+   ```
+
+2. `frontend/` 파일이 변경 범위(spec §2)에 포함된 경우 빌드 후 추가 add:
+   ```bash
+   cd {worktree_path}/frontend && npm install --prefer-offline && npm run build
+   git -C {worktree_path} add dist/
+   ```
+
+3. PM이 커밋:
+   ```bash
+   git -C {worktree_path} commit -m "[{REQ_ID}/{TASK_ID}] {spec §1 요약}
+
+   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+   ```
+
+4. 해당 태스크 `status`를 `committed`로 변경 → Step 6 진행
 
 #### Step 5b: 사전검증 실패 재외주 (Pre-check Failure Re-outsourcing)
 
