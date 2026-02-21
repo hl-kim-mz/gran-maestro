@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -10,10 +10,19 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { ClipboardList } from 'lucide-react';
 
+interface PlanMeta {
+  id: string;
+  title?: string;
+  status?: string;
+  created_at?: string;
+  linked_requests?: string[];
+  content?: string;
+}
+
 export function PlansView() {
   const { token, projectId } = useAppContext();
-  const [plans, setPlans] = useState<any[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  const [plans, setPlans] = useState<PlanMeta[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<PlanMeta | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,7 +32,7 @@ export function PlansView() {
     }
     async function fetchPlans() {
       try {
-        const data = await apiFetch<any[]>('/api/plans', token, projectId);
+        const data = await apiFetch<PlanMeta[]>('/api/plans', token, projectId);
         setPlans(data);
         if (data.length > 0 && !selectedPlan) {
           setSelectedPlan(data[0]);
@@ -72,22 +81,25 @@ export function PlansView() {
                 className={`cursor-pointer transition-colors hover:bg-accent/50 ${selectedPlan?.id === plan.id ? 'border-primary ring-1 ring-primary' : ''}`}
                 onClick={() => setSelectedPlan(plan)}
               >
-                <CardHeader className="p-4 pb-2">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-sm font-bold">{plan.id}</CardTitle>
-                    <StatusBadge status={plan.status} />
+                <CardContent className="p-3">
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="text-sm font-semibold line-clamp-2 flex-1 mr-2">
+                      {plan.title || plan.id}
+                    </p>
+                    <StatusBadge status={plan.status ?? ''} />
                   </div>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-                    {plan.title || 'No title'}
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {(plan.linked_requests || []).map((reqId: string) => (
-                      <Badge key={reqId} variant="outline" className="text-[10px]">
-                        {reqId}
-                      </Badge>
-                    ))}
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge variant="outline" className="text-[10px] font-mono">{plan.id}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                    {(() => {
+                      const reqs = plan.linked_requests || [];
+                      if (reqs.length === 0) return null;
+                      if (reqs.length === 1) return <span>🔗 {reqs[0]}</span>;
+                      return <span>🔗 {reqs.length}개 요청</span>;
+                    })()}
+                    {(plan.linked_requests?.length ?? 0) > 0 && plan.created_at && <span>·</span>}
+                    {plan.created_at && <span>{plan.created_at.slice(0, 10)}</span>}
                   </div>
                 </CardContent>
               </Card>
@@ -101,10 +113,12 @@ export function PlansView() {
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
               <div>
-                <h2 className="font-bold text-lg">{selectedPlan.id}</h2>
-                <p className="text-xs text-muted-foreground">{selectedPlan.path}</p>
+                <h2 className="font-bold text-lg">{selectedPlan.title || selectedPlan.id}</h2>
+                <p className="text-xs text-muted-foreground">
+                  {selectedPlan.created_at?.slice(0, 10)}
+                </p>
               </div>
-              <StatusBadge status={selectedPlan.status} />
+              <StatusBadge status={selectedPlan.status ?? ''} />
             </div>
             <ScrollArea className="flex-1 p-8">
               <MarkdownRenderer content={selectedPlan.content || '# No Content'} />

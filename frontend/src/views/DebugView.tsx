@@ -1,18 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { Badge } from '@/components/ui/badge';
 import { Bug } from 'lucide-react';
+
+interface DebugMeta {
+  id: string;
+  issue?: string;
+  focus?: string;
+  status?: string;
+  created_at?: string;
+  report?: string;
+  logs?: string;
+}
 
 export function DebugView() {
   const { token, projectId } = useAppContext();
-  const [sessions, setSessions] = useState<any[]>([]);
-  const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [sessions, setSessions] = useState<DebugMeta[]>([]);
+  const [selectedSession, setSelectedSession] = useState<DebugMeta | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,7 +33,7 @@ export function DebugView() {
     }
     async function fetchData() {
       try {
-        const data = await apiFetch<any[]>('/api/debug', token, projectId);
+        const data = await apiFetch<DebugMeta[]>('/api/debug', token, projectId);
         setSessions(data);
         if (data.length > 0 && !selectedSession) {
           setSelectedSession(data[0]);
@@ -62,19 +73,22 @@ export function DebugView() {
                 className={`cursor-pointer transition-colors hover:bg-accent/50 ${selectedSession?.id === s.id ? 'border-primary ring-1 ring-primary' : ''}`}
                 onClick={() => setSelectedSession(s)}
               >
-                <CardHeader className="p-4 pb-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      <Bug className="h-3 w-3 text-red-500" />
-                      <CardTitle className="text-xs font-bold">{s.id}</CardTitle>
-                    </div>
-                    <StatusBadge status={s.status} />
+                <CardContent className="p-3">
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="text-sm font-semibold line-clamp-2 flex-1 mr-2">
+                      {s.issue || s.id}
+                    </p>
+                    <StatusBadge status={s.status ?? ''} />
                   </div>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {s.issue || 'Debug Session'}
-                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Bug className="h-3 w-3 text-red-500" aria-label="디버그" />
+                    <Badge variant="outline" className="text-[10px] font-mono">{s.id}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                    {s.focus && <Badge variant="secondary" className="text-[10px]">{s.focus}</Badge>}
+                    {s.focus && s.created_at && <span>·</span>}
+                    {s.created_at && <span>{s.created_at.slice(0, 10)}</span>}
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -87,10 +101,10 @@ export function DebugView() {
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
               <div>
-                <h2 className="font-bold text-lg">{selectedSession.id}</h2>
-                <p className="text-xs text-muted-foreground">{selectedSession.issue}</p>
+                <h2 className="font-bold text-lg">{selectedSession.issue || selectedSession.id}</h2>
+                <p className="text-xs text-muted-foreground">{selectedSession.created_at?.slice(0, 10)}</p>
               </div>
-              <StatusBadge status={selectedSession.status} />
+              <StatusBadge status={selectedSession.status ?? ''} />
             </div>
 
             <ScrollArea className="flex-1 p-8">
