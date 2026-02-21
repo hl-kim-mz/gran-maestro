@@ -26,6 +26,12 @@ projectDebugApi.get("/debug", async (c) => {
       sessions.push({ ...sessionJson, id: sessionJson.id || dir });
     }
   }
+  sessions.sort((a, b) => {
+    const aTime = a.created_at ?? "";
+    const bTime = b.created_at ?? "";
+    return bTime.localeCompare(aTime);
+  });
+
   return c.json(sessions);
 });
 

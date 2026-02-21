@@ -32,7 +32,11 @@ export function IdeationView() {
         setIdeations(idns);
         setDiscussions(dscs);
 
-        const all = [...idns, ...dscs];
+        const all = [...idns, ...dscs].sort((a, b) => {
+          const aTime = a.created_at ?? '';
+          const bTime = b.created_at ?? '';
+          return bTime.localeCompare(aTime);
+        });
         if (all.length > 0 && !selectedSession) {
           setSelectedSession(all[0]);
         }
@@ -68,7 +72,11 @@ export function IdeationView() {
     return <div className="p-6"><Skeleton className="h-full w-full" /></div>;
   }
 
-  const allSessions = [...ideations, ...discussions];
+  const allSessions = [...ideations, ...discussions].sort((a, b) => {
+    const aTime = a.created_at ?? '';
+    const bTime = b.created_at ?? '';
+    return bTime.localeCompare(aTime);
+  });
 
   return (
     <div className="grid grid-cols-12 h-full overflow-hidden">

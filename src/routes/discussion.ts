@@ -125,6 +125,12 @@ projectDiscussionApi.get("/discussion", async (c) => {
     }
   }
 
+  sessions.sort((a, b) => {
+    const aTime = a.created_at ?? "";
+    const bTime = b.created_at ?? "";
+    return bTime.localeCompare(aTime);
+  });
+
   return c.json(sessions);
 });
 

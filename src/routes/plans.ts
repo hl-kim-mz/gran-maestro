@@ -26,6 +26,12 @@ projectPlansApi.get("/plans", async (c) => {
       plans.push({ ...planJson, id: planJson.id || dir });
     }
   }
+  plans.sort((a, b) => {
+    const aTime = a.created_at ?? "";
+    const bTime = b.created_at ?? "";
+    return bTime.localeCompare(aTime);
+  });
+
   return c.json(plans);
 });
 

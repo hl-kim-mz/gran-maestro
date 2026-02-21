@@ -56,6 +56,12 @@ projectRequestsApi.get("/requests", async (c) => {
     }
   }
 
+  requests.sort((a, b) => {
+    const aTime = String(a["created_at"] ?? "");
+    const bTime = String(b["created_at"] ?? "");
+    return bTime.localeCompare(aTime);
+  });
+
   return c.json(requests);
 });
 
