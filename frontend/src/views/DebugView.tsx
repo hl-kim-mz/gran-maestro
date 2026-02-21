@@ -16,7 +16,11 @@ interface DebugMeta {
   focus?: string;
   status?: string;
   created_at?: string;
-  report?: string;
+  logs?: string;
+}
+
+interface DebugDetail {
+  content?: string;
   logs?: string;
 }
 
@@ -53,7 +57,7 @@ export function DebugView() {
       setReportContent(null);
       return;
     }
-    apiFetch<any>(`/api/debug/${selectedSession.id}`, token, projectId)
+    apiFetch<DebugDetail>(`/api/debug/${selectedSession.id}`, token, projectId)
       .then(data => setReportContent(data.content || null))
       .catch(() => setReportContent(null));
   }, [selectedSession?.id, token, projectId]);

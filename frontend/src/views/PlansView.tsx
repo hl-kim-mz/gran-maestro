@@ -16,6 +16,9 @@ interface PlanMeta {
   status?: string;
   created_at?: string;
   linked_requests?: string[];
+}
+
+interface PlanDetail {
   content?: string;
 }
 
@@ -52,7 +55,7 @@ export function PlansView() {
       setPlanContent(null);
       return;
     }
-    apiFetch<any>(`/api/plans/${selectedPlan.id}`, token, projectId)
+    apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, token, projectId)
       .then(data => setPlanContent(data.content || null))
       .catch(() => setPlanContent(null));
   }, [selectedPlan?.id, token, projectId]);
