@@ -141,6 +141,14 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
       - Ideation 결과(`synthesis.md`)의 추천 방향을 spec 작성에 반영합니다
       - Ideation 결과(`synthesis.md`)를 `discussion/req-approach-synthesis.md`에 복사 저장합니다
       - 단순(simple) 요청이나 접근 방식이 명백한 경우에는 ideation 없이 진행합니다
+   h-0. **Stitch 트리거 감지** (config.stitch.enabled=true인 경우):
+      - 명시적 디자인 요청 감지 ("화면 디자인해줘", "Stitch로", "목업", "시안" 등):
+        → 즉시 `Skill(skill: "mst:stitch", args: "--req REQ-NNN {요청 내용}")` 호출
+        → Stitch 완료 후 spec.md 작성 계속
+      - 새 화면 추가 또는 전체 디자인 변경 감지:
+        → spec.md의 `## Stitch 디자인` 섹션에 제안 메시지 기록:
+          `> 이 요청은 새 UI 화면을 포함합니다. 구현 전 \`/mst:stitch --req REQ-NNN {화면 설명}\`으로 먼저 화면을 설계할 수 있습니다.`
+      - 약한 신호(기존 화면 수정만) 또는 Stitch 미사용 요청: 이 단계 skip
    h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용)
       - `--plan` 없이 진행한 경우 spec.md에는 `## 가정 사항 (Assumptions)` 섹션을 포함
    i. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
