@@ -1,6 +1,6 @@
 ---
 name: dashboard
-description: "로컬 대시보드 서버를 시작하거나 엽니다. 사용자가 '대시보드', '대시보드 열어', '모니터링'을 말하거나 /mst:dashboard를 호출할 때 사용. CLI 터미널 상태 확인에는 /mst:list 또는 /mst:inspect를 사용."
+description: "로컬 대시보드 서버를 시작하거나 엽니다. 사용자가 '대시보드', '대시보드 열어', '모니터링'을 말하거나 /mst:dashboard를 호출할 때 사용. 서버 재시작은 --restart 플래그 사용. CLI 터미널 상태 확인에는 /mst:list 또는 /mst:inspect를 사용."
 user-invocable: true
 argument-hint: "[--port {포트}] [--stop] [--restart]"
 ---
