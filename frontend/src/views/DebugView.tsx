@@ -24,6 +24,7 @@ export function DebugView() {
   const { token, projectId } = useAppContext();
   const [sessions, setSessions] = useState<DebugMeta[]>([]);
   const [selectedSession, setSelectedSession] = useState<DebugMeta | null>(null);
+  const [reportContent, setReportContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -46,6 +47,16 @@ export function DebugView() {
     }
     fetchData();
   }, [token, projectId]);
+
+  useEffect(() => {
+    if (!selectedSession || !projectId) {
+      setReportContent(null);
+      return;
+    }
+    apiFetch<any>(`/api/debug/${selectedSession.id}`, token, projectId)
+      .then(data => setReportContent(data.content || null))
+      .catch(() => setReportContent(null));
+  }, [selectedSession?.id, token, projectId]);
 
   if (!projectId) {
     return (
@@ -111,7 +122,7 @@ export function DebugView() {
               <div className="max-w-3xl mx-auto space-y-10">
                 <section>
                   <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Report</h3>
-                  <MarkdownRenderer content={selectedSession.report || '# No report yet'} />
+                  <MarkdownRenderer content={reportContent || '# No report yet'} />
                 </section>
 
                 {selectedSession.logs && (

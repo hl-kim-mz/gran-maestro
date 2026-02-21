@@ -63,13 +63,12 @@ export function DocumentsView() {
   async function fetchFileContent(path: string) {
     setContentLoading(true);
     try {
-      const response = await fetch(`/api/file?path=${encodeURIComponent(path)}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const text = await response.text();
-        setFileContent(text);
-      }
+      const data = await apiFetch<{ path: string; content: string }>(
+        `/api/file?path=${encodeURIComponent(path)}`,
+        token,
+        projectId
+      );
+      setFileContent(data.content);
     } catch (err) {
       console.error('Failed to fetch file:', err);
       setFileContent('Error loading file content');

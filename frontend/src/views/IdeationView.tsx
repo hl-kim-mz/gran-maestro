@@ -15,6 +15,7 @@ export function IdeationView() {
   const [ideations, setIdeations] = useState<any[]>([]);
   const [discussions, setDiscussions] = useState<any[]>([]);
   const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [sessionContent, setSessionContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,6 +44,17 @@ export function IdeationView() {
     }
     fetchData();
   }, [token, projectId]);
+
+  useEffect(() => {
+    if (!selectedSession || !projectId) {
+      setSessionContent(null);
+      return;
+    }
+    const type = selectedSession.id.startsWith('IDN') ? 'ideation' : 'discussion';
+    apiFetch<any>(`/api/${type}/${selectedSession.id}`, token, projectId)
+      .then(data => setSessionContent(data.synthesis || data.consensus || null))
+      .catch(() => setSessionContent(null));
+  }, [selectedSession?.id, token, projectId]);
 
   if (!projectId) {
     return (
@@ -117,7 +129,7 @@ export function IdeationView() {
 
               <TabsContent value="result" className="flex-1 m-0 p-0 overflow-hidden">
                 <ScrollArea className="h-full p-8">
-                  <MarkdownRenderer content={selectedSession.synthesis || selectedSession.consensus || '# No result yet'} />
+                  <MarkdownRenderer content={sessionContent || '# No result yet'} />
                 </ScrollArea>
               </TabsContent>
 

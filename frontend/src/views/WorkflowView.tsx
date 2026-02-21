@@ -14,6 +14,7 @@ export function WorkflowView() {
   const { token, projectId } = useAppContext();
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedReq, setSelectedReq] = useState<any>(null);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<string>('');
@@ -42,10 +43,22 @@ export function WorkflowView() {
   }, [token, projectId]);
 
   useEffect(() => {
-    if (selectedReq?.tasks?.length > 0 && !selectedTask) {
-      setSelectedTask(selectedReq.tasks[selectedReq.tasks.length - 1]);
+    if (!selectedReq || !projectId) {
+      setTasks([]);
+      setSelectedTask(null);
+      return;
     }
-  }, [selectedReq]);
+    apiFetch<any[]>(`/api/requests/${selectedReq.id}/tasks`, token, projectId)
+      .then(data => {
+        setTasks(data);
+        if (data.length > 0) {
+          setSelectedTask(data[data.length - 1]);
+        } else {
+          setSelectedTask(null);
+        }
+      })
+      .catch(() => setTasks([]));
+  }, [selectedReq?.id, token, projectId]);
 
   useEffect(() => {
     if (selectedReq && selectedTask) {
@@ -66,7 +79,7 @@ export function WorkflowView() {
     abortControllerRef.current = controller;
 
     try {
-      const response = await fetch(`/api/requests/${reqId}/tasks/${taskId}/log-stream`, {
+      const response = await fetch(`/api/projects/${projectId}/requests/${reqId}/tasks/${taskId}/log-stream`, {
         headers: { 'Authorization': `Bearer ${token}` },
         signal: controller.signal
       });
@@ -157,7 +170,7 @@ export function WorkflowView() {
                 <div className="p-2 border-b text-[10px] uppercase font-bold text-muted-foreground px-4">Tasks</div>
                 <ScrollArea className="flex-1">
                   <div className="p-2 space-y-1">
-                    {(selectedReq.tasks || []).map((task: any) => (
+                    {tasks.map((task: any) => (
                       <div
                         key={task.id}
                         onClick={() => setSelectedTask(task)}

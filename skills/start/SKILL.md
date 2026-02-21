@@ -95,6 +95,23 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
       - plan.json/plan.md 존재 시 `request.json` 생성 단계에서 `source_plan: "PLN-NNN"`를 기록
       - plan.json의 `linked_requests`에 현재 REQ-NNN를 추가하고, `status`가 `active`면 `in_progress`로 변경
       - plan.md의 결정사항·범위·제약을 Phase 1 인풋으로 사용
+      - **분리 실행 감지**: plan.md의 `## 분리 실행` 섹션 파싱:
+        1. 섹션이 존재하고 테이블에 **2개 이상의 단계**가 있으면 다중 REQ 생성 모드 진입
+        2. 현재 REQ-NNN = 1단계(①). 2단계부터 순서대로 REQ 채번·생성:
+           - `counter.json` 갱신 (`last_id += 1` per step)
+           - `.gran-maestro/requests/REQ-(N+k)/` 디렉토리 및 `tasks/`, `discussion/`, `design/` 서브디렉토리 생성
+           - `request.json` 생성: `status: "pending_dependency"`, `title`: 해당 단계 작업 설명, `source_plan: "PLN-NNN"`
+           - `dependencies.blockedBy`: 이전 단계 REQ ID (병렬 가능 `yes` 단계는 `blockedBy` 없이 생성)
+        3. 1단계 REQ-NNN의 `request.json`에 `dependencies.blocks: [REQ-(N+1), ...]` 설정
+        4. plan.json의 `linked_requests`에 새로 생성된 모든 REQ ID 추가
+        5. 사용자에게 생성 결과 요약 표시:
+           ```
+           [분리 실행] {N}개 REQ 생성됨:
+           - REQ-NNN (①): {작업 제목} ← 지금 spec 작성
+           - REQ-(N+1) (②): {작업 제목} [blockedBy: REQ-NNN, 활성화 대기 중]
+           ...
+           ```
+        6. 이후 spec 생성은 **REQ-NNN (1단계)에만** 수행
       - plan.json 또는 plan.md 미존재 시 경고 후 사일런트 모드로 자동 전환
    e. **모호한 요구사항 처리**:
       [--plan 제공된 경우]: plans/PLN-NNN/plan.json + plans/PLN-NNN/plan.md를 Read하고 결정 사항을 따름.

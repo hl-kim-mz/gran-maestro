@@ -23,6 +23,7 @@ export function PlansView() {
   const { token, projectId } = useAppContext();
   const [plans, setPlans] = useState<PlanMeta[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<PlanMeta | null>(null);
+  const [planContent, setPlanContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,6 +46,16 @@ export function PlansView() {
     }
     fetchPlans();
   }, [token, projectId]);
+
+  useEffect(() => {
+    if (!selectedPlan || !projectId) {
+      setPlanContent(null);
+      return;
+    }
+    apiFetch<any>(`/api/plans/${selectedPlan.id}`, token, projectId)
+      .then(data => setPlanContent(data.content || null))
+      .catch(() => setPlanContent(null));
+  }, [selectedPlan?.id, token, projectId]);
 
   if (!projectId) {
     return (
@@ -121,7 +132,7 @@ export function PlansView() {
               <StatusBadge status={selectedPlan.status ?? ''} />
             </div>
             <ScrollArea className="flex-1 p-8">
-              <MarkdownRenderer content={selectedPlan.content || '# No Content'} />
+              <MarkdownRenderer content={planContent || '# No Content'} />
             </ScrollArea>
           </>
         ) : (
