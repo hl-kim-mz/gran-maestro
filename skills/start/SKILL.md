@@ -84,7 +84,7 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
      "original_request": "{전체 요청 텍스트}",
      "status": "phase1_analysis",
      "current_phase": 1,
-     "created_at": "ISO-timestamp",
+     "created_at": "{현재 날짜+시각 ISO 8601, 예: 2026-02-23T14:35:22.000Z — 날짜만 입력 금지}",
      "auto_approve": false,
      "tasks": [],
      "dependencies": { "blockedBy": [], "relatedTo": [], "blocks": [] },

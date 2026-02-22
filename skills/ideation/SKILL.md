@@ -47,7 +47,7 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
   "topic": "{사용자 주제}",
   "focus": "{focus 옵션 또는 null}",
   "status": "analyzing",
-  "created_at": "ISO-timestamp",
+  "created_at": "{현재 날짜+시각 ISO 8601, 예: 2026-02-23T14:35:22.000Z — 날짜만 입력 금지}",
   "participants": [
     {
       "key": "architect(codex)",

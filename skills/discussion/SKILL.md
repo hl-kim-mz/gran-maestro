@@ -55,7 +55,7 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
   "status": "analyzing",
   "max_rounds": "{config.json의 discussion.default_max_rounds}",
   "current_round": 0,
-  "created_at": "ISO-timestamp",
+  "created_at": "{현재 날짜+시각 ISO 8601, 예: 2026-02-23T14:35:22.000Z — 날짜만 입력 금지}",
   "participants": [
     { "key": "architect(codex)", "role": "architect", "perspective": "", "type": "opinion", "status": "pending", "provider": "codex" },
     { "key": "ux(codex)", "role": "ux", "perspective": "", "type": "opinion", "status": "pending", "provider": "codex" },
