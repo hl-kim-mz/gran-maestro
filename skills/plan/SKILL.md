@@ -9,6 +9,20 @@ argument-hint: "{플래닝 주제}"
 
 요청의 핵심 미결 항목을 사용자와 Q&A로 정제한 뒤, 계획에 대한 합의가 이뤄지면 `templates/plan.md` 형식의 plan.md를 생성합니다.
 
+## ⚠️ 실행 제약 (CRITICAL — 항상 준수)
+
+이 스킬 실행 중 **Write/Edit 도구를 사용할 수 있는 경로는 아래만 해당**합니다:
+
+- `.gran-maestro/plans/PLN-*/plan.md`
+- `.gran-maestro/plans/PLN-*/plan.json`
+
+**그 외 모든 경로(스킬 파일, 소스 코드, 설정 파일 등)에 대한 Write/Edit 사용은 절대 금지입니다.**
+
+사용자가 plan 스킬 실행 중 위 허용 경로 외 파일 수정을 요청할 경우:
+1. 해당 수정 작업을 즉시 중단한다
+2. "plan 스킬 실행 중이므로 직접 수정 대신 plan.md에 기록합니다"를 사용자에게 알린다
+3. 요청 의도를 plan.md의 요구사항 섹션에 흡수하고, mst:start 실행 시 반영되도록 명시한다
+
 ## 실행 프로토콜
 
 ### Step 0: 아카이브 체크
