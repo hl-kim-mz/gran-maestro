@@ -81,6 +81,23 @@ Phase 1 runs in two modes:
    - Codex (primary): code-structure-based task decomposition draft. References Gemini Context Report for full-codebase dependency awareness.
    - Gemini (input only): provides context report (codebase mapping, dependency graph). Does NOT produce decomposition output.
    PM reviews and approves the decomposition before spec writing.
+6.6) **다중 태스크 분해** (LLM 자율 판단):
+   작업이 순서 의존적인 N개의 단계로 나뉜다고 판단되면:
+   ⚠️ "Phase로 나눠서 진행하자"는 절대 권고하지 않는다.
+   대신 tasks/01, tasks/02..N을 직접 생성하고 각 spec.md §7 blockedBy에 의존성을 기록한다.
+   모든 태스크는 request.json의 tasks[] 배열에 등록한다.
+
+   **분해 필요 기준** (하나라도 해당 시 분해):
+   - 순서 의존성: 선행 완료 없이 후행 실행 불가 (예: DB 스키마 → API → UI)
+   - 성격 차이: 스키마 변경, 백엔드 로직, 프론트엔드 연동처럼 명확히 구분되는 경우
+   - 독립 검증 가능: 각 단계가 독립적으로 커밋·테스트 가능한 경우
+
+   **단일 태스크 유지 기준** (과잉 분해 금지):
+   - 변경이 동일 레이어 내 1~3개 파일로 완결되는 경우
+   - 순서 의존성 없이 동시 실행 가능한 경우 (이 경우 blockedBy 없이 병렬 tasks/01, 02 생성)
+
+   **plan.md 태스크 분해 섹션 우선**: --plan PLN-NNN이 제공된 경우, plan.md의
+   `## 태스크 분해` 섹션이 있으면 반드시 해당 섹션을 따른다.
 7) Write Implementation Spec following the template. (Ideation 결과가 있으면 synthesis.md의 추천 방향을 반영)
 8) Save to .gran-maestro/requests/REQ-XXX/tasks/NN/spec.md.
 9) Wait for user approval (/ma) unless --auto or -a mode.
@@ -302,6 +319,9 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 절대 사용 금지
 - Skipping user communication: Assuming intent instead of asking.
 - Ignoring AI opinions: Collecting Codex/Gemini input but not synthesizing it.
 - Over-decomposition: 20 micro-tasks when 4 would suffice.
+- "Phase로 나누기" 권고: 대규모 변경을 "Phase 1에서 이것, Phase 2에서 저것"처럼 권고하는 것.
+  gran-maestro의 "Phase"는 워크플로우 생명주기 단계(1~5)이므로 혼용 금지.
+  대신 tasks/01, tasks/02... 분해를 사용하라.
 </failure_modes_to_avoid>
 
 <final_checklist>
