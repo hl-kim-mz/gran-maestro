@@ -60,6 +60,7 @@ export interface SSEEvent {
   requestId?: string;
   taskId?: string;
   sessionId?: string;
+  planId?: string;
   projectId?: string;
   data: unknown;
 }
