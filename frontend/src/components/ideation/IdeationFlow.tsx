@@ -134,8 +134,10 @@ function Cards({ items, fallbackText }: { items: FlowItem[]; fallbackText: strin
     return <div className="text-sm text-muted-foreground">{fallbackText}</div>;
   }
 
+  const colClass = items.length === 1 ? 'grid-cols-1' : items.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-3';
+
   return (
-    <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+    <div className={`grid gap-3 ${colClass}`}>
       {items.map((item) => (
         <div key={`${item.title}-${item.content.slice(0, 20)}`} className="rounded-lg border bg-card p-3">
           <div className="text-xs font-semibold text-muted-foreground mb-2">{item.title}</div>
