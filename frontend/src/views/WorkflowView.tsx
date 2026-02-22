@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Terminal, Activity, GitBranch } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 export function WorkflowView() {
   const { token, projectId } = useAppContext();
@@ -18,6 +19,7 @@ export function WorkflowView() {
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<string>('');
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<any>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -75,6 +77,16 @@ export function WorkflowView() {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
+  useEffect(() => {
+    if (!selectedReq || !selectedTask || !projectId) {
+      setSelectedTaskDetail(null);
+      return;
+    }
+    apiFetch<any>(`/api/requests/${selectedReq.id}/tasks/${selectedTask.id}`, token, projectId)
+      .then(data => setSelectedTaskDetail(data))
+      .catch(() => setSelectedTaskDetail(null));
+  }, [selectedReq?.id, selectedTask?.id, token, projectId]);
+
   async function startLogStream(reqId: string, taskId: string) {
     stopLogStream();
     setLogs('로그 수신 대기 중...');
@@ -94,10 +106,26 @@ export function WorkflowView() {
       if (!reader) return;
 
       const decoder = new TextDecoder();
+      let buffer = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        setLogs(prev => prev + decoder.decode(value, { stream: true }));
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const part of parts) {
+          const dataLine = part.split('\n').find(l => l.startsWith('data:'));
+          if (!dataLine) continue;
+          try {
+            const json = JSON.parse(dataLine.slice(5).trim());
+            const lines: string[] = json?.data?.lines ?? [];
+            if (lines.length > 0) {
+              setLogs(prev => prev + lines.join('\n') + '\n');
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
       }
       setLogs(prev => prev || '이 태스크의 로그가 없습니다');
     } catch (err: any) {
@@ -226,6 +254,30 @@ export function WorkflowView() {
                           <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
                             <h3 className="text-xs font-bold text-destructive mb-1">Error</h3>
                             <pre className="text-[10px] text-destructive overflow-auto">{selectedTask.error}</pre>
+                          </div>
+                        )}
+                        {selectedTaskDetail?.spec && (
+                          <div className="mt-4">
+                            <h3 className="text-sm font-bold mb-2">Spec</h3>
+                            <div className="prose prose-sm max-w-none text-xs">
+                              <MarkdownRenderer content={selectedTaskDetail.spec} />
+                            </div>
+                          </div>
+                        )}
+                        {selectedTaskDetail?.review && (
+                          <div className="mt-4">
+                            <h3 className="text-sm font-bold mb-2">Review</h3>
+                            <div className="prose prose-sm max-w-none text-xs">
+                              <MarkdownRenderer content={selectedTaskDetail.review} />
+                            </div>
+                          </div>
+                        )}
+                        {selectedTaskDetail?.feedback && (
+                          <div className="mt-4">
+                            <h3 className="text-sm font-bold mb-2">Feedback</h3>
+                            <div className="prose prose-sm max-w-none text-xs">
+                              <MarkdownRenderer content={selectedTaskDetail.feedback} />
+                            </div>
                           </div>
                         )}
                       </div>
