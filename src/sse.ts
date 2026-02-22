@@ -179,6 +179,28 @@ export function classifyFsEvent(
     };
   }
 
+  // Pattern: .gran-maestro/plans/PLN-***
+  const planMatch = path.match(/\.gran-maestro\/plans\/(PLN-[^/]+)/);
+  if (planMatch) {
+    return {
+      type: "plan_update",
+      projectId,
+      planId: planMatch[1],
+      data: { path, kind, timestamp: new Date().toISOString() },
+    };
+  }
+
+  // Pattern: .gran-maestro/debug/DBG-***
+  const debugMatch = path.match(/\.gran-maestro\/debug\/(DBG-[^/]+)/);
+  if (debugMatch) {
+    return {
+      type: "debug_update",
+      projectId,
+      sessionId: debugMatch[1],
+      data: { path, kind, timestamp: new Date().toISOString() },
+    };
+  }
+
   // Pattern: .gran-maestro/config.json
   if (path.includes("config.json")) {
     return {
