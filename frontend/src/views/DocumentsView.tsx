@@ -130,7 +130,7 @@ export function DocumentsView() {
 
   return (
     <div className="grid grid-cols-12 h-full overflow-hidden">
-      <div className="col-span-3 border-r flex flex-col">
+      <div className="col-span-3 border-r flex flex-col min-h-0">
         <div className="p-4 border-b bg-muted/30">
           <h2 className="font-semibold text-sm">Workspace</h2>
         </div>
@@ -141,7 +141,7 @@ export function DocumentsView() {
         </ScrollArea>
       </div>
 
-      <div className="col-span-9 flex flex-col bg-card overflow-hidden">
+      <div className="col-span-9 flex flex-col bg-card overflow-hidden min-h-0">
         {selectedFile ? (
           <>
             <div className="p-3 border-b flex justify-between items-center bg-muted/10">

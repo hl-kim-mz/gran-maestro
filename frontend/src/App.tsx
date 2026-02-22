@@ -43,19 +43,19 @@ function AppContent() {
           onToggleShortcuts={() => setShowShortcuts((prev) => !prev)}
         />
         <div className="flex-1 overflow-hidden relative">
-          <TabsContent value="plans" className="absolute inset-0 m-0">
+          <TabsContent value="plans" className="absolute inset-0 m-0 overflow-hidden">
             <PlansView />
           </TabsContent>
-          <TabsContent value="workflow" className="absolute inset-0 m-0">
+          <TabsContent value="workflow" className="absolute inset-0 m-0 overflow-hidden">
             <WorkflowView />
           </TabsContent>
-          <TabsContent value="ideation" className="absolute inset-0 m-0">
+          <TabsContent value="ideation" className="absolute inset-0 m-0 overflow-hidden">
             <IdeationView />
           </TabsContent>
-          <TabsContent value="debug" className="absolute inset-0 m-0">
+          <TabsContent value="debug" className="absolute inset-0 m-0 overflow-hidden">
             <DebugView />
           </TabsContent>
-          <TabsContent value="documents" className="absolute inset-0 m-0">
+          <TabsContent value="documents" className="absolute inset-0 m-0 overflow-hidden">
             <DocumentsView />
           </TabsContent>
           <TabsContent value="settings" className="absolute inset-0 m-0">

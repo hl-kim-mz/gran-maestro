@@ -83,7 +83,7 @@ export function PlansView() {
 
   return (
     <div className="grid grid-cols-12 gap-0 h-full overflow-hidden">
-      <div className="col-span-4 border-r flex flex-col">
+      <div className="col-span-4 border-r flex flex-col min-h-0">
         <div className="p-4 border-b bg-muted/30">
           <h2 className="font-semibold">Plans ({plans.length})</h2>
         </div>
@@ -122,7 +122,7 @@ export function PlansView() {
         </ScrollArea>
       </div>
 
-      <div className="col-span-8 flex flex-col bg-card">
+      <div className="col-span-8 flex flex-col bg-card min-h-0">
         {selectedPlan ? (
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
@@ -134,8 +134,10 @@ export function PlansView() {
               </div>
               <StatusBadge status={selectedPlan.status ?? ''} />
             </div>
-            <ScrollArea className="flex-1 p-8">
-              <MarkdownRenderer content={planContent || '# No Content'} />
+            <ScrollArea className="flex-1">
+              <div className="p-8">
+                <MarkdownRenderer content={planContent || '# No Content'} />
+              </div>
             </ScrollArea>
           </>
         ) : (

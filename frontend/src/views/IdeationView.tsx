@@ -80,7 +80,7 @@ export function IdeationView() {
 
   return (
     <div className="grid grid-cols-12 h-full overflow-hidden">
-      <div className="col-span-4 border-r flex flex-col">
+      <div className="col-span-4 border-r flex flex-col min-h-0">
         <div className="p-4 border-b bg-muted/30">
           <h2 className="font-semibold">Sessions ({allSessions.length})</h2>
         </div>
@@ -112,7 +112,7 @@ export function IdeationView() {
         </ScrollArea>
       </div>
 
-      <div className="col-span-8 flex flex-col bg-card">
+      <div className="col-span-8 flex flex-col bg-card min-h-0">
         {selectedSession ? (
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
@@ -123,7 +123,7 @@ export function IdeationView() {
               <StatusBadge status={selectedSession.status} />
             </div>
 
-            <Tabs defaultValue="result" className="flex-1 flex flex-col overflow-hidden">
+            <Tabs defaultValue="result" className="flex-1 flex flex-col overflow-hidden min-h-0">
               <div className="px-6 border-b">
                 <TabsList className="bg-transparent h-12 p-0 gap-6">
                   <TabsTrigger value="result" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
@@ -135,9 +135,11 @@ export function IdeationView() {
                 </TabsList>
               </div>
 
-              <TabsContent value="result" className="flex-1 m-0 p-0 overflow-hidden">
-                <ScrollArea className="h-full p-8">
-                  <MarkdownRenderer content={sessionContent || '# No result yet'} />
+              <TabsContent value="result" className="flex-1 m-0 p-0 overflow-hidden min-h-0">
+                <ScrollArea className="h-full">
+                  <div className="p-8">
+                    <MarkdownRenderer content={sessionContent || '# No result yet'} />
+                  </div>
                 </ScrollArea>
               </TabsContent>
 

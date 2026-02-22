@@ -76,7 +76,7 @@ export function DebugView() {
 
   return (
     <div className="grid grid-cols-12 h-full overflow-hidden">
-      <div className="col-span-4 border-r flex flex-col">
+      <div className="col-span-4 border-r flex flex-col min-h-0">
         <div className="p-4 border-b bg-muted/30">
           <h2 className="font-semibold">Debug Sessions ({sessions.length})</h2>
         </div>
@@ -111,7 +111,7 @@ export function DebugView() {
         </ScrollArea>
       </div>
 
-      <div className="col-span-8 flex flex-col bg-card">
+      <div className="col-span-8 flex flex-col bg-card min-h-0">
         {selectedSession ? (
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
@@ -122,21 +122,23 @@ export function DebugView() {
               <StatusBadge status={selectedSession.status ?? ''} />
             </div>
 
-            <ScrollArea className="flex-1 p-8">
-              <div className="max-w-3xl mx-auto space-y-10">
-                <section>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Report</h3>
-                  <MarkdownRenderer content={reportContent || '# No report yet'} />
-                </section>
-
-                {selectedSession.logs && (
+            <ScrollArea className="flex-1">
+              <div className="p-8">
+                <div className="max-w-3xl mx-auto space-y-10">
                   <section>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Relevant Logs</h3>
-                    <pre className="p-4 rounded-lg bg-zinc-950 text-zinc-300 font-mono text-[10px] overflow-x-auto">
-                      {selectedSession.logs}
-                    </pre>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Report</h3>
+                    <MarkdownRenderer content={reportContent || '# No report yet'} />
                   </section>
-                )}
+
+                  {selectedSession.logs && (
+                    <section>
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Relevant Logs</h3>
+                      <pre className="p-4 rounded-lg bg-zinc-950 text-zinc-300 font-mono text-[10px] overflow-x-auto">
+                        {selectedSession.logs}
+                      </pre>
+                    </section>
+                  )}
+                </div>
               </div>
             </ScrollArea>
           </>
