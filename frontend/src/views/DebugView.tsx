@@ -111,7 +111,7 @@ export function DebugView() {
 
             <ScrollArea className="flex-1">
               <div className="p-8">
-                <div className="max-w-3xl mx-auto space-y-10">
+                <div className="space-y-10">
                   <section>
                     <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Report</h3>
                     <MarkdownRenderer content={reportContent || '# No report yet'} />
