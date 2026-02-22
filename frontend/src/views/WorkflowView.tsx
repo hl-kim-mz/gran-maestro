@@ -217,7 +217,7 @@ export function WorkflowView() {
               {/* Task View (Logs / Info) */}
               <div className="flex-1 flex flex-col overflow-hidden">
                 {selectedTask ? (
-                  <Tabs key={`${selectedReq?.id}-${selectedTask?.id}`} defaultValue="logs" className="flex-1 flex flex-col">
+                  <Tabs key={`${selectedReq?.id}-${selectedTask?.id}`} defaultValue="info" className="flex-1 flex flex-col">
                     <div className="px-4 border-b">
                       <TabsList className="bg-transparent h-10 p-0 gap-4">
                         <TabsTrigger value="logs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
