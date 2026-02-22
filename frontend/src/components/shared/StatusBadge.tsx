@@ -27,6 +27,7 @@ export function StatusBadge({ status, className }: { status: StatusType; classNa
 
   const colors: Record<string, string> = {
     done: 'bg-green-500 hover:bg-green-600 text-white border-none',
+    completed: 'bg-green-500 hover:bg-green-600 text-white border-none',
     active: 'bg-blue-500 hover:bg-blue-600 text-white border-none',
     failed: 'bg-red-500 hover:bg-red-600 text-white border-none',
     pending: 'text-muted-foreground',

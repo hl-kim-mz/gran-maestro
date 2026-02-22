@@ -44,27 +44,27 @@ Gran Maestro 세션을 일괄 정리하는 스킬입니다. 한 번의 호출로
    - `.gran-maestro/ideation/` 하위 IDN-* 디렉토리 스캔
    - 각 세션의 `session.json` 읽어 `created_at`, `status` 확인
    - `created_at` 기준 내림차순 정렬
-   - `ideation_keep_count` 초과분 중 `status`가 `completed`인 세션 수 카운트
+   - `ideation_keep_count` 초과분 중 `status`가 `done` 또는 `completed`인 세션 수 카운트
 
    **Discussion**:
    - `.gran-maestro/discussion/` 하위 DSC-* 디렉토리 스캔
    - 각 세션의 `session.json` 읽어 `created_at`, `status` 확인
    - `created_at` 기준 내림차순 정렬
-   - `discussion_keep_count` 초과분 중 `status`가 `completed`인 세션 수 카운트
+   - `discussion_keep_count` 초과분 중 `status`가 `done` 또는 `completed`인 세션 수 카운트
 
    **Debug**:
    - `.gran-maestro/debug/` 하위 DBG-* 디렉토리 스캔
    - 각 세션의 `session.json` 읽어 `created_at`, `status` 확인
    - `created_at` 기준 내림차순 정렬
-   - `debug_keep_count` 초과분 중 `status`가 `completed`인 세션 수 카운트
+   - `debug_keep_count` 초과분 중 `status`가 `done` 또는 `completed`인 세션 수 카운트
 
    **Requests (자동 정리 대상)**:
    - `.gran-maestro/requests/` 하위 REQ-* 디렉토리 스캔
    - 각 요청의 `request.json` 읽어 `status`, `created_at`, `title` 확인
-   - `status`가 `completed` 또는 `cancelled`인 요청 수 카운트
+   - `status`가 `done`, `completed` 또는 `cancelled`인 요청 수 카운트
 
    **Requests (인터랙티브 정리 대상)**:
-   - 위 스캔에서 `status`가 `completed`/`cancelled`이 아닌 요청 중
+   - 위 스캔에서 `status`가 `done`/`completed`/`cancelled`이 아닌 요청 중
    - `created_at`으로부터 `old_request_threshold_hours` 이상 경과한 요청 수 카운트
 
 4. 미리보기 표시:
@@ -77,7 +77,7 @@ Gran Maestro — Cleanup 미리보기
   ideation    : 3개 세션 아카이브 대상 (유지: 10, 현재: 13, 완료: 3)
   discussion  : 0개 (유지: 10, 현재: 5)
   debug       : 0개 (유지: 10, 현재: 2)
-  requests    : 2개 completed/cancelled 아카이브 대상
+  requests    : 2개 done/completed/cancelled 아카이브 대상
 
 [인터랙티브 정리]
   requests    : 1개 활성 요청이 24시간 이상 경과
@@ -97,8 +97,8 @@ Gran Maestro — Cleanup 미리보기
 2. 각 `session.json`의 `created_at`, `status` 읽기
 3. `created_at` 기준 내림차순 정렬
 4. 최근 `ideation_keep_count`개를 유지 목록에 넣기
-5. 나머지 중 `status`가 `completed`인 세션만 아카이브 대상 선별
-   - **진행 중 세션 보호**: `completed`가 아닌 세션은 keep count 초과여도 보호
+5. 나머지 중 `status`가 `done` 또는 `completed`인 세션만 아카이브 대상 선별
+   - **진행 중 세션 보호**: `done`/`completed`가 아닌 세션은 keep count 초과여도 보호
 6. 아카이브 대상이 있으면:
    - `.gran-maestro/ideation/archived/` 디렉토리 생성 (없으면)
    - tar.gz 압축:
@@ -117,7 +117,7 @@ Gran Maestro — Cleanup 미리보기
 
 1. `.gran-maestro/requests/` 하위 REQ-* 스캔
 2. 각 `request.json`의 `status` 읽기
-3. `status`가 `completed` 또는 `cancelled`인 요청 선별
+3. `status`가 `done`, `completed` 또는 `cancelled`인 요청 선별
 4. 아카이브 대상이 있으면:
    - tar.gz 압축:
      ```bash
@@ -125,7 +125,7 @@ Gran Maestro — Cleanup 미리보기
        -C .gran-maestro/requests {REQ-001} {REQ-002} ...
      ```
    - 원본 디렉토리 삭제
-   - `[Cleanup] requests {N}개 completed 아카이브됨`
+   - `[Cleanup] requests {N}개 done/completed 아카이브됨`
 
 #### Step 3: 오래된 활성 Requests 인터랙티브 정리
 
@@ -177,7 +177,7 @@ Gran Maestro — Cleanup 완료
 ideation    : 3개 아카이브됨 → ideation-IDN001-IDN003-20260218.tar.gz
 discussion  : 0개 (정리 대상 없음)
 debug       : 0개 (정리 대상 없음)
-requests    : 2개 completed 아카이브됨 → requests-REQ001-REQ002-20260218.tar.gz
+requests    : 2개 done/completed 아카이브됨 → requests-REQ001-REQ002-20260218.tar.gz
               1개 사용자 선택 아카이브됨 → requests-REQ013-20260218.tar.gz
 
 총 6개 세션 정리 완료
@@ -201,7 +201,7 @@ Gran Maestro — Cleanup 모의 실행
 
 [DRY-RUN] discussion: 정리 대상 없음
 
-[DRY-RUN] requests (completed): 2개 아카이브 예정
+[DRY-RUN] requests (done/completed): 2개 아카이브 예정
   REQ-001 (completed, 2026-02-05)
   REQ-002 (cancelled, 2026-02-08)
 
@@ -215,7 +215,7 @@ Gran Maestro — Cleanup 모의 실행
 
 `/mst:archive` 스킬과 동일한 보호 규칙을 적용합니다:
 
-- **자동 정리 (Step 1, 2)**: `status`가 `completed` 또는 `cancelled`인 세션만 아카이브
+- **자동 정리 (Step 1, 2)**: `status`가 `done`, `completed` 또는 `cancelled`인 세션만 아카이브
 - **인터랙티브 정리 (Step 3)**: 사용자가 명시적으로 선택한 세션만 아카이브 (상태 무관)
 - 진행 중인 세션이 keep count 초과여도 자동 삭제하지 않음
 

@@ -44,7 +44,7 @@ export type RequestPhase =
   | 'phase3_review'
   | 'phase4_feedback'
   | 'phase5_acceptance'
-  | 'completed'
+  | 'done'
   | 'cancelled'
   | 'failed'
   | 'unknown';
@@ -264,7 +264,7 @@ export function transitionTask(task: TaskState, to: TaskStatus): TaskState {
 export function computeRequestPhase(tasks: TaskState[]): RequestPhase {
   if (tasks.length === 0) return 'unknown';
 
-  if (tasks.every((t) => t.status === 'done')) return 'completed';
+  if (tasks.every((t) => t.status === 'done')) return 'done';
   if (tasks.every((t) => t.status === 'cancelled')) return 'cancelled';
   if (tasks.some((t) => t.status === 'failed')) return 'failed';
 

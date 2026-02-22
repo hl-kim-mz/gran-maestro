@@ -56,7 +56,7 @@ requests     23      0         초과 (3개 아카이브 대상)
 
 1. 대상 타입 디렉토리 스캔
 2. 각 세션의 `session.json` (또는 `request.json`) 읽기
-3. **진행 중 세션 보호**: `status`가 `completed` 또는 `cancelled`이 아닌 세션은 절대 아카이브하지 않음
+3. **진행 중 세션 보호**: `status`가 `done`, `completed` 또는 `cancelled`이 아닌 세션은 절대 아카이브하지 않음
 4. 완료된 세션을 `created_at` 기준 오래된 순 정렬
 5. `max_active_sessions` 초과분 선별 (가장 오래된 것부터)
 6. `.gran-maestro/{type_dir}/archived/` 디렉토리 생성 (없으면)
@@ -143,7 +143,7 @@ requests (1 archive):
 
 1. 해당 타입 디렉토리의 세션 수 확인
 2. `archive.max_active_sessions` 초과 시:
-   a. 완료된(completed/cancelled) 세션만 아카이브 대상
+   a. 완료된(done/completed/cancelled) 세션만 아카이브 대상
    b. 오래된 순 정렬 → 초과분 선별
    c. tar.gz 압축 → 원본 삭제
 3. 아카이브 완료 후 간략한 알림 표시:
@@ -155,7 +155,7 @@ requests (1 archive):
 ## 진행 중 세션 보호 규칙
 
 **절대 아카이브하지 않는 세션**:
-- `status`가 `completed` 또는 `cancelled`이 **아닌** 모든 세션
+- `status`가 `done`, `completed` 또는 `cancelled`이 **아닌** 모든 세션
 - 예: `analyzing`, `collecting`, `synthesizing`, `discussing`, `debating`, `phase1_analysis`, `phase2_execution` 등
 - 이 규칙은 자동/수동 아카이브 모두에 적용
 

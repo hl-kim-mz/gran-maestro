@@ -197,7 +197,7 @@ export function WorkflowView() {
             <div className="flex-1 flex overflow-hidden">
               {/* Task list for selected REQ */}
               <div className="w-64 border-r flex flex-col bg-muted/5">
-                <div className="p-2 border-b text-[10px] uppercase font-bold text-muted-foreground px-4">Tasks</div>
+                <div className="p-2 border-b text-xs uppercase font-bold text-muted-foreground px-4">Tasks</div>
                 <ScrollArea className="flex-1">
                   <div className="p-2 space-y-1">
                     {tasks.map((task: any) => (
@@ -207,7 +207,7 @@ export function WorkflowView() {
                         className={`p-2 px-3 rounded-md cursor-pointer text-xs flex justify-between items-center ${selectedTask?.id === task.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
                       >
                         <span className="truncate mr-2">{task.name || task.id}</span>
-                        <StatusBadge status={task.status} className="scale-75 origin-right" />
+                        <StatusBadge status={task.status} className="px-1.5 py-0 text-[10px] h-auto shrink-0" />
                       </div>
                     ))}
                   </div>
