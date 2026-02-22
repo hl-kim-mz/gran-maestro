@@ -154,9 +154,25 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
       - 그 외(새 화면 추가/전체 변경/약한 신호): approve Phase 2.5에서 Stitch 제안이 이루어지므로 이 단계에서 skip
    h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용)
       - `--plan` 없이 진행한 경우 spec.md에는 `## 가정 사항 (Assumptions)` 섹션을 포함
+   h-1. **다중 태스크 분해 처리** (plan 기반 우선, 없으면 PM 자율 판단):
+
+      [--plan PLN-NNN 제공된 경우]:
+      - plan.md의 `## 태스크 분해` 섹션을 Read
+      - 동일 REQ에 대해 태스크가 2개 이상이면 다중 태스크 모드 진입:
+        - tasks/01은 Step 4.i에서 정상 생성
+        - tasks/02, tasks/03... 디렉토리를 미리 생성
+        - 각 추가 태스크에 대해 spec.md를 작성 (§7 blockedBy에 선행 조건 기록)
+          예: task 02 spec §7 → blockedBy: ["01"]
+        - 모든 태스크의 메타데이터를 Step 4.k에서 request.json tasks[]에 등록
+      - 섹션 없거나 태스크가 1개이면 단일 태스크(Step 4.i~k 그대로 진행)
+
+      [--plan 없는 경우 — PM 자율 판단]:
+      - pm-conductor.md Step 6.6의 판단 결과를 따름
+      - PM이 2단계 이상 분해를 결정했으면 동일하게 tasks/02, 03... 생성
+      - blockedBy 설정 및 tasks[] 등록 동일 절차 적용
    i. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
    j. **spec.md 파일 저장**: `.gran-maestro/requests/REQ-NNN/tasks/01/spec.md`
-   k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가 (spec.md 저장 직후 즉시 수행):
+   k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가 (spec.md 저장 직후 즉시 수행, 다중 태스크 시 02, 03... 모든 태스크 포함):
       - `id`: 태스크 번호 (예: "01")
       - `title`: 태스크 제목
       - `status`: "pending"
