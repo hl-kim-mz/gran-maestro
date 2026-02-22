@@ -34,12 +34,18 @@ PM Conductor의 "I conduct, I don't code" 원칙을 유지하면서 Codex/Gemini
      run_in_background: false
    )
    ```
-   실행 전 `--trace REQ-ID/TASK-NUM/label` 제공 시:
-   - `task_dir`는 `.gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/`
-   - 시작 시 `Write`로 `running.log`에 append:
-     `[start] Claude subagent dispatched`
-   - Task 완료 후 `Write`로 `running.log`에 append:
-     `[done] Claude subagent finished`
+   실행 전 `task_dir` 결정:
+   - `--trace {REQ-ID}/{TASK-NUM}/{label}` 제공 시:
+     `task_dir` = `.gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/`
+   - `--trace` 없고 `--dir {worktree_path}` 제공 시:
+     worktree 경로에서 REQ-ID와 TASK-NUM을 추론할 수 없으므로 running.log 기록 스킵
+   - 둘 다 없는 경우: running.log 기록 스킵
+
+   `task_dir`가 확정된 경우:
+   - 시작 시 `Bash`로 append:
+     `echo '[start] Claude subagent dispatched' >> {task_dir}/running.log`
+   - Task 완료 후 `Bash`로 append:
+     `echo '[done] Claude subagent finished' >> {task_dir}/running.log`
    병렬 실행이 필요한 경우: `run_in_background: true` + `TaskOutput` 폴링
 
 4. `--trace`가 있으면 trace 파일 저장:
