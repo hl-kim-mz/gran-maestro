@@ -271,12 +271,27 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/log-stream", async (c) => {
         }
       };
 
+      const isRequestFinished = async (): Promise<boolean> => {
+        try {
+          const requestJson = await readJsonFile<{ status?: string }>(
+            `${requestDir}/request.json`
+          );
+          return ["completed", "done", "failed"].includes(requestJson?.status ?? "");
+        } catch {
+          return false;
+        }
+      };
+
       const waitForFile = async () => {
         while (!closed) {
           try {
             await Deno.stat(runningLog);
             return;
           } catch {
+            if (await isRequestFinished()) {
+              closed = true;
+              return;
+            }
             watcher = Deno.watchFs(taskDir);
             for await (const event of watcher) {
               if (closed) break;
