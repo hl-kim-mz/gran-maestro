@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -10,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MessageSquare, Lightbulb, Users } from 'lucide-react';
 import { IdeationFlow } from '@/components/ideation/IdeationFlow';
 import { DiscussionFlow } from '@/components/ideation/DiscussionFlow';
+import { SessionCard } from '@/components/shared/SessionCard';
 
 export function IdeationView() {
   const { token, projectId } = useAppContext();
@@ -89,26 +89,20 @@ export function IdeationView() {
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-3">
             {allSessions.map((s) => (
-              <Card
+              <SessionCard
                 key={s.id}
-                className={`cursor-pointer transition-colors hover:bg-accent/50 ${selectedSession?.id === s.id ? 'border-primary ring-1 ring-primary' : ''}`}
+                id={s.id}
+                title={s.objective || s.topic || 'Ideation Session'}
+                status={s.status}
+                createdAt={s.created_at}
+                icon={
+                  s.id.startsWith('IDN')
+                    ? <Lightbulb className="h-3 w-3 text-yellow-500" />
+                    : <MessageSquare className="h-3 w-3 text-blue-500" />
+                }
+                isSelected={selectedSession?.id === s.id}
                 onClick={() => setSelectedSession(s)}
-              >
-                <CardHeader className="p-4 pb-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      {s.id.startsWith('IDN') ? <Lightbulb className="h-3 w-3 text-yellow-500" /> : <MessageSquare className="h-3 w-3 text-blue-500" />}
-                      <CardTitle className="text-xs font-bold">{s.id}</CardTitle>
-                    </div>
-                    <StatusBadge status={s.status} />
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {s.objective || s.topic || 'Ideation Session'}
-                  </p>
-                </CardContent>
-              </Card>
+              />
             ))}
           </div>
         </ScrollArea>

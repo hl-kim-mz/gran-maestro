@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
-import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Badge } from '@/components/ui/badge';
 import { ClipboardList } from 'lucide-react';
+import { SessionCard } from '@/components/shared/SessionCard';
 
 interface PlanMeta {
   id: string;
@@ -90,33 +89,16 @@ export function PlansView() {
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-3">
             {plans.map((plan) => (
-              <Card
+              <SessionCard
                 key={plan.id}
-                className={`cursor-pointer transition-colors hover:bg-accent/50 ${selectedPlan?.id === plan.id ? 'border-primary ring-1 ring-primary' : ''}`}
+                id={plan.id}
+                title={plan.title || plan.id}
+                status={plan.status ?? ''}
+                createdAt={plan.created_at}
+                extraLinks={plan.linked_requests}
+                isSelected={selectedPlan?.id === plan.id}
                 onClick={() => setSelectedPlan(plan)}
-              >
-                <CardContent className="p-3">
-                  <div className="flex justify-between items-start mb-1">
-                    <p className="text-sm font-semibold line-clamp-2 flex-1 mr-2">
-                      {plan.title || plan.id}
-                    </p>
-                    <StatusBadge status={plan.status ?? ''} />
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="outline" className="text-[10px] font-mono">{plan.id}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                    {(() => {
-                      const reqs = plan.linked_requests || [];
-                      if (reqs.length === 0) return null;
-                      if (reqs.length === 1) return <span>🔗 {reqs[0]}</span>;
-                      return <span>🔗 {reqs.length}개 요청</span>;
-                    })()}
-                    {(plan.linked_requests?.length ?? 0) > 0 && plan.created_at && <span>·</span>}
-                    {plan.created_at && <span>{plan.created_at.slice(0, 10)}</span>}
-                  </div>
-                </CardContent>
-              </Card>
+              />
             ))}
           </div>
         </ScrollArea>

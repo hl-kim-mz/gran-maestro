@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
-import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -10,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Terminal, Activity, GitBranch } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { SessionCard } from '@/components/shared/SessionCard';
 
 export function WorkflowView() {
   const { token, projectId } = useAppContext();
@@ -165,19 +165,15 @@ export function WorkflowView() {
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-3">
             {requests.map((req) => (
-              <Card
+              <SessionCard
                 key={req.id}
-                className={`cursor-pointer transition-colors hover:bg-accent/50 ${selectedReq?.id === req.id ? 'border-primary ring-1 ring-primary' : ''}`}
+                id={req.id}
+                title={req.title || 'No title'}
+                status={req.status ?? ''}
+                createdAt={req.created_at}
+                isSelected={selectedReq?.id === req.id}
                 onClick={() => setSelectedReq(req)}
-              >
-                <CardContent className="p-3">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="font-bold text-xs">{req.id}</span>
-                    <StatusBadge status={req.status} />
-                  </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">{req.title || 'No title'}</p>
-                </CardContent>
-              </Card>
+              />
             ))}
           </div>
         </ScrollArea>
