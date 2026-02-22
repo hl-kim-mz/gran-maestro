@@ -20,7 +20,7 @@ export function WorkflowView() {
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<string>('');
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<any>(null);
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const logScrollAreaRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -74,7 +74,8 @@ export function WorkflowView() {
   }, [selectedReq, selectedTask]);
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const viewport = logScrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
   }, [logs]);
 
   useEffect(() => {
@@ -228,9 +229,8 @@ export function WorkflowView() {
                       </TabsList>
                     </div>
                     <TabsContent value="logs" className="flex-1 m-0 p-0 overflow-hidden relative">
-                      <ScrollArea className="absolute inset-0 bg-zinc-950 text-zinc-300 font-mono text-[11px] p-4">
+                      <ScrollArea ref={logScrollAreaRef} className="absolute inset-0 bg-zinc-950 text-zinc-300 font-mono text-[11px] p-4">
                         <pre className="whitespace-pre-wrap">{logs}</pre>
-                        <div ref={logEndRef} />
                       </ScrollArea>
                     </TabsContent>
                     <TabsContent value="info" className="flex-1 m-0 p-6 overflow-auto">
