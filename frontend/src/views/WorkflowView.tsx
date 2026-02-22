@@ -180,7 +180,7 @@ export function WorkflowView() {
       </div>
 
       {/* REQ Detail & Tasks */}
-      <div className="col-span-9 flex flex-col bg-card">
+      <div className="col-span-9 flex flex-col bg-card overflow-hidden">
         {selectedReq ? (
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
@@ -228,7 +228,7 @@ export function WorkflowView() {
                       </TabsList>
                     </div>
                     <TabsContent value="logs" className="flex-1 m-0 p-0 overflow-hidden relative">
-                      <ScrollArea className="h-full bg-zinc-950 text-zinc-300 font-mono text-[11px] p-4">
+                      <ScrollArea className="absolute inset-0 bg-zinc-950 text-zinc-300 font-mono text-[11px] p-4">
                         <pre className="whitespace-pre-wrap">{logs}</pre>
                         <div ref={logEndRef} />
                       </ScrollArea>
