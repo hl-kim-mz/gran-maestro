@@ -156,7 +156,12 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
       - `--plan` 없이 진행한 경우 spec.md에는 `## 가정 사항 (Assumptions)` 섹션을 포함
    i. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
    j. **spec.md 파일 저장**: `.gran-maestro/requests/REQ-NNN/tasks/01/spec.md`
-   k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가
+   k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가 (spec.md 저장 직후 즉시 수행):
+      - `id`: 태스크 번호 (예: "01")
+      - `title`: 태스크 제목
+      - `status`: "pending"
+      - `agent`: spec.md의 `Assigned Agent` 값 (필수 — 반드시 기록, 누락 금지)
+      - `spec`: "tasks/01/spec.md"
    l. `request.json`의 `status`를 `"spec_ready"`로 업데이트
 5. ⚠️ **spec.md 작성 완료 확인** — spec.md 파일이 존재하지 않으면 이 스킬을 종료하지 않음
 6. 스펙 요약을 사용자에게 표시하고, `/mst:approve REQ-NNN`으로 승인 안내
