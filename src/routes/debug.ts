@@ -21,9 +21,21 @@ projectDebugApi.get("/debug", async (c) => {
   const sessions: DebugMeta[] = [];
   const debugDirs = (await listDirs(debugDir)).filter((dir) => /^DBG-/.test(dir));
   for (const dir of debugDirs) {
-    const sessionJson = await readJsonFile<DebugMeta>(`${debugDir}/${dir}/session.json`);
+    const sessionJsonPath = `${debugDir}/${dir}/session.json`;
+    const sessionJson = await readJsonFile<DebugMeta>(sessionJsonPath);
     if (sessionJson) {
-      sessions.push({ ...sessionJson, id: sessionJson.id || dir });
+      let createdAt = sessionJson.created_at;
+      if (!createdAt || createdAt.includes("T00:00:00")) {
+        try {
+          const stat = await Deno.stat(sessionJsonPath);
+          if (stat.mtime) {
+            createdAt = stat.mtime.toISOString();
+          }
+        } catch (_error) {
+          // ignore fallback failure
+        }
+      }
+      sessions.push({ ...sessionJson, id: sessionJson.id || dir, created_at: createdAt });
     }
   }
   sessions.sort((a, b) => {

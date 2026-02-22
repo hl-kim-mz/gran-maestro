@@ -129,15 +129,26 @@ projectIdeationApi.get("/ideation", async (c) => {
   const sessions: IdeationSession[] = [];
 
   for (const dir of dirs) {
-    const sessionJson = await readJsonFile<IdeationSession>(
-      `${ideationDir}/${dir}/session.json`
-    );
+    const sessionJsonPath = `${ideationDir}/${dir}/session.json`;
+    const sessionJson = await readJsonFile<IdeationSession>(sessionJsonPath);
     if (sessionJson) {
       const rawSession = sessionJson as Record<string, unknown>;
       const participants = normalizeParticipants(rawSession);
+      let createdAt = sessionJson.created_at;
+      if (!createdAt || createdAt.includes("T00:00:00")) {
+        try {
+          const stat = await Deno.stat(sessionJsonPath);
+          if (stat.mtime) {
+            createdAt = stat.mtime.toISOString();
+          }
+        } catch (_error) {
+          // ignore fallback failure
+        }
+      }
       sessions.push({
         ...sessionJson,
         id: sessionJson.id || dir,
+        created_at: createdAt,
         participants,
       });
     }
