@@ -12,6 +12,7 @@ interface SessionCardProps {
   extraLinks?: string[];
   isSelected: boolean;
   onClick: () => void;
+  onExtraLinkClick?: (id: string) => void;
 }
 
 function formatDateTime(iso?: string): string | null {
@@ -29,6 +30,7 @@ export function SessionCard({
   extraLinks,
   isSelected,
   onClick,
+  onExtraLinkClick,
 }: SessionCardProps) {
   const dateTime = formatDateTime(createdAt);
 
@@ -50,7 +52,27 @@ export function SessionCard({
           <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-muted-foreground flex-wrap">
             {extraBadge && <Badge variant="secondary" className="text-[10px]">{extraBadge}</Badge>}
             {extraLinks && extraLinks.length > 0 && (
-              <span>{extraLinks.length === 1 ? `🔗 ${extraLinks[0]}` : `🔗 ${extraLinks.length}개 요청`}</span>
+              <span>
+                {extraLinks.length === 1 ? (
+                  onExtraLinkClick ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onExtraLinkClick(extraLinks[0]);
+                      }}
+                      className="inline-flex items-center gap-1 text-primary/90 hover:underline"
+                    >
+                      🔗
+                      <Badge variant="secondary" className="text-[10px]">{extraLinks[0]}</Badge>
+                    </button>
+                  ) : (
+                    <span>🔗 {extraLinks[0]}</span>
+                  )
+                ) : (
+                  `🔗 ${extraLinks.length}개 요청`
+                )}
+              </span>
             )}
             {dateTime && <span>{dateTime}</span>}
           </div>

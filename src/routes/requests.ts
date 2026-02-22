@@ -25,6 +25,29 @@ function splitLogLines(text: string): string[] {
   return lines;
 }
 
+async function buildReqToPlanMap(baseDir: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const plansDir = `${baseDir}/plans`;
+  if (!(await dirExists(plansDir))) return map;
+
+  const planDirs = (await listDirs(plansDir)).filter((dir) => /^PLN-/.test(dir));
+  for (const dir of planDirs) {
+    const planJson = await readJsonFile<{ id?: string; linked_requests?: string[] }>(
+      `${plansDir}/${dir}/plan.json`
+    );
+    if (!planJson?.linked_requests) continue;
+
+    const planId = planJson.id || dir;
+    for (const reqId of planJson.linked_requests) {
+      if (!map.has(reqId)) {
+        map.set(reqId, planId);
+      }
+    }
+  }
+
+  return map;
+}
+
 projectRequestsApi.get("/requests", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
   if (!baseDir) {
@@ -36,6 +59,8 @@ projectRequestsApi.get("/requests", async (c) => {
     return c.json([]);
   }
 
+  const reqToPlanMap = await buildReqToPlanMap(baseDir);
+
   const requests: RequestMeta[] = [];
   const requestDirs = (await listDirs(requestsDir)).filter((dir) => /^REQ-/.test(dir));
   const completedRequestDirs = (await listDirs(`${requestsDir}/completed`)).filter((dir) => /^REQ-/.test(dir));
@@ -43,7 +68,8 @@ projectRequestsApi.get("/requests", async (c) => {
   for (const dir of requestDirs) {
     const reqJson = await readJsonFile<RequestMeta>(`${requestsDir}/${dir}/request.json`);
     if (reqJson) {
-      requests.push({ ...reqJson, id: reqJson.id || dir });
+      const requestId = reqJson.id || dir;
+      requests.push({ ...reqJson, id: requestId, linked_plan: reqToPlanMap.get(requestId) ?? null });
     }
   }
 
@@ -52,7 +78,13 @@ projectRequestsApi.get("/requests", async (c) => {
       `${requestsDir}/completed/${dir}/request.json`
     );
     if (reqJson) {
-      requests.push({ ...reqJson, id: reqJson.id || dir, _location: "completed" });
+      const requestId = reqJson.id || dir;
+      requests.push({
+        ...reqJson,
+        id: requestId,
+        _location: "completed",
+        linked_plan: reqToPlanMap.get(requestId) ?? null,
+      });
     }
   }
 
@@ -83,7 +115,9 @@ projectRequestsApi.get("/requests/:id", async (c) => {
   if (!reqJson) {
     return c.json({ error: "Request not found" }, 404);
   }
-  return c.json({ ...reqJson, id: reqJson.id || id });
+  const reqToPlanMap = await buildReqToPlanMap(baseDir);
+  const requestId = reqJson.id || id;
+  return c.json({ ...reqJson, id: requestId, linked_plan: reqToPlanMap.get(requestId) ?? null });
 });
 
 // ─── API: Tasks ─────────────────────────────────────────────────────────────

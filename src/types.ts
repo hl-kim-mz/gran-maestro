@@ -15,6 +15,7 @@ export interface RequestMeta {
   phase?: number;
   blockedBy?: string[];
   createdAt?: string;
+  linked_plan?: string | null;
   [key: string]: unknown;
 }
 

@@ -14,8 +14,7 @@ import { DocumentsView } from './views/DocumentsView';
 import { SettingsView } from './views/SettingsView';
 
 function AppContent() {
-  const { token, authRequired } = useAppContext();
-  const [activeTab, setActiveTab] = useState('plans');
+  const { token, authRequired, activeTab, setActiveTab } = useAppContext();
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   if (authRequired && !token) {

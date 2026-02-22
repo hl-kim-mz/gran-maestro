@@ -6,13 +6,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Terminal, Activity, GitBranch } from 'lucide-react';
+import { Terminal, Activity, GitBranch, ClipboardList, ArrowRight } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { SessionCard } from '@/components/shared/SessionCard';
 
 export function WorkflowView() {
-  const { token, projectId, lastSseEvent } = useAppContext();
+  const { token, projectId, lastSseEvent, navigateTo, pendingNavigation, clearPendingNavigation } = useAppContext();
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedReq, setSelectedReq] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -116,6 +116,18 @@ export function WorkflowView() {
   }, [logs]);
 
   useEffect(() => {
+    if (pendingNavigation?.tab !== 'workflow' || loading) return;
+
+    if (pendingNavigation.selectedId) {
+      const target = requests.find((req) => req.id === pendingNavigation.selectedId);
+      if (target) {
+        setSelectedReq(target);
+      }
+    }
+    clearPendingNavigation();
+  }, [pendingNavigation, loading, clearPendingNavigation, requests]);
+
+  useEffect(() => {
     if (!selectedReq || !selectedTask || !projectId) {
       setSelectedTaskDetail(null);
       return;
@@ -209,6 +221,7 @@ export function WorkflowView() {
                 title={req.title || 'No title'}
                 status={req.status ?? ''}
                 createdAt={req.created_at}
+                extraBadge={req.linked_plan ?? undefined}
                 isSelected={selectedReq?.id === req.id}
                 onClick={() => setSelectedReq(req)}
               />
@@ -225,6 +238,17 @@ export function WorkflowView() {
               <div className="flex items-center gap-3">
                 <h2 className="font-bold text-lg">{selectedReq.id}</h2>
                 <Badge variant="outline">{selectedReq.type}</Badge>
+                {selectedReq?.linked_plan && (
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('plans', selectedReq.linked_plan)}
+                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-muted hover:bg-accent transition-colors font-mono"
+                  >
+                    <ClipboardList className="h-3 w-3" />
+                    {selectedReq.linked_plan}
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
+                )}
               </div>
               <div className="flex gap-2">
                 <StatusBadge status={selectedReq.status} />
@@ -272,6 +296,18 @@ export function WorkflowView() {
                     </TabsContent>
                     <TabsContent value="info" className="flex-1 m-0 p-6 overflow-auto">
                       <div className="space-y-4">
+                        {selectedReq?.linked_plan && (
+                          <div className="mb-4 p-3 bg-muted/30 border rounded-md">
+                            <h3 className="text-xs font-bold mb-1 text-muted-foreground uppercase">연결된 Plan</h3>
+                            <button
+                              type="button"
+                              onClick={() => navigateTo('plans', selectedReq.linked_plan)}
+                              className="text-xs font-mono text-primary hover:underline"
+                            >
+                              {selectedReq.linked_plan} →
+                            </button>
+                          </div>
+                        )}
                         <div>
                           <h3 className="text-sm font-bold mb-1">Task Info</h3>
                           <div className="grid grid-cols-2 gap-2 text-xs">

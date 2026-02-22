@@ -22,7 +22,7 @@ interface PlanDetail {
 }
 
 export function PlansView() {
-  const { token, projectId, lastSseEvent } = useAppContext();
+  const { token, projectId, lastSseEvent, navigateTo, pendingNavigation, clearPendingNavigation } = useAppContext();
   const [plans, setPlans] = useState<PlanMeta[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<PlanMeta | null>(null);
   const [planContent, setPlanContent] = useState<string | null>(null);
@@ -87,6 +87,18 @@ export function PlansView() {
       .catch(() => setPlanContent(null));
   }, [selectedPlan?.id, token, projectId]);
 
+  useEffect(() => {
+    if (pendingNavigation?.tab !== 'plans' || loading) return;
+
+    if (pendingNavigation.selectedId) {
+      const target = plans.find((plan) => plan.id === pendingNavigation.selectedId);
+      if (target) {
+        setSelectedPlan(target);
+      }
+    }
+    clearPendingNavigation();
+  }, [pendingNavigation, loading, clearPendingNavigation, plans]);
+
   if (!projectId) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -124,6 +136,7 @@ export function PlansView() {
                 status={plan.status ?? ''}
                 createdAt={plan.created_at}
                 extraLinks={plan.linked_requests}
+                onExtraLinkClick={(reqId) => navigateTo('workflow', reqId)}
                 isSelected={selectedPlan?.id === plan.id}
                 onClick={() => setSelectedPlan(plan)}
               />
