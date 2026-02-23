@@ -10,7 +10,11 @@ export const DEFAULT_PORT = 3847;
 export const HOST = "127.0.0.1";
 export const SSE_DEBOUNCE_MS = 300;
 export const HUB_MODE = true; // Always hub mode — multi-project by default
-export const HUB_DIR = `${Deno.env.get("HOME")}/.gran-maestro-hub`;
+const _homeDir =
+  Deno.env.get("HOME") ??
+  Deno.env.get("USERPROFILE") ??
+  ".";
+export const HUB_DIR = `${_homeDir}/.gran-maestro-hub`;
 
 export let registry: Registry = { projects: [] };
 
@@ -23,11 +27,14 @@ export async function loadConfig(baseDir = BASE_DIR): Promise<GranMaestroConfig>
 }
 
 export function stripBasePath(path: string, baseDir: string): string {
-  const normalizedBase = baseDir.endsWith("/") ? baseDir.slice(0, -1) : baseDir;
-  if (normalizedBase.startsWith("/") && path.startsWith(`${normalizedBase}/`)) {
-    return path.replace(`${normalizedBase}/`, "");
+  const normPath = path.replace(/\\/g, "/");
+  const normBase = baseDir.replace(/\\/g, "/");
+  const normalizedBase = normBase.endsWith("/") ? normBase.slice(0, -1) : normBase;
+  if (path.startsWith(`${normalizedBase}/`) || normPath.startsWith(`${normalizedBase}/`)) {
+    return normPath.replace(`${normalizedBase}/`, "");
   }
-  return path.replace(`${Deno.cwd()}/`, "");
+  const normCwd = Deno.cwd().replace(/\\/g, "/");
+  return normPath.replace(`${normCwd}/`, "");
 }
 
 export async function generateProjectId(path: string): Promise<string> {

@@ -157,9 +157,11 @@ export function classifyFsEvent(
   kind: string,
   projectId?: string
 ): SSEEvent | null {
+  const normPath = path.replace(/\\/g, "/");
+
   // Pattern: .gran-maestro/requests/REQ-XXX/tasks/NN/traces/...
   // (must be checked before generic task_update to avoid being swallowed)
-  const traceMatch = path.match(
+  const traceMatch = normPath.match(
     /\.gran-maestro\/requests\/([^/]+)\/tasks\/([^/]+)\/traces\/(.+)/
   );
   if (traceMatch) {
@@ -173,7 +175,7 @@ export function classifyFsEvent(
   }
 
   // Pattern: .gran-maestro/requests/REQ-XXX/tasks/NN/...
-  const taskMatch = path.match(
+  const taskMatch = normPath.match(
     /\.gran-maestro\/requests\/([^/]+)\/tasks\/([^/]+)/
   );
   if (taskMatch) {
@@ -187,7 +189,7 @@ export function classifyFsEvent(
   }
 
   // Pattern: .gran-maestro/requests/REQ-XXX/...
-  const reqMatch = path.match(/\.gran-maestro\/requests\/([^/]+)/);
+  const reqMatch = normPath.match(/\.gran-maestro\/requests\/([^/]+)/);
   if (reqMatch) {
     return {
       type: "request_update",
@@ -198,7 +200,7 @@ export function classifyFsEvent(
   }
 
   // Pattern: .gran-maestro/plans/PLN-***
-  const planMatch = path.match(/\.gran-maestro\/plans\/(PLN-[^/]+)/);
+  const planMatch = normPath.match(/\.gran-maestro\/plans\/(PLN-[^/]+)/);
   if (planMatch) {
     return {
       type: "plan_update",
@@ -209,7 +211,7 @@ export function classifyFsEvent(
   }
 
   // Pattern: .gran-maestro/debug/DBG-***
-  const debugMatch = path.match(/\.gran-maestro\/debug\/(DBG-[^/]+)/);
+  const debugMatch = normPath.match(/\.gran-maestro\/debug\/(DBG-[^/]+)/);
   if (debugMatch) {
     return {
       type: "debug_update",
@@ -220,7 +222,7 @@ export function classifyFsEvent(
   }
 
   // Pattern: .gran-maestro/config.json
-  if (path.includes("config.json")) {
+  if (normPath.includes("config.json")) {
     return {
       type: "config_change",
       projectId,
@@ -229,7 +231,7 @@ export function classifyFsEvent(
   }
 
   // Pattern: .gran-maestro/mode.json
-  if (path.includes("mode.json")) {
+  if (normPath.includes("mode.json")) {
     return {
       type: "phase_change",
       projectId,
@@ -238,7 +240,7 @@ export function classifyFsEvent(
   }
 
   // Pattern: .gran-maestro/ideation/IDN-XXX/...
-  const ideationMatch = path.match(/\.gran-maestro\/ideation\/([^/]+)/);
+  const ideationMatch = normPath.match(/\.gran-maestro\/ideation\/([^/]+)/);
   if (ideationMatch) {
     return {
       type: "ideation_update",
@@ -249,7 +251,7 @@ export function classifyFsEvent(
   }
 
   // Pattern: .gran-maestro/discussion/DSC-XXX/...
-  const discussionMatch = path.match(/\.gran-maestro\/discussion\/([^/]+)/);
+  const discussionMatch = normPath.match(/\.gran-maestro\/discussion\/([^/]+)/);
   if (discussionMatch) {
     return {
       type: "discussion_update",
@@ -260,7 +262,7 @@ export function classifyFsEvent(
   }
 
   // Generic agent activity for log files
-  if (path.includes("exec-log") || path.includes("activity")) {
+  if (normPath.includes("exec-log") || normPath.includes("activity")) {
     return {
       type: "agent_activity",
       projectId,

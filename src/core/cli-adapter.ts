@@ -76,12 +76,15 @@ export async function runWithTimeout(
   timeoutMs: number,
 ): Promise<CLIResult> {
   const start = Date.now();
+  const denoBuild = (globalThis as { Deno?: { build?: { os: string } } }).Deno?.build;
+  const isWindows = denoBuild?.os === "windows";
 
   // Deno-compatible subprocess API
   // Node.js fallback: use child_process.execFile with a timeout option
-  const args = ['-c', cmd];
-  const command = new Deno.Command('sh', {
-    args,
+  const shell = isWindows ? "cmd" : "sh";
+  const shellArgs = isWindows ? ["/c", cmd] : ["-c", cmd];
+  const command = new Deno.Command(shell, {
+    args: shellArgs,
     cwd,
     stdout: 'piped',
     stderr: 'piped',
@@ -92,7 +95,7 @@ export async function runWithTimeout(
   // Timeout guard
   const timer = setTimeout(() => {
     try {
-      child.kill('SIGTERM');
+      child.kill(isWindows ? "SIGKILL" : "SIGTERM");
     } catch {
       // Process may have already exited
     }
