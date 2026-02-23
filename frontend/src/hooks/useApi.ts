@@ -5,7 +5,15 @@ export async function apiFetch<T>(path: string, projectId?: string, options?: Re
     resolvedPath = `/api/projects/${projectId}/${path.slice('/api/'.length)}`;
   }
 
-  const response = await fetch(resolvedPath, options);
+  const headers = new Headers(options?.headers);
+  if (options?.body !== undefined && options.body !== null && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(resolvedPath, {
+    ...options,
+    headers,
+  });
 
   if (!response.ok) {
     throw new Error(`API ${resolvedPath} failed: ${response.status}`);

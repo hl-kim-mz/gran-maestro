@@ -54,17 +54,22 @@ export function EditModeToolbar({
           <Button
             size="sm"
             variant="outline"
-            disabled={selectedIds.length === 0}
           >
             상태 변경 <ChevronDown className="ml-1 h-3 w-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          {ALLOWED_STATUSES[itemType].map((s) => (
-            <DropdownMenuItem key={s} onClick={() => onStatusChange(s)}>
-              {s}
-            </DropdownMenuItem>
-          ))}
+          {selectedIds.length === 0 ? (
+            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+              항목을 먼저 선택하세요
+            </div>
+          ) : (
+            ALLOWED_STATUSES[itemType].map((s) => (
+              <DropdownMenuItem key={s} onClick={() => onStatusChange(s)}>
+                {s}
+              </DropdownMenuItem>
+            ))
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
