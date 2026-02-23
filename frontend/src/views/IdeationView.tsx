@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,6 +10,7 @@ import { MessageSquare, Lightbulb, Users } from 'lucide-react';
 import { IdeationFlow } from '@/components/ideation/IdeationFlow';
 import { DiscussionFlow } from '@/components/ideation/DiscussionFlow';
 import { SessionCard } from '@/components/shared/SessionCard';
+import { RefreshButton } from '@/components/shared/RefreshButton';
 
 export function IdeationView() {
   const { token, projectId, lastSseEvent } = useAppContext();
@@ -18,36 +19,37 @@ export function IdeationView() {
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [sessionData, setSessionData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [idns, dscs] = await Promise.all([
+        apiFetch<any[]>('/api/ideation', token, projectId),
+        apiFetch<any[]>('/api/discussion', token, projectId)
+      ]);
+      setIdeations(idns);
+      setDiscussions(dscs);
+
+      const all = [...idns, ...dscs].sort((a, b) => {
+        const aTime = a.created_at ?? '';
+        const bTime = b.created_at ?? '';
+        return bTime.localeCompare(aTime);
+      });
+      if (all.length > 0 && !selectedSession) {
+        setSelectedSession(all[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch ideation data:', err);
+    }
+  }, [token, projectId]);
 
   useEffect(() => {
     if (!projectId) {
       setLoading(false);
       return;
     }
-    async function fetchData() {
-      try {
-        const [idns, dscs] = await Promise.all([
-          apiFetch<any[]>('/api/ideation', token, projectId),
-          apiFetch<any[]>('/api/discussion', token, projectId)
-        ]);
-        setIdeations(idns);
-        setDiscussions(dscs);
-
-        const all = [...idns, ...dscs].sort((a, b) => {
-          const aTime = a.created_at ?? '';
-          const bTime = b.created_at ?? '';
-          return bTime.localeCompare(aTime);
-        });
-        if (all.length > 0 && !selectedSession) {
-          setSelectedSession(all[0]);
-        }
-      } catch (err) {
-        console.error('Failed to fetch ideation data:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
+    setLoading(true);
+    fetchData().finally(() => setLoading(false));
   }, [token, projectId]);
 
   useEffect(() => {
@@ -102,6 +104,12 @@ export function IdeationView() {
       .catch(() => setSessionData(null));
   }, [selectedSession?.id, token, projectId]);
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchData();
+    setIsRefreshing(false);
+  };
+
   if (!projectId) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -123,8 +131,9 @@ export function IdeationView() {
   return (
     <div className="grid grid-cols-12 h-full overflow-hidden">
       <div className="col-span-4 border-r flex flex-col min-h-0">
-        <div className="p-4 border-b bg-muted/30">
+        <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
           <h2 className="font-semibold">Sessions ({allSessions.length})</h2>
+          <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
         </div>
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-3">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,6 +10,7 @@ import { Terminal, Activity, GitBranch, ClipboardList, ArrowRight } from 'lucide
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { SessionCard } from '@/components/shared/SessionCard';
+import { RefreshButton } from '@/components/shared/RefreshButton';
 
 export function WorkflowView() {
   const { token, projectId, lastSseEvent, navigateTo, pendingNavigation, clearPendingNavigation } = useAppContext();
@@ -20,29 +21,36 @@ export function WorkflowView() {
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<string>('');
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<any>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const logScrollAreaRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const fetchRequests = useCallback(async () => {
+    try {
+      const data = await apiFetch<any[]>('/api/requests', token, projectId);
+      setRequests(data);
+      if (data.length > 0 && !selectedReq) {
+        setSelectedReq(data[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch requests:', err);
+    }
+  }, [token, projectId]);
 
   useEffect(() => {
     if (!projectId) {
       setLoading(false);
       return;
     }
-    async function fetchRequests() {
-      try {
-        const data = await apiFetch<any[]>('/api/requests', token, projectId);
-        setRequests(data);
-        if (data.length > 0 && !selectedReq) {
-          setSelectedReq(data[0]);
-        }
-      } catch (err) {
-        console.error('Failed to fetch requests:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchRequests();
+    setLoading(true);
+    fetchRequests().finally(() => setLoading(false));
   }, [token, projectId]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchRequests();
+    setIsRefreshing(false);
+  };
 
   useEffect(() => {
     if (!lastSseEvent || !projectId) return;
@@ -219,6 +227,7 @@ export function WorkflowView() {
       <div className="col-span-3 border-r flex flex-col">
         <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
           <h2 className="font-semibold">Requests</h2>
+          <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
         </div>
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-3">
@@ -289,19 +298,14 @@ export function WorkflowView() {
                   <Tabs key={`${selectedReq?.id}-${selectedTask?.id}`} defaultValue="info" className="flex-1 flex flex-col">
                     <div className="px-4 border-b">
                       <TabsList className="bg-transparent h-10 p-0 gap-4">
-                        <TabsTrigger value="logs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
-                          <Terminal className="h-3 w-3 mr-2" /> Logs
-                        </TabsTrigger>
                         <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
                           <Activity className="h-3 w-3 mr-2" /> Details
                         </TabsTrigger>
+                        <TabsTrigger value="logs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
+                          <Terminal className="h-3 w-3 mr-2" /> Logs
+                        </TabsTrigger>
                       </TabsList>
                     </div>
-                    <TabsContent value="logs" className="flex-1 m-0 p-0 overflow-hidden relative">
-                      <ScrollArea ref={logScrollAreaRef} className="absolute inset-0 bg-zinc-950 text-zinc-300 font-mono text-[11px] p-4">
-                        <pre className="whitespace-pre-wrap">{logs}</pre>
-                      </ScrollArea>
-                    </TabsContent>
                     <TabsContent value="info" className="flex-1 m-0 p-6 overflow-auto">
                       <div className="space-y-4">
                         {selectedReq?.linked_plan && (
@@ -358,6 +362,11 @@ export function WorkflowView() {
                           </div>
                         )}
                       </div>
+                    </TabsContent>
+                    <TabsContent value="logs" className="flex-1 m-0 p-0 overflow-hidden relative">
+                      <ScrollArea ref={logScrollAreaRef} className="absolute inset-0 bg-zinc-950 text-zinc-300 font-mono text-[11px] p-4">
+                        <pre className="whitespace-pre-wrap">{logs}</pre>
+                      </ScrollArea>
                     </TabsContent>
                   </Tabs>
                 ) : (

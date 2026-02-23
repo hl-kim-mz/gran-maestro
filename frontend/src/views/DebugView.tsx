@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -8,6 +8,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Bug } from 'lucide-react';
 import { SessionCard } from '@/components/shared/SessionCard';
+import { RefreshButton } from '@/components/shared/RefreshButton';
 
 interface DebugMeta {
   id: string;
@@ -29,26 +30,27 @@ export function DebugView() {
   const [selectedSession, setSelectedSession] = useState<DebugMeta | null>(null);
   const [reportContent, setReportContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const data = await apiFetch<DebugMeta[]>('/api/debug', token, projectId);
+      setSessions(data);
+      if (data.length > 0 && !selectedSession) {
+        setSelectedSession(data[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch debug data:', err);
+    }
+  }, [token, projectId]);
 
   useEffect(() => {
     if (!projectId) {
       setLoading(false);
       return;
     }
-    async function fetchData() {
-      try {
-        const data = await apiFetch<DebugMeta[]>('/api/debug', token, projectId);
-        setSessions(data);
-        if (data.length > 0 && !selectedSession) {
-          setSelectedSession(data[0]);
-        }
-      } catch (err) {
-        console.error('Failed to fetch debug data:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
+    setLoading(true);
+    fetchData().finally(() => setLoading(false));
   }, [token, projectId]);
 
   useEffect(() => {
@@ -89,6 +91,12 @@ export function DebugView() {
       .catch(() => setReportContent(null));
   }, [selectedSession?.id, token, projectId]);
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchData();
+    setIsRefreshing(false);
+  };
+
   if (!projectId) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -104,8 +112,9 @@ export function DebugView() {
   return (
     <div className="grid grid-cols-12 h-full overflow-hidden">
       <div className="col-span-4 border-r flex flex-col min-h-0">
-        <div className="p-4 border-b bg-muted/30">
+        <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
           <h2 className="font-semibold">Debug Sessions ({sessions.length})</h2>
+          <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
         </div>
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-3">

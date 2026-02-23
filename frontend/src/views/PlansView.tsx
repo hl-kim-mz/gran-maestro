@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -8,6 +8,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ClipboardList } from 'lucide-react';
 import { SessionCard } from '@/components/shared/SessionCard';
+import { RefreshButton } from '@/components/shared/RefreshButton';
 
 interface PlanMeta {
   id: string;
@@ -27,27 +28,34 @@ export function PlansView() {
   const [selectedPlan, setSelectedPlan] = useState<PlanMeta | null>(null);
   const [planContent, setPlanContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchPlans = useCallback(async () => {
+    try {
+      const data = await apiFetch<PlanMeta[]>('/api/plans', token, projectId);
+      setPlans(data);
+      if (data.length > 0 && !selectedPlan) {
+        setSelectedPlan(data[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch plans:', err);
+    }
+  }, [token, projectId]);
 
   useEffect(() => {
     if (!projectId) {
       setLoading(false);
       return;
     }
-    async function fetchPlans() {
-      try {
-        const data = await apiFetch<PlanMeta[]>('/api/plans', token, projectId);
-        setPlans(data);
-        if (data.length > 0 && !selectedPlan) {
-          setSelectedPlan(data[0]);
-        }
-      } catch (err) {
-        console.error('Failed to fetch plans:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchPlans();
+    setLoading(true);
+    fetchPlans().finally(() => setLoading(false));
   }, [token, projectId]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchPlans();
+    setIsRefreshing(false);
+  };
 
   useEffect(() => {
     if (!lastSseEvent || !projectId) return;
@@ -123,8 +131,9 @@ export function PlansView() {
   return (
     <div className="grid grid-cols-12 gap-0 h-full overflow-hidden">
       <div className="col-span-4 border-r flex flex-col min-h-0">
-        <div className="p-4 border-b bg-muted/30">
+        <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
           <h2 className="font-semibold">Plans ({plans.length})</h2>
+          <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
         </div>
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-3">

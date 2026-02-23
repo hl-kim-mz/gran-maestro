@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { JsonViewer } from '@/components/shared/JsonViewer';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { RefreshButton } from '@/components/shared/RefreshButton';
 import {
   Folder,
   File,
@@ -35,23 +36,24 @@ export function DocumentsView() {
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchTree = useCallback(async () => {
+    try {
+      const data = await apiFetch<FileNode[]>('/api/tree', token, projectId);
+      setTree(data);
+    } catch (err) {
+      console.error('Failed to fetch tree:', err);
+    }
+  }, [token, projectId]);
 
   useEffect(() => {
     if (!projectId) {
       setLoading(false);
       return;
     }
-    async function fetchTree() {
-      try {
-        const data = await apiFetch<FileNode[]>('/api/tree', token, projectId);
-        setTree(data);
-      } catch (err) {
-        console.error('Failed to fetch tree:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchTree();
+    setLoading(true);
+    fetchTree().finally(() => setLoading(false));
   }, [token, projectId]);
 
   useEffect(() => {
@@ -76,6 +78,12 @@ export function DocumentsView() {
       setContentLoading(false);
     }
   }
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchTree();
+    setIsRefreshing(false);
+  };
 
   const renderTree = (nodes: FileNode[], depth = 0) => {
     return nodes.map((node) => {
@@ -131,8 +139,9 @@ export function DocumentsView() {
   return (
     <div className="grid grid-cols-12 h-full overflow-hidden">
       <div className="col-span-3 border-r flex flex-col min-h-0">
-        <div className="p-4 border-b bg-muted/30">
+        <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
           <h2 className="font-semibold text-sm">Workspace</h2>
+          <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
         </div>
         <ScrollArea className="flex-1">
           <div className="p-2">
