@@ -312,16 +312,33 @@ export function WorkflowView() {
                 <div className="p-2 border-b text-xs uppercase font-bold text-muted-foreground px-4">Tasks</div>
                 <ScrollArea className="flex-1">
                   <div className="p-2 space-y-1">
-                    {tasks.map((task: any) => (
-                      <div
-                        key={task.id}
-                        onClick={() => setSelectedTask(task)}
-                        className={`p-2 px-3 rounded-md cursor-pointer text-xs flex justify-between items-center ${selectedTask?.id === task.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
-                      >
-                        <span className="truncate mr-2">{task.name || task.id}</span>
-                        <StatusBadge status={task.status} className="px-1.5 py-0 text-[10px] h-auto shrink-0" />
-                      </div>
-                    ))}
+                    {tasks.map((task: any, idx: number) => {
+                      const isLast = idx === tasks.length - 1;
+                      return (
+                        <div key={task.id} className="flex gap-1">
+                          <div className="flex flex-col items-center pt-1 shrink-0 w-3">
+                            <div className="w-px flex-1 bg-border" style={{ minHeight: '8px' }} />
+                            <div className={`w-1.5 h-1.5 rounded-full border shrink-0 ${selectedTask?.id === task.id ? 'bg-primary border-primary' : 'bg-background border-muted-foreground/40'}`} />
+                            {!isLast && <div className="w-px flex-1 bg-border" />}
+                          </div>
+                          <div
+                            onClick={() => setSelectedTask(task)}
+                            className={`flex-1 p-2 rounded-md cursor-pointer text-xs mb-0.5 ${selectedTask?.id === task.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
+                          >
+                            <div className="flex justify-between items-start gap-1 mb-0.5">
+                              <span className="font-mono text-[10px] opacity-70 shrink-0">{task.id}</span>
+                              <StatusBadge status={task.status} className="px-1.5 py-0 text-[10px] h-auto shrink-0" />
+                            </div>
+                            {task.name && (
+                              <p className="text-[11px] line-clamp-2 leading-snug">{task.name}</p>
+                            )}
+                            {(task.assigned_agent || task.agent) && (
+                              <span className="mt-0.5 text-[10px] opacity-60 block">[{task.assigned_agent || task.agent}]</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </div>

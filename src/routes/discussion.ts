@@ -205,7 +205,9 @@ projectDiscussionApi.get("/discussion/:id", async (c) => {
   const consensus = await readTextFile(`${sessionDir}/consensus.md`);
 
   return c.json({
-    session: { ...session, id: session.id || id, participants },
+    ...session,
+    id: session.id || id,
+    participants,
     rounds,
     consensus,
   });
