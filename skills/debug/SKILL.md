@@ -253,19 +253,18 @@ Claude 자체 조사 완료 후 에이전트 결과를 합류합니다.
 
 모든 조사 결과를 합쳐 `debug-report.md`를 생성합니다.
 
-**입력 파일**:
-- `finding-claude.md` (Claude 자체 조사)
-- `finding-{investigatorKey}.md` (완료된 에이전트 결과만)
+**입력 파일 결정 (동적 순회)**:
+1. `finding-claude.md` — Claude 자체 조사 (항상 포함)
+2. `investigators` 키를 순서대로 순회하여 `status: "done"`인 항목만 포함:
+   `finding-{investigatorKey}.md` (예: finding-codex.md, finding-codex-2.md, ...)
 
-**템플릿**: `templates/debug-synthesis.md` 사용
-
-종합 절차:
-1. 모든 finding 파일을 Read
+**합성 절차**:
+1. 위 입력 파일 전체를 Read
 2. 발견 사항을 중복 제거 + 교차 검증
 3. 여러 조사자가 동일 문제를 지목하면 **확신도 상승**
 4. 단일 조사자만 발견한 문제는 **추가 검증 필요**로 표시
 5. 근본 원인 추론을 통합하여 최종 진단
-6. 수정 방안을 우선순위로 정렬
+6. 수정 방안을 우선순위로 정렬 (P0: 즉시 수정, P1: 권장, P2: 선택)
 
 `session.json`의 `status`를 `"completed"`로 변경합니다.
 
@@ -278,9 +277,9 @@ Claude 자체 조사 완료 후 에이전트 결과를 합류합니다.
 ## DBG-NNN 디버그 리포트
 
 ### 참여 조사자
-- Claude (자체 조사): {상태}
-- Codex ({role}): {상태}
-- Gemini ({role}): {상태}
+- Claude (자체 조사): {claude_investigation.status}
+- {investigatorKey} ({role}): {status}  ← investigators 키 순서대로 반복
+  (예: codex, codex-2, codex-3, codex-4, gemini 등 설정에 따라 동적 나열)
 
 ### 핵심 발견
 {가장 확신도 높은 문제 1~3개}
