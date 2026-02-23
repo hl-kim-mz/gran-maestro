@@ -292,6 +292,21 @@ Claude 자체 조사 완료 후 에이전트 결과를 합류합니다.
 상세 리포트: .gran-maestro/debug/DBG-NNN/debug-report.md
 ```
 
+### Step 7: 다음 단계 안내
+
+> ℹ️ **AUTO-CONTINUE 예외**: 다음 단계는 사용자 의사에 따라 결정되므로 AskUserQuestion을 사용합니다.
+
+`AskUserQuestion`으로 아래 선택지를 제시합니다:
+
+- **"수정 작업 시작 (→ /mst:start)"**: debug-report.md 컨텍스트를 유지하며 REQ를 생성하고 구현을 시작합니다.
+  → `Skill(skill: "mst:start", args: "--from-debug {DBG-NNN} {이슈 제목 요약}")`
+- **"플랜으로 정제 후 진행 (→ /mst:plan)"**: debug 결과를 바탕으로 구현 범위를 먼저 정제합니다.
+  → `Skill(skill: "mst:plan", args: "--from-debug {DBG-NNN} {이슈 제목 요약}")`
+- **"리포트만 확인 (종료)"**: 현재 세션을 종료합니다. 나중에 수동으로 `/mst:start` 또는 `/mst:plan`을 호출할 수 있습니다.
+  → 스킬 종료
+
+`{DBG-NNN}`은 현재 세션의 ID, `{이슈 제목 요약}`은 `session.json`의 `issue` 필드 앞 50자를 사용합니다.
+
 ## 에러 처리
 
 참여자 수 대비 처리:

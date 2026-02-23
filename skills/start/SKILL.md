@@ -96,6 +96,26 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
    a. 요청 파싱 및 복잡도 분류 (simple | standard | complex)
    b. Simple → 단독 분석 / Standard·Complex → Analysis Squad 팀 소환
    c. 코드베이스 탐색 (`/mst:codex`로 정밀 심볼 추적, `/mst:gemini`로 광역 탐색 위임), 외부 AI 분석 (반드시 `Skill(skill: "mst:codex", ...)`, `Skill(skill: "mst:gemini", ...)` 도구로 호출 — MCP 직접 호출 금지)
+   d-1. `--from-debug DBG-NNN` 제공 여부 처리:
+      - 인자에서 `--from-debug DBG-NNN` 패턴 감지 시:
+        1. `.gran-maestro/debug/DBG-NNN/debug-report.md` Read
+           - 파일 미존재 시: "[경고] debug-report.md 없음. 일반 워크플로우로 계속." 출력 후 플래그 무시
+        2. `debug_context` 메모리 보관:
+           - `linked_debug_id`: "DBG-NNN"
+           - `root_cause`: Root Cause 섹션 요약
+           - `fix_suggestions`: 수정 제안 목록 (P0~P2)
+           - `affected_files`: 영향 파일 목록
+        3. `request.json` 생성 단계에서 `"linked_debug": "DBG-NNN"` 필드 추가
+        4. `spec.md` 작성 시 `## 디버그 연계` 섹션 자동 삽입 (§ 1. 요약 위 또는 § 9 아래):
+           ```
+           ## 디버그 연계
+           - 참조 세션: {DBG-NNN}
+           - 근본 원인: {debug_context.root_cause}
+           - 수정 제안(P0): {핵심 수정 항목}
+           - 수정 제안(P1~): {선택적 개선 항목}
+           - 영향 파일: {debug_context.affected_files}
+           ```
+      - `--from-debug`와 `--plan`이 동시 제공된 경우: `--plan` 우선 처리, debug_context는 보조로 유지
    d. `--plan` 제공 여부 처리:
       - `/mst:plan` / `/mst:start` 요청에서 `--plan PLN-NNN` 또는 자연어 `PLN-NNN` 패턴 감지 시 `plans/PLN-NNN/plan.json` 및 `plans/PLN-NNN/plan.md`를 Read
       - plan.json/plan.md 존재 시 `request.json` 생성 단계에서 `source_plan: "PLN-NNN"`를 기록

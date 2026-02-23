@@ -37,6 +37,18 @@ argument-hint: "{플래닝 주제}"
 
 ### Step 0.5: 디버그 의도 감지 & 자동 실행
 
+**`--from-debug DBG-NNN` 직접 진입 (키워드 감지 우선):**
+
+인자에서 `--from-debug DBG-NNN` 패턴이 감지되면:
+1. `.gran-maestro/debug/DBG-NNN/debug-report.md` Read
+   - 파일 미존재 시: "[경고] debug-report.md 없음. 일반 흐름으로 계속." 출력 후 Step 1로 진행
+2. `debug_context` 활성화 (start 스킬의 `--from-debug` 처리와 동일한 필드 구조):
+   - `linked_debug_id`, `root_cause`, `fix_suggestions`, `affected_files`
+3. 아래 키워드 감지 루프 건너뜀 → 바로 Step 1로 진행
+4. Step 2에서 "debug_context 활성 상태" 분기가 자동 적용됨
+
+**키워드 기반 자동 감지 (--from-debug 없는 경우):**
+
 요청 텍스트에서 아래 신호 중 하나라도 감지되면 디버그 의도로 판단합니다.
 
 **감지 키워드/패턴:**
