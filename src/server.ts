@@ -24,6 +24,7 @@ import { projectPlansApi } from "./routes/plans.ts";
 import { projectRequestsApi } from "./routes/requests.ts";
 import { projectTreeApi } from "./routes/tree.ts";
 import { projectRegistryApi } from "./routes/projects.ts";
+import { projectManageApi } from "./routes/manage.ts";
 
 import {
   BASE_DIR,
@@ -45,6 +46,7 @@ projectApi.route("/", projectConfigApi);
 projectApi.route("/", projectRequestsApi);
 projectApi.route("/", projectDebugApi);
 projectApi.route("/", projectPlansApi);
+projectApi.route("/", projectManageApi);
 projectApi.route("/", projectIdeationApi);
 projectApi.route("/", projectDiscussionApi);
 projectApi.route("/", projectTreeApi);
