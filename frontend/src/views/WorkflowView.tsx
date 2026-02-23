@@ -224,7 +224,7 @@ export function WorkflowView() {
   return (
     <div className="grid grid-cols-12 h-full overflow-hidden">
       {/* REQ List */}
-      <div className="col-span-3 border-r flex flex-col">
+      <div className="col-span-3 border-r flex flex-col min-h-0">
         <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
           <h2 className="font-semibold">Requests</h2>
           <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
@@ -248,7 +248,7 @@ export function WorkflowView() {
       </div>
 
       {/* REQ Detail & Tasks */}
-      <div className="col-span-9 flex flex-col bg-card overflow-hidden">
+      <div className="col-span-9 flex flex-col bg-card overflow-hidden min-h-0">
         {selectedReq ? (
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
@@ -274,7 +274,7 @@ export function WorkflowView() {
 
             <div className="flex-1 flex overflow-hidden">
               {/* Task list for selected REQ */}
-              <div className="w-64 border-r flex flex-col bg-muted/5">
+              <div className="w-64 border-r flex flex-col bg-muted/5 min-h-0">
                 <div className="p-2 border-b text-xs uppercase font-bold text-muted-foreground px-4">Tasks</div>
                 <ScrollArea className="flex-1">
                   <div className="p-2 space-y-1">
@@ -295,7 +295,7 @@ export function WorkflowView() {
               {/* Task View (Logs / Info) */}
               <div className="flex-1 flex flex-col overflow-hidden">
                 {selectedTask ? (
-                  <Tabs key={`${selectedReq?.id}-${selectedTask?.id}`} defaultValue="info" className="flex-1 flex flex-col">
+                  <Tabs key={`${selectedReq?.id}-${selectedTask?.id}`} defaultValue="info" className="flex-1 flex flex-col overflow-hidden">
                     <div className="px-4 border-b">
                       <TabsList className="bg-transparent h-10 p-0 gap-4">
                         <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
@@ -306,7 +306,7 @@ export function WorkflowView() {
                         </TabsTrigger>
                       </TabsList>
                     </div>
-                    <TabsContent value="info" className="flex-1 m-0 p-6 overflow-auto">
+                    <TabsContent value="info" className="flex-1 m-0 p-6 overflow-auto min-h-0">
                       <div className="space-y-4">
                         {selectedReq?.linked_plan && (
                           <div className="mb-4 p-3 bg-muted/30 border rounded-md">
@@ -363,7 +363,7 @@ export function WorkflowView() {
                         )}
                       </div>
                     </TabsContent>
-                    <TabsContent value="logs" className="flex-1 m-0 p-0 overflow-hidden relative">
+                    <TabsContent value="logs" className="flex-1 m-0 p-0 overflow-hidden relative min-h-0">
                       <ScrollArea ref={logScrollAreaRef} className="absolute inset-0 bg-zinc-950 text-zinc-300 font-mono text-[11px] p-4">
                         <pre className="whitespace-pre-wrap">{logs}</pre>
                       </ScrollArea>
