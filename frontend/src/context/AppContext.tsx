@@ -6,6 +6,7 @@ import { apiFetch } from '../hooks/useApi';
 interface Project {
   id: string;
   name: string;
+  path: string;
 }
 
 interface AppContextType {
@@ -76,7 +77,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Load project list on mount
   useEffect(() => {
     apiFetch<Project[]>('/api/projects').then((data) => {
-      setProjects(data);
+      setProjects(data.filter(p => !p.path.includes('/gran-maestro/frontend')));
     }).catch((err) => {
       console.error('Failed to fetch projects:', err);
     });
