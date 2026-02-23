@@ -108,6 +108,7 @@ PM이 주제/포커스를 분석해 `participants` 수만큼 관점을 배정하
 > - 모든 호출이 모두 완료되면 즉시 다음 step 진행
 > - Step 4e 종료 판단은 PM이 자율적으로 처리
 > - 최종 사용자 보고는 Step 6에서만
+> - ⚠️ Step 4c 건너뜀 금지: critic_count > 0이면 opinions 수집 후 반드시 Critic 평가 수행
 
 ### 병렬 Write 원칙 (CRITICAL)
 
@@ -178,13 +179,8 @@ PM이 주제/포커스를 분석해 `participants` 수만큼 관점을 배정하
 - 성공: `participant.status = "done"`
 - 실패: `participant.status = "failed"`
 
-`critics` 순회 → `rounds/00/critique-{criticKey}.md` 존재 + 비어있지 않음 여부 확인:
-- 성공: `critics[key].status = "done"`
-- 실패: `critics[key].status = "failed"`
-
 `session.json` 단일 Write로 업데이트:
 - `participants` 상태 반영 (위 결과)
-- `critics` 상태 반영 (위 결과)
 - `rounds` 배열에 `{ "round": 0, "status": "completed" }` 추가
 - `current_round: 0`
 - `status: "debating"` (Step 3에서 이미 설정되나 participants 업데이트와 동시에 기록)
@@ -227,11 +223,10 @@ PM이 주제/포커스를 분석해 `participants` 수만큼 관점을 배정하
   )
   ```
 
-### Step 4c. Critic 평가 ⚠️ (MANDATORY — 절대 건너뛰기 금지)
+### Step 4c. Critic 평가 ⚠️ MANDATORY
 
-> ⚠️ MANDATORY: `critics` 객체가 비어있지 않으면 이 단계를 건너뛸 수 없습니다.
-> `rounds/NN/critique-{criticKey}.md` 파일 저장 완료를 확인한 후에만 Step 4d로 진행합니다.
-> 파일 저장 전 Step 4d 진행 금지.
+> **절대 건너뛰기 금지**: `critic_count > 0`이면 Step 4b 완료 직후 반드시 실행.
+> Step 4d로 진행하기 전 `critique-{criticKey}.md` 파일이 존재해야 한다.
 
 - `critics` 키 순회하여 `rounds/NN/prompts/critique-{criticKey}-prompt.md` 생성
 - `provider` 규칙에 따라 역할별 배정 수행
@@ -266,6 +261,9 @@ PM이 주제/포커스를 분석해 `participants` 수만큼 관점을 배정하
   ```
 
 ### Step 4d. 라운드 종합
+
+> **사전 조건**: `critic_count > 0`인 경우 `rounds/NN/critique-{criticKey}.md` 파일이 존재해야 진행 가능.
+> 파일 없으면 Step 4c로 되돌아가 Critic 평가를 수행할 것.
 
 - 입력: `rounds/{NN-1}/synthesis.md` + `rounds/NN/{participant.key}.md` + `rounds/NN/critique-{criticKey}.md`
 - 템플릿: `templates/discussion-round-synthesis.md`의 동적 표 사용
