@@ -3,7 +3,6 @@
  *
  * Deno + Hono single-file web server with inline SPA.
  * Port 3847 (configurable via .gran-maestro/config.json).
- * Bearer token authentication with random UUID generated at startup.
  *
  * Usage:
  *   deno run --allow-net --allow-read --allow-write src/server.ts
@@ -16,7 +15,6 @@ import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { serveDir } from "https://deno.land/std@0.224.0/http/file_server.ts";
 
-import { authMiddleware } from "./middleware.ts";
 import { sseApi } from "./sse.ts";
 import { projectConfigApi } from "./routes/config.ts";
 import { projectDiscussionApi } from "./routes/discussion.ts";
@@ -28,19 +26,14 @@ import { projectTreeApi } from "./routes/tree.ts";
 import { projectRegistryApi } from "./routes/projects.ts";
 
 import {
-  AUTH_TOKEN,
   BASE_DIR,
-  AUTH_REQUIRED,
   DEFAULT_PORT,
   HOST,
   HUB_DIR,
   HUB_MODE,
-  getOrCreateToken,
   loadConfig,
   loadRegistry,
   registry,
-  setAuthRequired,
-  setAuthToken,
   setRegistry,
 } from "./config.ts";
 
@@ -55,12 +48,6 @@ projectApi.route("/", projectPlansApi);
 projectApi.route("/", projectIdeationApi);
 projectApi.route("/", projectDiscussionApi);
 projectApi.route("/", projectTreeApi);
-
-app.use("*", authMiddleware);
-
-app.get("/api/auth/status", (c) => {
-  return c.json({ auth_required: AUTH_REQUIRED });
-});
 
 app.route("/api/projects", projectRegistryApi);
 app.route("/api/projects/:projectId", projectApi);
@@ -126,7 +113,6 @@ async function main() {
   if (HUB_MODE) {
     await Deno.mkdir(HUB_DIR, { recursive: true });
     setRegistry(await loadRegistry());
-    setAuthToken(await getOrCreateToken());
     const hubPidPath = `${HUB_DIR}/hub.pid`;
     await Deno.writeTextFile(hubPidPath, `${Deno.pid}`);
 
@@ -152,14 +138,12 @@ async function main() {
   }
 
   const config = await loadConfig();
-  setAuthRequired(config.dashboard_auth !== false);
   const port = config.dashboard_port ?? DEFAULT_PORT;
 
   console.log(BANNER);
-  console.log(`  Dashboard: http://localhost:${port}?token=${AUTH_TOKEN}`);
+  console.log(`  Dashboard: http://localhost:${port}`);
   console.log(`  Host:      ${HOST}`);
   console.log(`  Port:      ${port}`);
-  console.log(`  Auth:      ${!AUTH_REQUIRED ? "disabled" : "enabled"}`);
   console.log(`  Hub dir:   ${HUB_DIR}`);
   console.log(`  Projects:  ${registry.projects.length}`);
   console.log("");

@@ -2,7 +2,7 @@
  * Gran Maestro Dashboard Configuration and mutable server state.
  */
 
-import { readJsonFile, readTextFile, writeJsonFile } from "./utils.ts";
+import { readJsonFile, writeJsonFile } from "./utils.ts";
 import type { GranMaestroConfig, Project, Registry } from "./types.ts";
 
 export const BASE_DIR = ".gran-maestro";
@@ -12,17 +12,7 @@ export const SSE_DEBOUNCE_MS = 300;
 export const HUB_MODE = true; // Always hub mode — multi-project by default
 export const HUB_DIR = `${Deno.env.get("HOME")}/.gran-maestro-hub`;
 
-export let AUTH_TOKEN: string = crypto.randomUUID();
 export let registry: Registry = { projects: [] };
-export let AUTH_REQUIRED = true;
-
-export function setAuthToken(token: string): void {
-  AUTH_TOKEN = token;
-}
-
-export function setAuthRequired(required: boolean): void {
-  AUTH_REQUIRED = required;
-}
 
 export function setRegistry(nextRegistry: Registry): void {
   registry = nextRegistry;
@@ -66,19 +56,6 @@ export async function loadRegistry(): Promise<Registry> {
 
 export async function saveRegistry(): Promise<boolean> {
   return await writeJsonFile(`${HUB_DIR}/registry.json`, registry);
-}
-
-export async function getOrCreateToken(): Promise<string> {
-  const tokenPath = `${HUB_DIR}/hub.token`;
-  const existing = await readTextFile(tokenPath);
-  const trimmed = existing?.trim();
-  if (trimmed) {
-    return trimmed;
-  }
-
-  const token = crypto.randomUUID();
-  await Deno.writeTextFile(tokenPath, `${token}\n`);
-  return token;
 }
 
 export function resolveBaseDir(projectId?: string): string | null {
