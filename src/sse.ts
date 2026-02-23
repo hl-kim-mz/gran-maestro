@@ -8,6 +8,9 @@ import {
   stripBasePath,
 } from "./config.ts";
 
+// 전역 SSE 브로드캐스트 함수 (모든 연결에 전송)
+const activeSenders: Set<(event: SSEEvent) => void> = new Set();
+
 const sseApi = new Hono();
 sseApi.get("/events", async (c) => {
   // Auth check is handled by middleware already
@@ -24,6 +27,9 @@ sseApi.get("/events", async (c) => {
           // stream closed
         }
       }
+
+      // Register this sender for broadcast
+      activeSenders.add(send);
 
       // Send initial heartbeat
       send({ type: "connected", data: { timestamp: new Date().toISOString() } });
@@ -105,6 +111,7 @@ sseApi.get("/events", async (c) => {
 
       // Cleanup when client disconnects
       c.req.raw.signal.addEventListener("abort", () => {
+        activeSenders.delete(send);
         clearInterval(heartbeatInterval);
         for (const state of watchers.values()) {
           if (state.debounceTimer) {
@@ -134,6 +141,14 @@ sseApi.get("/events", async (c) => {
       "Access-Control-Allow-Origin": "*",
     },
   });
+});
+
+sseApi.post("/notify", async (c) => {
+  const body = await c.req.json();
+  for (const send of activeSenders) {
+    try { send(body as SSEEvent); } catch { /* ignore */ }
+  }
+  return c.json({ ok: true });
 });
 
 /** Classify a filesystem change into an SSE event type. */

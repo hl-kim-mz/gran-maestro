@@ -17,7 +17,9 @@ interface SessionCardProps {
 
 function formatDateTime(iso?: string): string | null {
   if (!iso) return null;
-  return iso.replace('T', ' ').slice(0, 16);
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso.slice(0, 16);
+  return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
 }
 
 export function SessionCard({

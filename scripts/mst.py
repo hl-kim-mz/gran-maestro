@@ -15,7 +15,6 @@ Subcommands:
   plan list
   plan inspect       <PLN-ID>
   plan complete      <PLN-ID>
-  plan sync          [PLN-ID | --all]
   plan count         [--active | --all]
 
   archive run         [--type req|idn|dsc|dbg] [--max N] [--dir PATH]
@@ -320,67 +319,6 @@ def cmd_plan_complete(args):
     return 1
 
 
-def cmd_plan_sync(args):
-    """plan sync: linked_requests가 모두 완료된 플랜의 status를 completed로 업데이트"""
-    from _state_manager import timestamp_now
-
-    pd = plans_dir()
-    if not pd.exists():
-        print("No plans directory found.")
-        return 0
-
-    # 대상 플랜 목록 결정
-    if args.all:
-        targets = sorted(d.name for d in pd.iterdir() if d.is_dir() and not d.name.startswith('.'))
-    else:
-        if not args.pln_id:
-            print("Error: specify PLN-ID or --all", file=sys.stderr)
-            return 1
-        targets = [args.pln_id.upper()]
-
-    for pln_id in targets:
-        plan_path = pd / pln_id / "plan.json"
-        if not plan_path.exists():
-            print(f"{pln_id}: plan.json not found, skip")
-            continue
-
-        plan = load_json(plan_path)
-        if plan is None:
-            print(f"{pln_id}: failed to parse plan.json, skip")
-            continue
-
-        # 이미 완료된 플랜 스킵
-        if plan.get("status") == "completed":
-            print(f"{pln_id}: already completed, skip")
-            continue
-
-        linked = plan.get("linked_requests", [])
-        if not linked:
-            print(f"{pln_id}: no linked_requests, skip")
-            continue
-
-        # 모든 linked REQ 완료 여부 확인
-        all_done = True
-        for req_id in linked:
-            req_path = BASE_DIR / "requests" / req_id / "request.json"
-            if req_path.exists():
-                req = load_json(req_path)
-                if req is not None and req.get("status") not in ("done", "completed"):
-                    all_done = False
-                    break
-            # req_path 없으면 아카이브된 것으로 간주 (완료)
-
-        if all_done:
-            plan["status"] = "completed"
-            plan["completed_at"] = timestamp_now()
-            save_json(plan_path, plan)
-            print(f"{pln_id}: synced → completed")
-        else:
-            print(f"{pln_id}: has pending REQs, skip")
-
-    return 0
-
-
 # ---------------------------------------------------------------------------
 # counter subcommands
 # ---------------------------------------------------------------------------
@@ -618,6 +556,21 @@ def cmd_session_complete(args):
 
 
 # ---------------------------------------------------------------------------
+# notify subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_notify(args):
+    from _notifier import notify
+    data = json.loads(args.data) if args.data else {}
+    ok = notify(args.event_type, data)
+    if ok:
+        print(f"notify: {args.event_type} 전송됨")
+    else:
+        print(f"notify: {args.event_type} 실패 (서버 미실행 또는 연결 오류)")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # priority subcommand
 # ---------------------------------------------------------------------------
 
@@ -706,10 +659,6 @@ def build_parser():
     plan_complete = plan_sub.add_parser("complete")
     plan_complete.add_argument("pln_id")
 
-    plan_sync = plan_sub.add_parser("sync")
-    plan_sync.add_argument("pln_id", nargs="?", default=None)
-    plan_sync.add_argument("--all", action="store_true")
-
     # --- counter ---
     ctr = sub.add_parser("counter")
     ctr_sub = ctr.add_subparsers(dest="subcommand")
@@ -760,6 +709,11 @@ def build_parser():
     pri.add_argument("--before")
     pri.add_argument("--after")
 
+    # --- notify ---
+    notify_parser = sub.add_parser("notify")
+    notify_parser.add_argument("event_type")
+    notify_parser.add_argument("data", nargs="?", default=None)
+
     return parser
 
 
@@ -788,7 +742,6 @@ def main():
         ("plan", "count"): cmd_plan_count,
         ("plan", "inspect"): cmd_plan_inspect,
         ("plan", "complete"): cmd_plan_complete,
-        ("plan", "sync"): cmd_plan_sync,
         ("counter", "next"): cmd_counter_next,
         ("counter", "peek"): cmd_counter_peek,
         ("archive", "run"): cmd_archive_run,
@@ -799,6 +752,7 @@ def main():
         ("session", "inspect"): cmd_session_inspect,
         ("session", "complete"): cmd_session_complete,
         ("priority", None): cmd_priority,
+        ("notify", None): cmd_notify,
     }
 
     key = (args.command, getattr(args, "subcommand", None))
