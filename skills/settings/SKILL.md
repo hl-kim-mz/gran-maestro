@@ -60,6 +60,9 @@ Gran Maestro의 설정을 조회하거나 변경합니다.
 | `debug.enabled` | 디버그 모드 | `false` | boolean |
 | `debug.log_level` | 로그 레벨 | `info` | string |
 | `debug.log_prompts` | 프롬프트 로깅 | `false` | boolean |
+| `explore.agents.codex` | `1` | Explore Codex 탐색 에이전트 수 (0=제외) | number |
+| `explore.agents.gemini` | `1` | Explore Gemini 탐색 에이전트 수 (0=제외) | number |
+| `explore.agents.claude` | `0` | Explore Claude 탐색 에이전트 수 (0=제외, Claude는 PM 종합자로만 사용) | number |
 
 ### participants
 | 키 | 기본값 | 설명 |
@@ -109,3 +112,4 @@ participants:
 - "config.json을 찾을 수 없음" → Maestro 모드가 초기화되지 않았습니다. `/mst:on`으로 활성화하거나 `/mst:request`로 첫 요청을 시작하면 자동 생성됨
 - "잘못된 키" → 위 설정 항목 표에서 정확한 키 이름 확인. 점(`.`) 구분자로 중첩 접근 (예: `workflow.max_feedback_rounds`)
 - "타입 불일치" → boolean 값은 `true`/`false`, number 값은 숫자만 입력. 문자열은 따옴표 없이 입력
+/mst:settings explore.agents.codex 2   # Explore Codex 에이전트 2명으로 변경

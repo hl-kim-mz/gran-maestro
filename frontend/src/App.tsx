@@ -10,6 +10,7 @@ import { PlansView } from './views/PlansView';
 import { WorkflowView } from './views/WorkflowView';
 import { IdeationView } from './views/IdeationView';
 import { DebugView } from './views/DebugView';
+import { ExploreView } from './views/ExploreView';
 import { DocumentsView } from './views/DocumentsView';
 import { SettingsView } from './views/SettingsView';
 
@@ -38,6 +39,9 @@ function AppContent() {
           </TabsContent>
           <TabsContent value="debug" className="absolute inset-0 m-0 overflow-hidden">
             <DebugView />
+          </TabsContent>
+          <TabsContent value="explore" className="absolute inset-0 m-0 overflow-hidden">
+            <ExploreView />
           </TabsContent>
           <TabsContent value="documents" className="absolute inset-0 m-0 overflow-hidden">
             <DocumentsView />

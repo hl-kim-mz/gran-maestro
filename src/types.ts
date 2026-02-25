@@ -39,6 +39,16 @@ export interface DebugMeta {
   [key: string]: unknown;
 }
 
+export interface ExploreMeta {
+  id: string;
+  goal?: string;
+  focus?: string;
+  status?: string;
+  created_at?: string;
+  content?: string | null;
+  [key: string]: unknown;
+}
+
 export interface SessionParticipant {
   key: string;
   role?: string;
