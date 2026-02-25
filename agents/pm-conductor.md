@@ -106,6 +106,27 @@ Phase 1 runs in two modes:
    `## 태스크 분해` 섹션이 있으면 반드시 해당 섹션을 따른다.
 7) Write Implementation Spec following the template. (Ideation 결과가 있으면 synthesis.md의 추천 방향을 반영)
 8) Save to .gran-maestro/requests/REQ-XXX/tasks/NN/spec.md.
+8.5) **Spec Pre-review Pass** (config.workflow.spec_prereview 또는 --prereview 활성 시):
+   mst:request의 h-2 스텝에서 구현 에이전트가 생성한 질문 목록을 처리한다.
+
+   [escalation_mode = "user" — --plan 제공된 경우]:
+   - `AskUserQuestion`으로 질문 목록을 사용자에게 전달
+   - 질문이 4개 초과 시: 가장 결정적인 질문 3개로 압축 (기준: 구현 방향에 직접 영향을 주는 것 우선)
+   - 사용자 답변을 spec.md `## 구현 전 검토 (Pre-review Q&A)` 섹션에 테이블로 기록
+   - 답변이 기존 spec 내용과 충돌 시: spec §4 기술 설계 또는 §2 변경 범위를 즉시 업데이트
+
+   [escalation_mode = "pm-self" — --plan 없는 경우]:
+   - 각 질문에 대해 PM이 아래 기준으로 독자적 판단:
+     1. 기존 코드베이스 패턴 (동일 유형의 기존 구현 방식 우선)
+     2. spec 컨텍스트 (§4 기술 설계의 접근 방식과 일관성)
+     3. 일반 개발 관례 (명확한 선례가 없을 때)
+   - 답변을 spec.md `## 가정 사항 (Assumptions)` 섹션에 추가 (없으면 섹션 신규 추가)
+     각 항목에 `[pre-review]` 접두사를 붙여 원래 가정과 구분한다
+   - Phase 3 리뷰 시 이 가정들이 자동 보고되도록 섹션 존재가 트리거 역할
+
+   [공통 — 실패/skip 처리]:
+   - 에이전트 호출 실패: "[Pre-review skip]" 로그 후 Step 9로 진행
+   - NO_QUESTIONS 또는 질문 없음 판단 시: spec.md 수정 없이 Step 9로 진행
 9) Wait for user approval (/ma) unless --auto or -a mode.
 10) On approval, create git worktree and transition to Phase 2.
 </phase1_protocol>

@@ -14,7 +14,8 @@
     "max_feedback_rounds": 5,
     "auto_approve_spec": false,
     "auto_accept_result": true,
-    "default_agent": "codex-dev"
+    "default_agent": "codex-dev",
+    "spec_prereview": true
   },
   "concurrency": {
     "max_parallel_tasks": 5,

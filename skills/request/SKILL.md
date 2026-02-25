@@ -204,6 +204,52 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
       - blockedBy 설정 및 tasks[] 등록 동일 절차 적용
    i. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
    j. **spec.md 파일 저장**: `.gran-maestro/requests/REQ-NNN/tasks/01/spec.md`
+   h-2. **Spec Pre-review Pass** (spec.md 저장 후 approve 전 실행)
+
+      **실행 조건 판단** (아래 순서로 평가):
+      1. `--auto` / `-a` 모드이면: 이 스텝 전체 skip → Step k로 진행
+      2. `--no-prereview` 플래그 존재 시: skip
+      3. config.json의 `workflow.spec_prereview`가 `false`이거나 필드 부재 시: skip
+      4. `--prereview` 플래그 존재 시: 조건 무관하게 실행 (config override)
+      5. 위 조건 모두 통과 시: 실행
+
+      **에스컬레이션 모드 결정**:
+      - `--plan PLN-NNN` 플래그가 인자에 존재하면: `escalation_mode = "user"`
+      - 없으면: `escalation_mode = "pm-self"`
+
+      **각 task spec.md에 대해 실행**:
+      a. prereview 프롬프트 파일 생성:
+         - 경로: `.gran-maestro/requests/REQ-NNN/tasks/NN/prereview-prompt.md`
+         - `templates/spec-prereview-prompt.md` 읽기 후 변수 치환:
+           - `{{REQ_ID}}` → REQ-NNN
+           - `{{TASK_ID}}` → NN
+           - `{{SPEC_PATH}}` → 해당 task의 spec.md 절대 경로
+           - `{{ESCALATION_MODE}}` → "user" 또는 "pm-self"
+      b. 배정된 에이전트로 1st pass dispatch:
+         - spec.md의 `Assigned Agent` 값 확인 (codex-dev → mst:codex, gemini-dev → mst:gemini, claude-dev → mst:claude)
+         - `Skill(skill: "mst:{agent}", args: "--prompt-file {prereview_prompt_path} --trace {REQ}/{TASK}/spec-prereview")`
+      c. 결과 처리:
+         - 에이전트 호출 실패 시: "[Pre-review skip] 에이전트 호출 실패, 계속 진행" 출력 후 다음 task로
+         - 결과가 `NO_QUESTIONS` 또는 질문 없음 판단 시: spec.md 수정 없이 계속
+         - 질문 목록 반환 시:
+           - `escalation_mode = "user"`:
+             `AskUserQuestion`으로 질문 목록 전달, 사용자 답변 수집 (옵션 4개 제한 — 질문이 많으면 가장 중요한 3개로 압축)
+           - `escalation_mode = "pm-self"`:
+             PM이 각 질문에 대해 합리적 판단으로 답변 도출. 기존 코드베이스 패턴, spec 컨텍스트, 일반 개발 관례 기준.
+      d. 질문-답변이 존재하면 spec.md에 섹션 추가:
+         - spec.md 파일 읽기 → 끝에 아래 형식 추가:
+           ```
+           ## 구현 전 검토 (Pre-review Q&A)
+
+           > 배정된 구현 에이전트가 구현 전 제기한 질문 및 해소 결과.
+           > escalation_mode: {user|pm-self}
+
+           | # | 질문 | 답변 | 해소 방식 |
+           |---|------|------|-----------|
+           | 1 | {질문} | {답변} | {user-answer|pm-judgment} |
+           ...
+           ```
+
    k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가 (spec.md 저장 직후 즉시 수행, 다중 태스크 시 02, 03... 모든 태스크 포함):
       - `id`: 태스크 번호 (예: "01")
       - `title`: 태스크 제목
@@ -225,6 +271,9 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
 
 - `--auto` / `-a`: 스펙 자동 승인 모드 (사용자 승인 단계 스킵, `auto_approve: true`)
   - 요청 앞(`/mst:request --auto "요청"`) 또는 뒤(`/mst:request "요청" --auto`) 모두 허용
+  - `--auto` / `-a` 모드에서는 Spec Pre-review Pass(h-2)를 skip한다
+- `--prereview`: config 설정 무관하게 Pre-review Pass 강제 실행
+- `--no-prereview`: config 설정 무관하게 Pre-review Pass skip
 
 ## 예시
 
