@@ -1,6 +1,6 @@
 ---
 name: plan
-description: "요구사항 미결정 항목을 사용자와 대화로 정제하고 실행 가능한 plan.md를 작성합니다. 모호함을 줄인 결정사항, 범위, 제약을 기록해 /mst:start로 바로 이어집니다."
+description: "요구사항 미결정 항목을 사용자와 대화로 정제하고 실행 가능한 plan.md를 작성합니다. 모호함을 줄인 결정사항, 범위, 제약을 기록해 /mst:request로 바로 이어집니다."
 user-invocable: true
 argument-hint: "{플래닝 주제}"
 ---
@@ -18,12 +18,12 @@ argument-hint: "{플래닝 주제}"
 
 **그 외 모든 경로(스킬 파일, 소스 코드, 설정 파일 등)에 대한 Write/Edit 사용은 절대 금지입니다.**
 
-- **plan.md 생성은 어떤 경우에도 생략 불가**: 요청이 단순해 보이더라도 Step 2 → Step 3 → Step 4를 모두 거쳐 **plan.md를 파일로 저장한 후에만** mst:start를 호출합니다. plan.md 없이 mst:start를 직접 호출하는 것은 절대 금지입니다.
+- **plan.md 생성은 어떤 경우에도 생략 불가**: 요청이 단순해 보이더라도 Step 2 → Step 3 → Step 4를 모두 거쳐 **plan.md를 파일로 저장한 후에만** mst:request를 호출합니다. plan.md 없이 mst:request를 직접 호출하는 것은 절대 금지입니다.
 
 사용자가 plan 스킬 실행 중 위 허용 경로 외 파일 수정을 요청할 경우:
 1. 해당 수정 작업을 즉시 중단한다
 2. "plan 스킬 실행 중이므로 직접 수정 대신 plan.md에 기록합니다"를 사용자에게 알린다
-3. 요청 의도를 plan.md의 요구사항 섹션에 흡수하고, mst:start 실행 시 반영되도록 명시한다
+3. 요청 의도를 plan.md의 요구사항 섹션에 흡수하고, mst:request 실행 시 반영되도록 명시한다
 
 ## 실행 프로토콜
 
@@ -243,17 +243,17 @@ ASCII 도식 작성 규칙:
      - 이 plan은 위 디버그 결과를 기반으로 수립되었습니다.
      ```
 2. 초안 제시 후 반드시 `AskUserQuestion`으로 아래 선택지를 제시:
-   - **"저장하고 /mst:start 실행"** — plan.md를 저장하고 mst:start 스킬을 호출합니다 (직접 구현하지 않음 — REQ 생성 및 spec.md 작성 단계로 이동)
+   - **"저장하고 /mst:request 실행"** — plan.md를 저장하고 mst:request 스킬을 호출합니다 (직접 구현하지 않음 — REQ 생성 및 spec.md 작성 단계로 이동)
    - **"수정 후 진행"** — 수정할 내용을 텍스트로 입력받아 재제시
-   - **"저장만 하기"** — plan.md만 저장하고 /mst:start는 나중에 수동 실행
+   - **"저장만 하기"** — plan.md만 저장하고 /mst:request는 나중에 수동 실행
 3. "수정 후 진행" 선택 시: 수정 내용을 반영해 초안 텍스트 갱신 후 Step 4 처음부터 반복
-4. "저장하고 /mst:start 실행" 또는 "저장만 하기" 선택 시 `.gran-maestro/plans/PLN-NNN/plan.md`에 최초 작성
+4. "저장하고 /mst:request 실행" 또는 "저장만 하기" 선택 시 `.gran-maestro/plans/PLN-NNN/plan.md`에 최초 작성
    - `debug_context` 활성 상태이면 `plan.json`에도 `"linked_debug": "{DBG-NNN}"` 필드를 추가
-5. **mst:start 자동 호출 — spec.md 생성 (필수)**
-   - "저장하고 /mst:start 실행" 선택 시에만 해당
-   - ⚠️ **plan.md가 디스크에 기록(Write)된 것을 확인한 후에만** mst:start를 호출합니다. plan.md 미저장 상태에서의 mst:start 호출은 절대 금지입니다.
-   - plan.md 작성 직후 `Skill(skill: "mst:start", args: "--plan PLN-NNN {plan 주제}")`를 즉시 **단 1회** 호출
-   - plan.md에 `## 분리 실행` 섹션이 있는 경우: mst:start가 섹션을 감지하여 다중 REQ를 자동 생성하므로, 이 스킬에서 추가 mst:start 호출 불필요
+5. **mst:request 자동 호출 — spec.md 생성 (필수)**
+   - "저장하고 /mst:request 실행" 선택 시에만 해당
+   - ⚠️ **plan.md가 디스크에 기록(Write)된 것을 확인한 후에만** mst:request를 호출합니다. plan.md 미저장 상태에서의 mst:request 호출은 절대 금지입니다.
+   - plan.md 작성 직후 `Skill(skill: "mst:request", args: "--plan PLN-NNN {plan 주제}")`를 즉시 **단 1회** 호출
+   - plan.md에 `## 분리 실행` 섹션이 있는 경우: mst:request가 섹션을 감지하여 다중 REQ를 자동 생성하므로, 이 스킬에서 추가 mst:request 호출 불필요
    - ⚠️ **spec.md 작성이 완료되기 전까지 plan 스킬을 종료하지 않음**
 
 ## 출력 형식

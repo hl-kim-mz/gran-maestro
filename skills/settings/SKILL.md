@@ -106,6 +106,6 @@ participants:
 
 ## 문제 해결
 
-- "config.json을 찾을 수 없음" → Maestro 모드가 초기화되지 않았습니다. `/mst:on`으로 활성화하거나 `/mst:start`로 첫 요청을 시작하면 자동 생성됨
+- "config.json을 찾을 수 없음" → Maestro 모드가 초기화되지 않았습니다. `/mst:on`으로 활성화하거나 `/mst:request`로 첫 요청을 시작하면 자동 생성됨
 - "잘못된 키" → 위 설정 항목 표에서 정확한 키 이름 확인. 점(`.`) 구분자로 중첩 접근 (예: `workflow.max_feedback_rounds`)
 - "타입 불일치" → boolean 값은 `true`/`false`, number 값은 숫자만 입력. 문자열은 따옴표 없이 입력

@@ -50,7 +50,7 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 |------|------|
 | `/mst:on` | Maestro 모드 활성화 |
 | `/mst:off` | Maestro 모드 비활성화 |
-| `/mst:start` (자동 전환) | 비활성 상태에서 호출 시 자동으로 Maestro 모드로 전환 |
+| `/mst:request` (자동 전환) | 비활성 상태에서 호출 시 자동으로 Maestro 모드로 전환 |
 | 자동 비활성화 | 모든 REQ 완료 + `auto_deactivate: true` → 자동 비활성화 |
 
 ### 스킬 분류
@@ -91,7 +91,7 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 
 | 스킬 | 설명 |
 |------|------|
-| `/mst:start` | 새 요청 시작 — PM 분석 워크플로우 진입 |
+| `/mst:request` | 새 요청 시작 — PM 분석 워크플로우 진입 |
 | `/mst:list` | 모든 요청/태스크 현황 목록 |
 | `/mst:inspect` | 특정 요청의 상세 상태 |
 | `/mst:approve` | 스펙 승인 (Phase 1 → Phase 2) |
@@ -128,7 +128,7 @@ mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 | 패턴 | 트리거 스킬 |
 |------|-----------|
 | "아이디어", "브레인스토밍", "의견 수렴" | `/mst:ideation` |
-| "구현해줘", "만들어줘", "개발해줘" | `/mst:start` |
+| "구현해줘", "만들어줘", "개발해줘" | `/mst:request` |
 | "현황", "상태 보여줘" | `/mst:list` |
 | "승인", "진행해" | `/mst:approve` |
 | "수락", "머지", "최종 수락" | `/mst:accept` |

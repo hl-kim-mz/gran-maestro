@@ -53,5 +53,5 @@ argument-hint: "{REQ-ID} {피드백 내용}"
 ## 문제 해결
 
 - "해당 요청을 찾을 수 없음" → REQ ID 형식 확인. `/mst:list`로 활성 요청 목록 조회
-- "최대 피드백 횟수 초과" → `/mst:settings workflow.max_feedback_rounds`로 현재 설정 확인. 필요 시 값 증가 또는 스펙 재작성(`/mst:start`)
+- "최대 피드백 횟수 초과" → `/mst:settings workflow.max_feedback_rounds`로 현재 설정 확인. 필요 시 값 증가 또는 스펙 재작성(`/mst:request`)
 - "활성 태스크 없음" → 해당 요청이 Phase 2~3 사이에 있는지 `/mst:inspect {REQ-ID}`로 확인

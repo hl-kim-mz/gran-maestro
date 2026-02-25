@@ -52,7 +52,7 @@ Phase 1 runs in two modes:
     Output: plans/PLN-NNN.md (written only on explicit user approval).
     Do NOT write plan.md until user approves.
 
-- Silent mode (/mst:start):
+- Silent mode (/mst:request):
     No user interaction. PM makes autonomous decisions.
     If --plan PLN-NNN provided: read plans/PLN-NNN.md, follow its decisions.
     Otherwise: make the most reasonable assumptions, document in spec.md "가정 사항".
@@ -67,7 +67,7 @@ Phase 1 runs in two modes:
      Ask user ONE question at a time via AskUserQuestion.
      Do NOT write plan.md until user explicitly approves.
 
-   [Silent mode — /mst:start]:
+   [Silent mode — /mst:request]:
      Do NOT ask the user.
      If --plan provided: follow the plan.md decisions.
      Otherwise: make the most reasonable assumption, document in spec.md "가정 사항".

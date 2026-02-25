@@ -261,11 +261,11 @@ Synthesis prompt는 템플릿 `templates/ideation-synthesis.md` 사용.
 ### Step 4: 인터랙티브 토론
 
 **Step 4 진입 시 컨텍스트 판별 (최우선):**
-`/mst:start`가 ideation을 서브 호출할 때는 호출 인자에 `--from-start` 플래그가 포함됨.
+`/mst:request`가 ideation을 서브 호출할 때는 호출 인자에 `--from-start` 플래그가 포함됨.
 이 플래그 존재 여부로 분기한다.
 
-- **[경로 A] `/mst:start` 서브 호출 (`--from-start` 포함):**
-  1. `synthesis.md`를 호출자(/mst:start)에게 반환
+- **[경로 A] `/mst:request` 서브 호출 (`--from-start` 포함):**
+  1. `synthesis.md`를 호출자(/mst:request)에게 반환
   2. `session.json`의 `status`를 즉시 `"completed"`로 갱신
   3. Step 5 진행
 

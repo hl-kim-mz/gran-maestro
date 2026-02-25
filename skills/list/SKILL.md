@@ -46,5 +46,5 @@ REQ-002  "로그인 페이지 디자인"
 
 ## 문제 해결
 
-- `.gran-maestro/requests/` 디렉토리 없음 → Maestro 모드가 활성화되지 않았습니다. `/mst:on`으로 활성화하거나 `/mst:start`로 첫 요청을 시작하세요
+- `.gran-maestro/requests/` 디렉토리 없음 → Maestro 모드가 활성화되지 않았습니다. `/mst:on`으로 활성화하거나 `/mst:request`로 첫 요청을 시작하세요
 - 빈 목록 표시 → `--all` 옵션으로 완료/취소된 요청 포함 여부 확인

@@ -3,7 +3,7 @@
 [← README](../README.md)
 
 `.gran-maestro/config.json`으로 모든 동작을 제어합니다.
-`/mst:start` 또는 `/mst:on` 첫 실행 시 기본 설정으로 자동 생성됩니다.
+`/mst:request` 또는 `/mst:on` 첫 실행 시 기본 설정으로 자동 생성됩니다.
 
 ```
 /mst:settings                                    # 전체 설정 표시
@@ -149,7 +149,7 @@ Git worktree 생성 및 관리 설정입니다.
 |----|--------|------|
 | `collaborative_debug.finding_char_limit` | `3000` | 조사 결과 글자 제한 |
 | `collaborative_debug.merge_wait_ms` | `60000` | 에이전트 합류 대기 시간 (60초) |
-| `collaborative_debug.auto_trigger_from_start` | `true` | `/mst:start`에서 디버그 의도 시 자동 트리거 |
+| `collaborative_debug.auto_trigger_from_start` | `true` | `/mst:request`에서 디버그 의도 시 자동 트리거 |
 
 ---
 
