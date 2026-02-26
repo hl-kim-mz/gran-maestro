@@ -6,10 +6,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, FileText, Palette } from 'lucide-react';
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface PlanMeta {
   id: string;
@@ -28,6 +29,7 @@ export function PlansView() {
   const [plans, setPlans] = useState<PlanMeta[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<PlanMeta | null>(null);
   const [planContent, setPlanContent] = useState<string | null>(null);
+  const [designContent, setDesignContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -100,11 +102,15 @@ export function PlansView() {
   useEffect(() => {
     if (!selectedPlan || !projectId) {
       setPlanContent(null);
+      setDesignContent(null);
       return;
     }
     apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, projectId)
       .then(data => setPlanContent(data.content || null))
       .catch(() => setPlanContent(null));
+    apiFetch<{ exists: boolean; content: string | null }>(`/api/plans/${selectedPlan.id}/design`, projectId)
+      .then(data => setDesignContent(data.exists ? data.content : null))
+      .catch(() => setDesignContent(null));
   }, [selectedPlan?.id, projectId]);
 
   useEffect(() => {
@@ -242,11 +248,48 @@ export function PlansView() {
               </div>
               <StatusBadge status={selectedPlan.status ?? ''} />
             </div>
-            <ScrollArea className="flex-1">
-              <div className="p-8">
-                <MarkdownRenderer content={planContent || '# No Content'} />
+            <Tabs defaultValue="overview" className="flex flex-col flex-1 overflow-hidden">
+              <div className="px-4 border-b">
+                <TabsList className="bg-transparent h-10 p-0 gap-4">
+                  <TabsTrigger
+                    value="overview"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
+                  >
+                    <FileText className="h-3 w-3 mr-2" />
+                    Overview
+                  </TabsTrigger>
+                  {designContent && (
+                    <TabsTrigger
+                      value="design"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
+                    >
+                      <Palette className="h-3 w-3 mr-2" />
+                      Design
+                    </TabsTrigger>
+                  )}
+                </TabsList>
               </div>
-            </ScrollArea>
+              <TabsContent value="overview" className="flex-1 overflow-auto m-0">
+                <ScrollArea className="h-full">
+                  <div className="p-8">
+                    {planContent ? (
+                      <MarkdownRenderer content={planContent} />
+                    ) : (
+                      <div className="text-muted-foreground text-sm">plan.md 없음</div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+              {designContent && (
+                <TabsContent value="design" className="flex-1 overflow-auto m-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-8">
+                      <MarkdownRenderer content={designContent} />
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              )}
+            </Tabs>
           </>
         ) : (
           <EmptyState

@@ -66,4 +66,19 @@ projectPlansApi.get("/plans/:planId", async (c) => {
   return c.json({ ...planJson, id: planJson.id || planId, content: content ?? null });
 });
 
+projectPlansApi.get("/plans/:planId/design", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const planId = c.req.param("planId");
+  const designPath = `${baseDir}/plans/${planId}/design.md`;
+  const content = await readTextFile(designPath);
+  if (content !== null) {
+    return c.json({ exists: true, content });
+  }
+  return c.json({ exists: false, content: null });
+});
+
 export { projectPlansApi };
