@@ -21,18 +21,18 @@ function deepSet(obj: any, path: string[], value: any): any {
 }
 
 export function SettingsView() {
-  const { projectId } = useAppContext();
+  const { projectId, activeTab } = useAppContext();
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || activeTab !== 'settings') {
       setLoading(false);
       return;
     }
     fetchConfig();
-  }, [projectId]);
+  }, [projectId, activeTab]);
 
   async function fetchConfig() {
     setLoading(true);

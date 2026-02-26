@@ -10,14 +10,29 @@ export async function apiFetch<T>(path: string, projectId?: string, options?: Re
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(resolvedPath, {
+  let signal = options?.signal;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const requestInit: RequestInit = {
     ...options,
     headers,
-  });
+    signal,
+  };
 
-  if (!response.ok) {
-    throw new Error(`API ${resolvedPath} failed: ${response.status}`);
+  if (!signal) {
+    const controller = new AbortController();
+    signal = controller.signal;
+    timeoutId = setTimeout(() => controller.abort(), 15_000);
+    requestInit.signal = signal;
   }
 
-  return response.json();
+  try {
+    const response = await fetch(resolvedPath, requestInit);
+    if (!response.ok) {
+      throw new Error(`API ${resolvedPath} failed: ${response.status}`);
+    }
+
+    return response.json();
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
 }

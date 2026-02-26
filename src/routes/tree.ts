@@ -2,6 +2,8 @@ import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 import { stripBasePath, resolveBaseDir } from "../config.ts";
 import { dirExists, readTextFile } from "../utils.ts";
 
+const EXCLUDE_DIRS = new Set(['debug', 'ideation', 'discussion', 'archive', '.omc', 'worktrees']);
+
 const projectTreeApi = new Hono();
 projectTreeApi.get("/tree", async (c) => {
   interface TreeNode {
@@ -17,12 +19,15 @@ projectTreeApi.get("/tree", async (c) => {
   }
 
   async function buildTree(dir: string, depth = 0): Promise<TreeNode[]> {
-    if (depth > 5) return [];
+    if (depth > 2) return [];
     const nodes: TreeNode[] = [];
     try {
       for await (const entry of Deno.readDir(dir)) {
         const fullPath = `${dir}/${entry.name}`;
         const relativePath = stripBasePath(fullPath, baseDir!);
+        if (depth === 0 && entry.isDirectory && EXCLUDE_DIRS.has(entry.name)) {
+          continue;
+        }
         if (entry.isDirectory) {
           const children = await buildTree(fullPath, depth + 1);
           nodes.push({

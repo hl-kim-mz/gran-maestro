@@ -30,7 +30,7 @@ interface FileNode {
 }
 
 export function DocumentsView() {
-  const { projectId } = useAppContext();
+  const { projectId, activeTab } = useAppContext();
   const [tree, setTree] = useState<FileNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
@@ -48,19 +48,22 @@ export function DocumentsView() {
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || activeTab !== 'documents') {
       setLoading(false);
       return;
     }
     setLoading(true);
     fetchTree().finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, activeTab]);
 
   useEffect(() => {
+    if (!selectedFile || activeTab !== 'documents') {
+      return;
+    }
     if (selectedFile) {
       fetchFileContent(selectedFile);
     }
-  }, [selectedFile]);
+  }, [selectedFile, activeTab]);
 
   async function fetchFileContent(path: string) {
     setContentLoading(true);

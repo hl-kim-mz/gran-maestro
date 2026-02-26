@@ -26,7 +26,7 @@ interface DebugDetail {
 }
 
 export function DebugView() {
-  const { projectId, lastSseEvent } = useAppContext();
+  const { projectId, activeTab, lastSseEvent } = useAppContext();
   const [sessions, setSessions] = useState<DebugMeta[]>([]);
   const [selectedSession, setSelectedSession] = useState<DebugMeta | null>(null);
   const [reportContent, setReportContent] = useState<string | null>(null);
@@ -48,16 +48,16 @@ export function DebugView() {
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || activeTab !== 'debug') {
       setLoading(false);
       return;
     }
     setLoading(true);
     fetchData().finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, activeTab]);
 
   useEffect(() => {
-    if (!lastSseEvent || !projectId) return;
+    if (!lastSseEvent || !projectId || activeTab !== 'debug') return;
     if (lastSseEvent.type !== 'debug_update') return;
 
     apiFetch<DebugMeta[]>('/api/debug', projectId)
@@ -82,17 +82,17 @@ export function DebugView() {
           .catch(() => setReportContent(null));
       }
     }
-  }, [lastSseEvent, projectId, selectedSession?.id]);
+  }, [lastSseEvent, projectId, activeTab, selectedSession?.id]);
 
   useEffect(() => {
-    if (!selectedSession || !projectId) {
+    if (!selectedSession || !projectId || activeTab !== 'debug') {
       setReportContent(null);
       return;
     }
     apiFetch<DebugDetail>(`/api/debug/${selectedSession.id}`, projectId)
       .then(data => setReportContent(data.content || null))
       .catch(() => setReportContent(null));
-  }, [selectedSession?.id, projectId]);
+  }, [selectedSession?.id, projectId, activeTab]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

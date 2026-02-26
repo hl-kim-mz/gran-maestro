@@ -16,7 +16,7 @@ import { EditModeToolbar } from '@/components/EditModeToolbar';
 type LogStreamStatus = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
 
 export function WorkflowView() {
-  const { projectId, lastSseEvent, navigateTo, pendingNavigation, clearPendingNavigation } = useAppContext();
+  const { projectId, activeTab, lastSseEvent, navigateTo, pendingNavigation, clearPendingNavigation } = useAppContext();
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedReq, setSelectedReq] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -49,13 +49,13 @@ export function WorkflowView() {
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || activeTab !== 'workflow') {
       setLoading(false);
       return;
     }
     setLoading(true);
     fetchRequests().finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, activeTab]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -85,7 +85,7 @@ export function WorkflowView() {
   };
 
   useEffect(() => {
-    if (!lastSseEvent || !projectId) return;
+    if (!lastSseEvent || !projectId || activeTab !== 'workflow') return;
     if (lastSseEvent.type !== 'request_update' && lastSseEvent.type !== 'task_update') return;
 
     if (lastSseEvent.type === 'request_update') {
@@ -119,10 +119,10 @@ export function WorkflowView() {
         })
         .catch((err) => console.error('SSE re-fetch tasks failed:', err));
     }
-  }, [lastSseEvent, projectId, selectedReq?.id, selectedTask?.id]);
+  }, [lastSseEvent, projectId, activeTab, selectedReq?.id, selectedTask?.id]);
 
   useEffect(() => {
-    if (!selectedReq || !projectId) {
+    if (!selectedReq || !projectId || activeTab !== 'workflow') {
       setTasks([]);
       setSelectedTask(null);
       return;
@@ -137,17 +137,20 @@ export function WorkflowView() {
         }
       })
       .catch(() => setTasks([]));
-  }, [selectedReq?.id, projectId]);
+  }, [selectedReq?.id, projectId, activeTab]);
 
   const taskKey = selectedTask?.id ?? null;
 
   useEffect(() => {
+    if (activeTab !== 'workflow' || !selectedReq || !selectedTask) {
+      return;
+    }
     if (selectedReq && selectedTask) {
       lastEventIdRef.current = null;
       startLogStream(selectedReq.id, selectedTask.id);
     }
     return () => stopLogStream();
-  }, [selectedReq?.id, selectedTask?.id]);
+  }, [selectedReq?.id, selectedTask?.id, activeTab]);
 
   useEffect(() => {
     if (!isAtBottomRef.current) return;
@@ -180,14 +183,14 @@ export function WorkflowView() {
   }, [pendingNavigation, loading, clearPendingNavigation, requests]);
 
   useEffect(() => {
-    if (!selectedReq || !selectedTask || !projectId) {
+    if (!selectedReq || !selectedTask || !projectId || activeTab !== 'workflow') {
       setSelectedTaskDetail(null);
       return;
     }
     apiFetch<any>(`/api/requests/${selectedReq.id}/tasks/${selectedTask.id}`, projectId)
       .then(data => setSelectedTaskDetail(data))
       .catch(() => setSelectedTaskDetail(null));
-  }, [selectedReq?.id, selectedTask?.id, projectId]);
+  }, [selectedReq?.id, selectedTask?.id, projectId, activeTab]);
 
   const handleStatusChange = async (targetStatus: string) => {
     try {

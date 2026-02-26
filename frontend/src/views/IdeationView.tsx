@@ -14,7 +14,7 @@ import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
 
 export function IdeationView() {
-  const { projectId, lastSseEvent } = useAppContext();
+  const { projectId, activeTab, lastSseEvent } = useAppContext();
   const [ideations, setIdeations] = useState<any[]>([]);
   const [discussions, setDiscussions] = useState<any[]>([]);
   const [selectedSession, setSelectedSession] = useState<any>(null);
@@ -49,16 +49,16 @@ export function IdeationView() {
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || activeTab !== 'ideation') {
       setLoading(false);
       return;
     }
     setLoading(true);
     fetchData().finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, activeTab]);
 
   useEffect(() => {
-    if (!lastSseEvent || !projectId) return;
+    if (!lastSseEvent || !projectId || activeTab !== 'ideation') return;
 
     if (lastSseEvent.type !== 'ideation_update' && lastSseEvent.type !== 'discussion_update') return;
 
@@ -95,10 +95,10 @@ export function IdeationView() {
           });
       }
     }
-  }, [lastSseEvent, projectId, selectedSession?.id]);
+  }, [lastSseEvent, projectId, activeTab, selectedSession?.id]);
 
   useEffect(() => {
-    if (!selectedSession || !projectId) {
+    if (!selectedSession || !projectId || activeTab !== 'ideation') {
       setSessionData(null);
       return;
     }
@@ -107,7 +107,7 @@ export function IdeationView() {
     apiFetch<Record<string, unknown>>(`/api/${type}/${selectedSession.id}`, projectId)
       .then((data) => setSessionData(data))
       .catch(() => setSessionData(null));
-  }, [selectedSession?.id, projectId]);
+  }, [selectedSession?.id, projectId, activeTab]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
