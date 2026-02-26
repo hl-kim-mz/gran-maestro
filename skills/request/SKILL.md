@@ -126,6 +126,7 @@ Maestro 모드 비활성 시 자동 활성화:
    h-1. **다중 태스크 분해 처리** (plan 기반 우선, 없으면 PM 자율 판단):
       - [--plan]: `## 태스크 분해` 섹션 파싱 → 2개 이상 시 tasks/02, 03... 미리 생성, 각 spec.md 작성 (blockedBy 기록), tasks[] 등록
       - [--plan 없음]: pm-conductor.md Step 6.6 판단 따름; 2단계 이상 결정 시 동일 절차
+      - **혼재 태스크 분리 기준**: 신규 `.ts` 파일 생성과 `.md` 문서 수정이 동일 태스크에 포함된 경우 → 태스크 2개로 분리 권장 (각 태스크의 agent 배정이 달라지므로: `.ts` 생성은 `codex-dev`, `.md` 수정은 `claude-dev`)
    i. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
    j. **spec.md 파일 저장**: `.gran-maestro/requests/REQ-NNN/tasks/01/spec.md`
    h-2. **Spec Pre-review Pass** (spec.md 저장 후 approve 전 실행)
