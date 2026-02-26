@@ -153,5 +153,4 @@ Gran Maestro — Cleanup 모의 실행
 
 - "정리 대상 없음" → 세션이 keep count 이내이거나 completed/오래된 requests 없음
 - "진행 중 세션 정리 불가" → Step 1/2가 자동 보호; 강제 정리는 `/mst:archive --run`
-- "tar 오류" → 디스크 공간 및 `{type}/archived/` 쓰기 권한 확인
 - 복원 필요 시 → `/mst:archive --restore {ID}` (cleanup 스킬은 복원 미지원)

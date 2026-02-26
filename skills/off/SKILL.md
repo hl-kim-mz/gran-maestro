@@ -40,4 +40,3 @@ Gran Maestro 모드를 비활성화합니다.
 
 - "이미 비활성 상태" → mode.json의 `active` 확인
 - "활성 요청이 남아있음" → `--force` 강제 비활성화 또는 먼저 `/mst:cancel`/`/mst:approve`로 완료
-- "모드 전환 미반영" → 세션 재시작, mode.json `active: false` 확인

@@ -75,4 +75,3 @@ argument-hint: "[--port {포트}] [--stop] [--restart]"
 - 서버 시작 실패 → `/tmp/gran-maestro-hub.log` 확인, Deno 권한 플래그 확인
 - 브라우저 안 열림 → 토큰 URL 수동 복사
 - 프로젝트 등록 실패 → `.gran-maestro/` 디렉토리 존재 확인
-- 토큰 없음 → `~/.gran-maestro-hub/hub.token` 존재 및 서버 실행 상태 확인

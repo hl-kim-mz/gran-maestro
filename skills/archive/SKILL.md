@@ -166,6 +166,5 @@ requests (1 archive):
 ## 문제 해결
 
 - "아카이브 대상 없음" → 모든 세션 진행 중이거나 활성 수가 `max_active_sessions` 이하
-- "tar 없음" → tar 설치 확인 (macOS/Linux 기본 포함)
 - "복원 후 세션 미표시" → 복원된 `session.json`/`request.json` 상태 확인
 - "디스크 부족" → `--purge` 또는 `archive_retention_days` 설정

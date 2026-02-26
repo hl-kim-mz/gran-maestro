@@ -168,9 +168,8 @@ variants 생성 시:
 | 오류 | 처리 |
 |------|------|
 | list_projects 타임아웃 (30초) | "[Stitch] 연결 불가 — 건너뜀. /mst:stitch로 수동 실행 가능." 출력 후 종료 |
-| generate_screen 타임아웃 | 즉시 종료 금지 — 3~5초 대기 후 list_screens 폴백 검증 수행 (pending의 created_at 이후 최근 3개 화면 검사). 화면 발견 시 복구. 미발견 시 stale_at(created_at+5분) 이내면 pending 유지하고 "수 분 후 재시도 안내" 출력; stale_at 경과 시 pending 제거 후 실패 보고 |
+| generate_screen 타임아웃 | 즉시 종료 금지 — 3~5초 대기 후 list_screens 폴백; stale_at(created_at+5분) 이내면 pending 유지, 경과 시 제거 |
 | get_screen 실패 | 5초 간격으로 최대 3회 재시도. 모두 실패 시 screen_id를 pending 항목에 기록하고 URL 미확보 안내 출력 |
-| 프로젝트 ID 무효 | project_id를 null로 초기화 후 새 프로젝트 생성으로 재시도 |
 | 화면 생성 실패 | "[Stitch] 화면 생성 실패 — {오류}. 텍스트 명세로 진행합니다." |
 | enabled=false | "[Stitch] 비활성화됨 (config.stitch.enabled=false)" |
 

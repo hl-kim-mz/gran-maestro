@@ -66,7 +66,7 @@ Gran Maestro — 복구 가능한 요청
 REQ-001  "사용자 인증 기능 추가"
   마지막 Phase: 2 (외주 실행)
   복구 가능 태스크:
-  ├── 01: executing → 재실행 필요 (프로세스 없음)
+  ├── 01: executing → 재실행 필요
   └── 02: pending → 큐에 삽입
 
 REQ-003  "설정 페이지 리팩토링"
@@ -91,4 +91,3 @@ REQ-003  "설정 페이지 리팩토링"
 - "복구 가능 요청 없음" → 모든 요청 완료/취소 상태; `/mst:list --all` 확인
 - "ID 없음" → `REQ-NNN` 형식 확인; `/mst:list`로 조회
 - "worktree 불일치" → `git worktree list`로 확인; 수동 정리 필요할 수 있음
-- "프로세스 없음 (executing)" → CLI 종료 상태; 자동 재실행됨

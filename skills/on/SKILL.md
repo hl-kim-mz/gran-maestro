@@ -78,4 +78,3 @@ Maestro 오케스트레이션 스킬이 활성화되었습니다.
 
 - "이미 활성화됨" → `mode.json`의 `active: true` 확인; 추가 작업 불필요
 - "config.json 생성 실패" → 쓰기 권한 및 git 저장소 루트 여부 확인
-- "전환 미반영" → 세션 재시작 또는 `/mst:off` 후 `/mst:on`

@@ -135,4 +135,3 @@ Gran Maestro — 아카이브 상세: IDN-003
 - "ID 없음" → ID 형식 `REQ-NNN` 확인; `/mst:list --completed`로 완료 ID 조회
 - "이력 불완전" → `requests/{REQ-ID}/request.json` Phase 기록 확인
 - "아카이브 ID 없음" → `/mst:history --archive` 또는 `/mst:archive --list`
-- "tar 오류" → 아카이브 파일 크기 0 여부 확인 (손상 가능)

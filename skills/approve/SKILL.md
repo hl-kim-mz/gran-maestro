@@ -523,4 +523,3 @@ Phase 3 리뷰 PASS 후 `workflow.auto_accept_result` 설정에 따라 동작합
 - "이미 승인됨" → 해당 요청이 이미 Phase 2 이후에 있음. `/mst:inspect {REQ-ID}`로 현재 Phase 확인
 - 최종 수락이 필요한 경우 → Phase 3 리뷰 PASS 후 `/mst:accept`를 수동 호출하거나, `workflow.auto_accept_result`를 `true`로 설정
 - 배치 실패 재시도 → `/mst:approve REQ-NNN`으로 실패한 REQ만 단건 재승인
-- 병렬 실행 제한 변경 → `/mst:settings concurrency.batch_max_parallel_reqs 3` (기본 1, 최대 5)

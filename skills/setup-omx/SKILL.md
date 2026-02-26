@@ -81,6 +81,6 @@ argument-hint: "[--dir {프로젝트 경로}] [--skip-install]"
 
 ## 문제 해결
 
-- "omx: command not found" → OMX가 설치되지 않았습니다. `--skip-install` 없이 다시 실행하거나 `npm install -g oh-my-codex`로 수동 설치
-- "대상 디렉토리를 찾을 수 없음" → `--dir` 경로가 존재하는지 확인. 상대경로는 현재 디렉토리 기준으로 해석됨
-- "AGENTS.md 소스 파일 없음" → `{PLUGIN_ROOT}/AGENTS.md`가 존재하는지 확인. 플러그인 재설치 필요할 수 있음
+- "omx: command not found" → `--skip-install` 없이 재실행 또는 `npm install -g oh-my-codex`
+- "대상 디렉토리를 찾을 수 없음" → `--dir` 경로 확인 (상대경로는 cwd 기준)
+- "AGENTS.md 소스 파일 없음" → `{PLUGIN_ROOT}/AGENTS.md` 확인; 플러그인 재설치
