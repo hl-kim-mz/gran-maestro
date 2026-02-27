@@ -5,7 +5,7 @@ user-invocable: true
 argument-hint: "{REQ-ID}"
 ---
 
-# maestro:status
+# maestro:inspect
 
 특정 요청의 Phase 진행 상황, 태스크 상태, 에이전트 활동, 피드백 라운드 이력을 터미널에 표시합니다.
 
