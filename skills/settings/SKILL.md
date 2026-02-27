@@ -22,6 +22,7 @@ argument-hint: "[{key} [{value}]]"
 | `workflow.max_feedback_rounds` | 최대 피드백 반복 횟수 | `5` | number |
 | `workflow.auto_approve_spec` | 스펙 자동 승인 여부 | `false` | boolean |
 | `workflow.auto_accept_result` | Phase 3 리뷰 PASS 후 자동 수락 여부 | `true` | boolean |
+| `workflow.auto_approve_on_unblock` | 의존성 해소 후 자동 approve 실행 여부 | `false` | boolean |
 | `discussion.response_char_limit` | Discussion 라운드 응답 글자 제한 | `2000` | number |
 | `discussion.critique_char_limit` | Discussion Critic 평가 글자 제한 | `2000` | number |
 | `discussion.default_max_rounds` | Discussion 기본 최대 라운드 수 | `5` | number |
@@ -82,6 +83,7 @@ argument-hint: "[{key} [{value}]]"
 /mst:settings workflow.max_feedback_rounds 3          # 최대 피드백 3회로 변경
 /mst:settings workflow.auto_approve_spec true         # 스펙 자동 승인 활성화
 /mst:settings workflow.auto_accept_result false       # 최종 수락 수동 모드로 전환
+/mst:settings workflow.auto_approve_on_unblock true  # 의존 체인 자동 실행 활성화
 /mst:settings workflow.default_agent gemini-dev       # 기본 에이전트를 Gemini로 변경
 ```
 
