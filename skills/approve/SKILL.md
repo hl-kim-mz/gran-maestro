@@ -80,7 +80,13 @@ PM이 작성한 구현 스펙을 승인하고 Phase 2 실행을 시작합니다.
 ##### 2~4개인 경우 (기존 multiSelect UI)
 
 `AskUserQuestion`의 `multiSelect` 옵션 사용:
-- 각 옵션: `label: "REQ-NNN — {title}"`, `description: "Phase 1 완료, 태스크 N개"`
+- 각 옵션의 배지 생성:
+  - `dependencies.blockedBy` 배열 → `[←REQ-MMM]` 형식 (선행 필요)
+  - `dependencies.blocks` 배열 → `[→REQ-PPP]` 형식 (후행 대기)
+  - 복합 예시: `[←REQ-MMM →REQ-PPP]`
+  - 배지 없으면 생략
+- `label: "REQ-NNN — {title}  [←REQ-MMM →REQ-PPP]"` (배지 있을 때)
+- `description: "Phase 1 완료, 태스크 N개 | 선행: REQ-MMM | 후행: REQ-PPP"` (의존성 있을 때)
 - **기본값: 전체 선택**
 - 선택 후 확인 → 배치 실행. 0개 선택 시 "선택된 요청이 없습니다" 후 종료
 
@@ -89,8 +95,19 @@ PM이 작성한 구현 스펙을 승인하고 Phase 2 실행을 시작합니다.
 1. **목록 텍스트 출력**:
    ```
    승인 대기 중인 요청 ({N}개):
-     REQ-NNN — {title}  [태스크 M개]
+     REQ-NNN — {title}  [←REQ-MMM →REQ-PPP]  [태스크 M개]
      ...
+   ```
+   배지 생성 규칙 (multiSelect UI와 동일):
+   - `dependencies.blockedBy` → `[←REQ-MMM]` (선행 필요)
+   - `dependencies.blocks` → `[→REQ-PPP]` (후행 대기)
+   - 복합: `[←MMM →PPP]` 형식으로 하나의 배지로 합산
+   - 없으면 배지 생략
+   예시:
+   ```
+     REQ-010 — DB 스키마 설계     [→REQ-011]  [태스크 2개]
+     REQ-011 — API 구현           [←REQ-010 →REQ-012]  [태스크 3개]
+     REQ-012 — UI 연동            [←REQ-011]  [태스크 1개]
    ```
 2. **1차 AskUserQuestion** (`multiSelect: false`):
    - "전체선택" → 전체 REQ 배치 실행
@@ -126,6 +143,33 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
 
 ---
 
+### 실행 전 의존성 검증
+
+REQ 리스트가 2건 이상일 때, 배치 실행 루프 진입 전 선택된 REQ 집합의 의존성 위반을 검사합니다.
+
+```pseudo
+violations = []
+for req_id in selected:
+  req = read_request_json(req_id)
+  for dep in req.dependencies.blockedBy:
+    if dep not in selected:
+      violations.append({ req: req_id, missing_prereq: dep })
+
+if violations:
+  출력: "⚠️ 의존성 위반 감지:"
+  for v in violations:
+    출력: "  - {v.req}은 {v.missing_prereq}이 먼저 완료되어야 하나 선택 목록에 없음"
+
+  AskUserQuestion:
+    - "누락된 선행 REQ 추가하여 전체 체인 실행"  → 누락 REQ를 selected에 추가 후 재진행
+    - "후행 REQ 제외하고 선택된 것만 실행"      → violations의 후행 REQ를 selected에서 제거 후 재진행
+    - "취소"                                   → 종료
+```
+
+위반이 없거나 사용자 선택 후 재진행 시, 아래 배치 실행 루프로 진입합니다.
+
+---
+
 ### 배치 실행 루프
 
 REQ 리스트가 2건 이상일 때 실행합니다.
@@ -139,23 +183,73 @@ REQ 리스트가 2건 이상일 때 실행합니다.
 
 #### 순차 모드
 
+의존성 토폴로지 정렬을 수행하여 Wave 단위로 실행합니다. 의존성이 없는 REQ는 단일 Wave로 묶입니다.
+
+**topological_sort_into_waves 알고리즘:**
 ```pseudo
-results = []
-for i, req_id in enumerate(req_list):
-  출력: "[{i+1}/{total}] {req_id} "{title}" — 승인 중..."
-  result = 단건 승인 프로토콜 실행(req_id)
-  results.append(result)
+def topological_sort_into_waves(req_ids):
+  # 선택된 REQ 집합 내에서만 의존성 해소
+  in_degree = {r: 0 for r in req_ids}
+  for r in req_ids:
+    for dep in read_request_json(r).dependencies.blockedBy:
+      if dep in req_ids:       # 선택 집합 내 의존성만 고려
+        in_degree[r] += 1
 
-  if result == FAILED:
-    오류 처리 규칙 적용 (§ 배치 오류 처리)
-    if 중단 결정:
-      남은 REQ를 skipped로 마킹
-      break
+  waves = []
+  remaining = set(req_ids)
+  while remaining:
+    wave = [r for r in remaining if in_degree[r] == 0]
+    if not wave:               # 사이클 감지
+      경고: "의존성 사이클 감지, 남은 REQ는 독립 실행"
+      wave = list(remaining)
+    waves.append(sorted(wave))
+    for r in wave:
+      remaining.remove(r)
+      for s in remaining:
+        if r in read_request_json(s).dependencies.blockedBy:
+          in_degree[s] -= 1
+  return waves
+```
 
-최종 요약 출력(results)
+**Wave 캐스케이드 실행:**
+```pseudo
+# 토폴로지 정렬로 Wave 그룹핑
+waves = topological_sort_into_waves(req_list)
+# Wave 예시: [[REQ-010, REQ-015], [REQ-011], [REQ-012]]
+# (REQ-010, REQ-015는 독립, REQ-011은 REQ-010 완료 후, REQ-012는 REQ-011 완료 후)
+# 의존성 없는 REQ만 있으면: [[REQ-001, REQ-002, REQ-003]] (단일 Wave)
+
+출력: "실행 계획:"
+for i, wave in enumerate(waves):
+  출력: "  Wave {i+1}: {wave} (순차 실행)"
+
+all_results = []
+outer: for wave_num, wave in enumerate(waves):
+  출력: "── Wave {wave_num+1}/{len(waves)} 시작 ──"
+  wave_results = []
+  for req_id in wave:
+    result = 단건 승인 프로토콜 실행(req_id)
+    wave_results.append(result)
+    if result == FAILED:
+      오류 처리 규칙 적용 (§ 배치 오류 처리)
+      if 중단 결정:
+        # 현재 Wave 및 남은 모든 Wave를 skipped로 마킹
+        남은 REQ (현재 Wave 미실행 + 이후 Wave 전체) → skipped
+        break outer
+  all_results.extend(wave_results)
+
+  # 실패한 Wave가 있으면 후행 Wave들의 dependent REQ를 자동 Skip (실패 전파)
+  failed_in_wave = [r.req_id for r in wave_results if r.status == FAILED]
+  if failed_in_wave:
+    이후 Wave에서 failed REQ를 blockedBy로 가진 REQ들 → 자동 Skip 마킹
+    출력: "의존 REQ N개를 Skip합니다" 알림
+
+최종 요약 출력(all_results)
 ```
 
 #### 병렬 모드 (`--parallel`)
+
+`--parallel` 플래그 사용 시에도 Wave 경계는 준수합니다. Wave 내 REQ들은 병렬 실행하고, Wave 간에는 순차 유지(선행 Wave 완료 후 후행 Wave 시작).
 
 `config.concurrency.batch_max_parallel_reqs` 값으로 동시 실행 REQ 수를 결정합니다.
 
