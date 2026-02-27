@@ -124,24 +124,44 @@ Maestro 모드 비활성 시 자동 활성화:
       - 그 외(새 화면 추가/약한 신호): approve Phase 2.5에서 제안, 이 단계 skip
    h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용); `--plan` 없으면 `## 가정 사항` 섹션 포함
    h-1. **다중 태스크 분해 처리** (plan 기반 우선, 없으면 PM 자율 판단):
-      - [--plan]: `## 태스크 분해` 섹션 파싱 → 2개 이상 시 tasks/02, 03... 미리 생성, 각 spec.md 작성 (blockedBy 기록), tasks[] 등록
+      - [--plan]: `## 태스크 분해` 섹션 파싱 → 2개 이상 시 동일 절차 (아래 스텝 0~2 수행)
       - [--plan 없음]: pm-conductor.md Step 6.6 판단 따름; 2단계 이상 결정 시 동일 절차
       - **혼재 태스크 분리 기준**: 신규 `.ts` 파일 생성과 `.md` 문서 수정이 동일 태스크에 포함된 경우 → 태스크 2개로 분리 권장 (각 태스크의 agent 배정이 달라지므로: `.ts` 생성은 `codex-dev`, `.md` 수정은 `claude-dev`)
-   i. 태스크 디렉토리 생성: `.gran-maestro/requests/REQ-NNN/tasks/01/`
-   j. **spec.md 파일 저장**: `.gran-maestro/requests/REQ-NNN/tasks/01/spec.md`
-   h-2. **Spec Pre-review Pass** (spec.md 저장 후 approve 전 실행)
+
+      **스텝 0 (선행): 의존성 및 배정 확정**
+      - 모든 태스크 ID, blockedBy/blocks, 에이전트 배정을 단일 thinking에서 확정한다 (이후 Write 또는 서브에이전트 어느 경로든 이 테이블을 불변 입력으로 사용)
+      - [--plan]: plan.md 결정사항 기반; [--plan 없음]: PM 자율 판단 기반
+
+      **스텝 1 (분기): 독립 태스크 수 판단**
+      - 독립 태스크(blocks/blockedBy 없는 것) 수 계산:
+        - 독립 태스크 < 2개: 기존 순차 Write 유지
+        - 독립 태스크(blocks/blockedBy 없는 것) 2개 이상: Phase A 또는 Phase B 선택
+          - [Phase A] Write 동시 호출 (기본값): 단일 응답 내 N개 Write 동시 호출 (각 spec.md에 스텝 0 의존성 테이블 그대로 기입)
+          - [Phase B] 서브에이전트 병렬 (reasoning 복잡도 높거나 태스크별 독립 탐색 필요 시 PM 자유 재량):
+            - `Task(subagent_type: "general-purpose", run_in_background: true)` 로 N개 병렬 dispatch
+            - 각 서브에이전트에 의존성 테이블 + 에이전트 배정 결과를 읽기 전용으로 주입 (프롬프트에 포함): 서브에이전트는 해당 값을 §7, §8에 그대로 기입, 의존성/배정 결정 금지
+            - Phase B로 spec을 작성한 서브에이전트와 별개로 PM이 prereview 에이전트를 dispatch (역할 분리)
+
+      **스텝 2 (검증): 양방향 의존성 검증 훅** (모든 spec.md Write 완료 직후 실행)
+      - 각 spec의 blocks 목록을 읽어 대상 태스크 spec의 blockedBy 포함 여부 확인; 역방향도 동일하게 검증
+      - blocks/blockedBy 양방향 일치 검증: 불일치 발견 시 오류 메시지 출력 + request.json의 tasks 배열 업데이트 차단 (spec.md는 유지, PM이 수동 수정 후 재시도)
+      - 부분 실패 (k/N spec 성공) 시: 실패 태스크 ID 목록 표시 + 해당 태스크 spec.md만 재작성 재시도 안내 (성공 태스크 유지)
+
+   i. 태스크 디렉토리 일괄 생성: `.gran-maestro/requests/REQ-NNN/tasks/01..N` (N개 동시 생성)
+   j. **spec.md 병렬 Write**: (의존성 고정 후) 단일 응답 내 N개 Write 동시 호출로 저장
+   h-2. **Spec Pre-review Pass** (모든 spec.md Write 완료 + 검증 훅 통과 후 실행)
 
       **실행 조건** (순서대로): `--auto`/`-a` → skip; `--no-prereview` → skip; `workflow.spec_prereview=false` → skip; `--prereview` → 강제 실행; 모두 통과 시 실행
       **에스컬레이션 모드**: `--plan` 있으면 `"user"`, 없으면 `"pm-self"`
 
-      각 task spec.md에 대해:
-      a. prereview 프롬프트: `tasks/NN/prereview-prompt.md` 생성 (`templates/spec-prereview-prompt.md` + 변수 치환)
-      b. 배정 에이전트로 dispatch: `Skill(skill: "mst:{agent}", args: "--prompt-file {prereview_prompt_path} --trace {REQ}/{TASK}/spec-prereview")`
-      c. 결과 처리:
+      prereview-prompt.md N개 동시 Write (단일 응답): 각 `tasks/NN/prereview-prompt.md`를 `templates/spec-prereview-prompt.md` + 변수 치환으로 한 번에 생성
+      에이전트 병렬 dispatch:
+      a. prereview 에이전트 dispatch: claude-dev 2개+ 태스크 시 `Task(run_in_background: true)` 직접 호출 (Skill() 순차 실행 제약 우회); codex-dev/gemini-dev는 `Skill(skill: "mst:{agent}", run_in_background: true)` 사용
+      b. 결과 처리:
          - 실패 시: "[Pre-review skip]" 출력 후 다음 task
          - `NO_QUESTIONS` 시: 수정 없이 계속
          - 질문 목록 시: `"user"` → `AskUserQuestion`(옵션 최대 4개); `"pm-self"` → PM 합리적 판단으로 자체 답변
-      d. Q&A 존재 시 spec.md 끝에 `## 구현 전 검토 (Pre-review Q&A)` 테이블 추가
+      c. Q&A 존재 시 spec.md 끝에 `## 구현 전 검토 (Pre-review Q&A)` 테이블 추가
 
    k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가 (spec.md 저장 직후, 다중 태스크 시 02, 03... 포함):
       `id`, `title`, `status: "pending"`, `agent`(필수 — 누락 금지), `spec: "tasks/01/spec.md"`
