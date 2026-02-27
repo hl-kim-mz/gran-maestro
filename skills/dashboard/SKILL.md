@@ -20,7 +20,15 @@ argument-hint: "[--port {포트}] [--stop] [--restart]"
 3. Deno 설치 확인: `deno --version` (실패 시 https://deno.land 안내 후 종료)
 4. 인자 파싱: `--stop` / `--restart` / `--port <N>` (기본: 3847)
 5. `--stop`: `kill $(cat ~/.gran-maestro-hub/hub.pid)` 후 종료
-   `--restart`: stop 수행 → 1초 대기 → 6단계부터 재시작
+   `--restart`: stop 수행 → 포트 해제 확인 (최대 10초, 1초 간격으로 `lsof -i :<port>` 폴링, 해제되면 즉시 진행) → 6단계부터 재시작
+   ```bash
+   for i in $(seq 1 10); do
+     if ! lsof -i :<port> -sTCP:LISTEN > /dev/null 2>&1; then
+       break
+     fi
+     sleep 1
+   done
+   ```
 6. 포트 확인: `lsof -i :<port>` → 사용 중이면 9단계(프로젝트 등록)로 건너뜀
 7. 서버 시작 (백그라운드):
    ```bash
@@ -29,7 +37,13 @@ argument-hint: "[--port {포트}] [--stop] [--restart]"
    ```
    PID는 서버가 `~/.gran-maestro-hub/hub.pid`에 자체 기록
 8. 2초 대기 후 `curl -s http://127.0.0.1:<port>/favicon.ico` HTTP 200 확인 (실패 시 로그 출력)
-9. 프로젝트 등록: `curl -X POST http://127.0.0.1:<port>/api/projects` (Authorization: Bearer hubToken, name+path 전달)
+9. 프로젝트 등록:
+   ```bash
+   curl -s -X POST "http://127.0.0.1:<port>/api/projects" \
+     -H "Content-Type: application/json" \
+     -d "{\"name\": \"<project_name>\", \"path\": \"<cwd>/.gran-maestro\"}"
+   ```
+   ⚠️ `path`는 반드시 `<cwd>/.gran-maestro` 디렉토리 경로여야 합니다. CWD만 전달하면 안 됩니다.
 10. 브라우저 실행: macOS `open`, Linux `xdg-open` → `http://localhost:<port>?project=<id>&token=<hubToken>`
 11. 사용자 안내 출력 (URL/프로젝트명/ID)
 
