@@ -199,6 +199,9 @@ projectRequestsApi.get("/requests/:id/tasks", async (c) => {
   }
 
   const id = c.req.param("id");
+  if (isInvalidPathPart(id)) {
+    return c.json({ error: "Invalid request/task id" }, 400);
+  }
   const requestDir = await resolveRequestDir(baseDir, id);
   if (!requestDir) {
     return c.json([]);
@@ -245,6 +248,9 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
 
   const id = c.req.param("id");
   const taskId = c.req.param("taskId");
+  if (isInvalidPathPart(id) || isInvalidPathPart(taskId)) {
+    return c.json({ error: "Invalid request/task id" }, 400);
+  }
   const requestDir = await resolveRequestDir(baseDir, id);
   if (!requestDir) {
     return c.json({ error: "Task not found" }, 404);
@@ -562,6 +568,9 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/traces", async (c) => {
 
   const id = c.req.param("id");
   const taskId = c.req.param("taskId");
+  if (isInvalidPathPart(id) || isInvalidPathPart(taskId)) {
+    return c.json({ error: "Invalid request/task id" }, 400);
+  }
   const requestDir = await resolveRequestDir(baseDir, id);
   if (!requestDir) {
     return c.json([]);
@@ -578,7 +587,7 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/traces", async (c) => {
     for await (const entry of Deno.readDir(tracesDir)) {
       if (entry.isFile && entry.name.endsWith(".md")) {
         // Parse filename: {agent}-{label}-{YYYYMMDD-HHmmss}.md
-        const match = entry.name.match(/^(codex|gemini)-(.+)-(\d{8}-\d{6})\.md$/);
+        const match = entry.name.match(/^(codex|gemini|claude)-(.+)-(\d{8}-\d{6})\.md$/);
         if (match) {
           traceFiles.push({
             name: entry.name,
