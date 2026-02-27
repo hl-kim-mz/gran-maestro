@@ -9,6 +9,7 @@
  */
 
 import { runWithTimeout } from './cli-adapter.ts';
+import { atomicWriteJSON } from './concurrency.ts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,6 +28,7 @@ export type WorktreeState =
   | 'merged'
   | 'cleaned'
   | 'create_failed'
+  | 'error'
   | 'conflict'
   | 'clean_failed';
 
@@ -94,6 +96,56 @@ export class WorktreeManager {
     private readonly projectRoot: string = '.',
   ) {}
 
+  private getMetaPath(taskId: string): string {
+    return `${this.config.root_directory}/${taskId}.meta.json`;
+  }
+
+  private async persistMeta(taskId: string, info: WorktreeInfo): Promise<void> {
+    try {
+      await atomicWriteJSON(this.getMetaPath(taskId), info);
+    } catch {
+      // Non-fatal: metadata persistence failure should not break worktree lifecycle.
+    }
+  }
+
+  private async loadMeta(taskId: string): Promise<WorktreeInfo | null> {
+    try {
+      const raw = await Deno.readTextFile(this.getMetaPath(taskId));
+      const parsed = JSON.parse(raw) as Partial<WorktreeInfo>;
+
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        typeof parsed.taskId === 'string' &&
+        typeof parsed.path === 'string' &&
+        typeof parsed.branch === 'string' &&
+        typeof parsed.state === 'string' &&
+        typeof parsed.created_at === 'string' &&
+        typeof parsed.last_activity_at === 'string'
+      ) {
+        return {
+          taskId: parsed.taskId,
+          path: parsed.path,
+          branch: parsed.branch,
+          state: parsed.state as WorktreeState,
+          created_at: parsed.created_at,
+          last_activity_at: parsed.last_activity_at,
+        };
+      }
+    } catch {
+      // Ignore malformed/missing metadata.
+    }
+    return null;
+  }
+
+  private async removeMeta(taskId: string): Promise<void> {
+    try {
+      await Deno.remove(this.getMetaPath(taskId));
+    } catch {
+      // Best-effort cleanup.
+    }
+  }
+
   /**
    * Create a new git worktree for a task.
    *
@@ -143,9 +195,11 @@ export class WorktreeManager {
       }
 
       info.state = 'active';
+      await this.persistMeta(taskId, info);
       return worktreePath;
     } catch (err) {
       info.state = 'create_failed';
+      await this.persistMeta(taskId, info);
       throw err;
     }
   }
@@ -177,7 +231,10 @@ export class WorktreeManager {
     } catch {
       if (info) {
         info.state = 'clean_failed';
+        await this.persistMeta(taskId, info);
       }
+    } finally {
+      await this.removeMeta(taskId);
     }
   }
 
@@ -196,6 +253,7 @@ export class WorktreeManager {
 
     if (info) {
       info.state = 'pre_merge';
+      await this.persistMeta(taskId, info);
     }
 
     try {
@@ -207,6 +265,7 @@ export class WorktreeManager {
         // Abort rebase on conflict
         await runWithTimeout('git rebase --abort', worktreePath, 10_000);
         if (info) info.state = 'conflict';
+        if (info) await this.persistMeta(taskId, info);
         return { status: 'conflict', details: rebaseResult.stderr };
       }
 
@@ -216,6 +275,7 @@ export class WorktreeManager {
 
       if (!mergeResult.success) {
         if (info) info.state = 'conflict';
+        if (info) await this.persistMeta(taskId, info);
         return { status: 'conflict', details: mergeResult.stderr };
       }
 
@@ -224,13 +284,42 @@ export class WorktreeManager {
       const commitResult = await runWithTimeout(commitCmd, this.projectRoot, 10_000);
 
       if (!commitResult.success) {
-        return { status: 'error', message: commitResult.stderr };
+        let resetNote = '';
+        try {
+          const resetResult = await runWithTimeout(
+            'git reset --merge',
+            this.projectRoot,
+            10_000,
+          );
+          if (!resetResult.success) {
+            resetNote = `Reset failed: ${resetResult.stderr}`;
+          }
+        } catch (err) {
+          resetNote = `Reset failed: ${
+            err instanceof Error ? err.message : String(err)
+          }`;
+        }
+
+        if (info) {
+          info.state = 'error';
+          await this.persistMeta(taskId, info);
+        }
+
+        const message = resetNote
+          ? `${commitResult.stderr}\n${resetNote}`
+          : commitResult.stderr;
+        return { status: 'error', message };
       }
 
       if (info) info.state = 'merged';
+      if (info) await this.persistMeta(taskId, info);
       return { status: 'success' };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      if (info) {
+        info.state = 'error';
+        await this.persistMeta(taskId, info);
+      }
       return { status: 'error', message };
     }
   }
@@ -241,6 +330,27 @@ export class WorktreeManager {
    * @returns Array of {@link WorktreeInfo} for active worktrees.
    */
   async listActive(): Promise<WorktreeInfo[]> {
+    try {
+      for await (const entry of Deno.readDir(this.config.root_directory)) {
+        if (!entry.isFile || !entry.name.endsWith('.meta.json')) {
+          continue;
+        }
+
+        const taskId = entry.name.replace('.meta.json', '');
+        if (this.worktrees.has(taskId)) {
+          continue;
+        }
+
+        const meta = await this.loadMeta(taskId);
+        if (!meta) {
+          continue;
+        }
+        this.worktrees.set(taskId, meta);
+      }
+    } catch {
+      // Directory may not exist yet.
+    }
+
     // Also refresh from git for worktrees we might not be tracking in memory
     try {
       const result = await runWithTimeout(
@@ -258,6 +368,12 @@ export class WorktreeManager {
             const parts = wtPath.split('/');
             const taskId = parts[parts.length - 1];
             if (taskId && !this.worktrees.has(taskId)) {
+              const meta = await this.loadMeta(taskId);
+              if (meta) {
+                this.worktrees.set(taskId, meta);
+                continue;
+              }
+
               this.worktrees.set(taskId, {
                 taskId,
                 path: wtPath,
