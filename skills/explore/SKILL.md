@@ -17,7 +17,9 @@ argument-hint: "{탐색 목표 설명} [--focus {파일패턴}]"
 
 ### Step 1: 초기화
 
-1. `.gran-maestro/explore/` 확인/생성 → `counter.json`으로 `EXP-NNN` 채번 → `session.json` 작성
+1. `.gran-maestro/explore/` 확인/생성 →
+   **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type exp` → EXP-NNN ID 사용
+   **Fallback**: `counter.json` 직접 Read/Write로 채번 → `session.json` 작성
 2. `session.json` 구조: `id`, `goal`, `focus`, `status:"exploring"`, `created_at`, `explorers:{codex,gemini}`, `claude_synthesis`, `participant_config`
 3. `claude`는 `explorers` 제외 → `claude_synthesis`로만 종합; `explorers` 동적 생성은 디버그 동일 규칙 적용
 

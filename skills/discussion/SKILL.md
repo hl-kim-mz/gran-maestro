@@ -32,15 +32,17 @@ config.json의 `archive.auto_archive_on_create`가 true이면:
 ### Step 1: 초기화
 
 1. `.gran-maestro/discussion/` 디렉토리 존재 확인, 없으면 생성
-2. 새 세션 ID 채번 (DSC-NNN) — **counter.json 기반**:
-   - `.gran-maestro/discussion/counter.json` 파일 Read
-   - **파일 존재 시**: `next_id = last_id + 1`
-   - **파일 미존재 시** (최초 또는 복구):
-     a. `.gran-maestro/discussion/` 하위의 기존 DSC-* 디렉토리 스캔
-     b. `.gran-maestro/archive/` 내 `discussion-*` tar.gz 파일명에서 ID 범위 추출 (예: `discussion-DSC001-DSC006-*.tar.gz` → max 6)
-     c. 모든 소스에서 최대 번호 결정 → `counter.json` 생성: `{ "last_id": {max_number} }`
-     d. `next_id = last_id + 1`
-   - `counter.json` 업데이트: `{ "last_id": {next_id} }`
+2. 새 세션 ID 채번 (DSC-NNN):
+   - **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type dsc` → 출력 ID 사용
+   - **Fallback (counter.json 기반)**:
+     - `.gran-maestro/discussion/counter.json` 파일 Read
+     - **파일 존재 시**: `next_id = last_id + 1`
+     - **파일 미존재 시** (최초 또는 복구):
+       a. `.gran-maestro/discussion/` 하위의 기존 DSC-* 디렉토리 스캔
+       b. `.gran-maestro/archive/` 내 `discussion-*` tar.gz 파일명에서 ID 범위 추출 (예: `discussion-DSC001-DSC006-*.tar.gz` → max 6)
+       c. 모든 소스에서 최대 번호 결정 → `counter.json` 생성: `{ "last_id": {max_number} }`
+       d. `next_id = last_id + 1`
+     - `counter.json` 업데이트: `{ "last_id": {next_id} }`
 3. `.gran-maestro/discussion/DSC-NNN/` 디렉토리 생성 (NNN은 3자리 zero-padded)
 4. `session.json` 작성:
 

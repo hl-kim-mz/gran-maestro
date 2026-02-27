@@ -17,12 +17,21 @@ Subcommands:
   plan complete      <PLN-ID>
   plan count         [--active | --all]
 
-  archive run         [--type req|idn|dsc|dbg] [--max N] [--dir PATH]
+  archive run         [--type req|idn|dsc|dbg|exp|pln] [--max N] [--dir PATH]
   archive list        [--type TYPE]
   archive restore     <ARCHIVE-ID>
 
-  counter next        [--type req|idn|dsc|dbg] [--dir PATH]
-  counter peek        [--type TYPE]
+  counter next        [--type req|idn|dsc|dbg|exp|pln] [--dir PATH]
+  counter peek        [--type req|idn|dsc|dbg|exp|pln]
+
+  version get
+  version check
+  version bump        <patch|minor|major>
+
+  context gather      [--diff N] [--skills] [--agents] [--format text|json]
+
+  agents check
+  agents sync
 
   cleanup             [--dry-run]
 
@@ -39,6 +48,7 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 import glob
 import tarfile
@@ -365,6 +375,8 @@ TYPE_DIRS = {
     "idn": ("ideation", "IDN"),
     "dsc": ("discussion", "DSC"),
     "dbg": ("debug", "DBG"),
+    "exp": ("explore",   "EXP"),
+    "pln": ("plans",     "PLN"),
 }
 
 
@@ -382,6 +394,18 @@ def get_counter_path(type_key: str, dir_override: str = None) -> Path:
 
 def cmd_counter_next(args):
     counter_path = get_counter_path(args.type, args.dir)
+    # pln 특수 초기화
+    if args.type == "pln" and not counter_path.exists():
+        plans = BASE_DIR / "plans"
+        max_num = 0
+        for d in plans.glob("PLN-*"):
+            try:
+                n = int(d.name.split("-")[1])
+                if n > max_num:
+                    max_num = n
+            except (IndexError, ValueError):
+                pass
+        save_json(counter_path, {"last_id": max_num})
     data = load_json(counter_path) or {}
     last_id = data.get("last_id", 0)
     next_id = last_id + 1
@@ -397,6 +421,291 @@ def cmd_counter_peek(args):
     _, prefix = TYPE_DIRS.get(args.type, ("requests", "REQ"))
     last_id = data.get("last_id", 0)
     print(f"{prefix}-{last_id + 1:03d} (next, current last_id={last_id})")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# version subcommands
+# ---------------------------------------------------------------------------
+
+def _project_root() -> Path:
+    return BASE_DIR.parent
+
+
+def _read_versions() -> dict:
+    """3파일에서 버전 읽기. 반환: {'package': str, 'plugin': str, 'marketplace': str}"""
+    root = _project_root()
+    pkg = load_json(root / "package.json") or {}
+    plugin = load_json(root / ".claude-plugin" / "plugin.json") or {}
+    market = load_json(root / ".claude-plugin" / "marketplace.json") or {}
+    return {
+        "package":     pkg.get("version", ""),
+        "plugin":      plugin.get("version", ""),
+        "marketplace": (market.get("plugins") or [{}])[0].get("version", ""),
+    }
+
+
+def cmd_version_get(args):
+    versions = _read_versions()
+    print(versions["package"])
+    return 0
+
+
+def cmd_version_check(args):
+    versions = _read_versions()
+    pkg = versions["package"]
+    plugin = versions["plugin"]
+    market = versions["marketplace"]
+    if pkg == plugin == market and pkg != "":
+        print(f"✓ {pkg} (동기화됨)")
+        return 0
+    else:
+        print(f"✗ 버전 불일치:")
+        print(f"  package.json:              {pkg}")
+        print(f"  plugin.json:               {plugin}")
+        print(f"  marketplace.json:          {market}")
+        return 1
+
+
+def cmd_version_bump(args):
+    versions = _read_versions()
+    current = versions["package"]
+    parts = current.split(".")
+    if len(parts) != 3:
+        print(f"Error: cannot parse version '{current}'", file=sys.stderr)
+        return 1
+    try:
+        major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
+    except ValueError:
+        print(f"Error: cannot parse version '{current}'", file=sys.stderr)
+        return 1
+
+    level = args.level
+    if level == "patch":
+        patch += 1
+    elif level == "minor":
+        minor += 1
+        patch = 0
+    elif level == "major":
+        major += 1
+        minor = 0
+        patch = 0
+    else:
+        print(f"Error: unknown bump level '{level}'", file=sys.stderr)
+        return 1
+
+    new_version = f"{major}.{minor}.{patch}"
+    root = _project_root()
+
+    # Update package.json
+    pkg_path = root / "package.json"
+    pkg_data = load_json(pkg_path) or {}
+    pkg_data["version"] = new_version
+    save_json(pkg_path, pkg_data)
+
+    # Update plugin.json
+    plugin_path = root / ".claude-plugin" / "plugin.json"
+    plugin_data = load_json(plugin_path) or {}
+    plugin_data["version"] = new_version
+    save_json(plugin_path, plugin_data)
+
+    # Update marketplace.json
+    market_path = root / ".claude-plugin" / "marketplace.json"
+    market_data = load_json(market_path) or {}
+    plugins = market_data.get("plugins") or [{}]
+    plugins[0]["version"] = new_version
+    market_data["plugins"] = plugins
+    save_json(market_path, market_data)
+
+    print(new_version)
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# context subcommands
+# ---------------------------------------------------------------------------
+
+def cmd_context_gather(args):
+    root = _project_root()
+
+    # Git Status
+    git_status_data = {"modified": 0, "added": 0, "deleted": 0}
+    git_status_raw = None
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, cwd=str(root)
+        )
+        if result.returncode == 0:
+            lines = result.stdout.splitlines()
+            for line in lines:
+                if len(line) >= 2:
+                    xy = line[:2]
+                    if "M" in xy:
+                        git_status_data["modified"] += 1
+                    elif "A" in xy or "?" in xy:
+                        git_status_data["added"] += 1
+                    elif "D" in xy:
+                        git_status_data["deleted"] += 1
+            git_status_raw = lines
+        else:
+            git_status_raw = None
+    except Exception:
+        git_status_raw = None
+
+    # Recent Changes
+    diff_n = getattr(args, "diff", 1) or 1
+    recent_changes = []
+    try:
+        result = subprocess.run(
+            ["git", "diff", f"HEAD~{diff_n}..HEAD", "--name-only"],
+            capture_output=True, text=True, cwd=str(root)
+        )
+        if result.returncode == 0:
+            recent_changes = [l for l in result.stdout.splitlines() if l.strip()]
+        else:
+            recent_changes = None
+    except Exception:
+        recent_changes = None
+
+    # Version
+    versions = _read_versions()
+    version_synced = (
+        versions["package"] == versions["plugin"] == versions["marketplace"]
+        and versions["package"] != ""
+    )
+
+    # Skills
+    skills_list = []
+    skills_dir = root / "skills"
+    if skills_dir.exists():
+        for skill_dir in sorted(skills_dir.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            skill_md = skill_dir / "SKILL.md"
+            if skill_md.exists():
+                skill_name = None
+                try:
+                    for line in skill_md.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if line.startswith("name:"):
+                            skill_name = line[5:].strip().strip('"').strip("'")
+                            break
+                except Exception:
+                    pass
+                skills_list.append(skill_name if skill_name else skill_dir.name)
+            else:
+                skills_list.append(skill_dir.name)
+
+    # Agents
+    agents_list = []
+    agents_dir = root / "agents"
+    if agents_dir.exists():
+        for agent_file in sorted(agents_dir.glob("*.md")):
+            agents_list.append(agent_file.stem)
+
+    fmt = getattr(args, "format", "text") or "text"
+    include_skills = getattr(args, "skills", True)
+    include_agents = getattr(args, "agents", True)
+
+    if fmt == "json":
+        output = {
+            "git_status": git_status_data if git_status_raw is not None else "(git 없음)",
+            "recent_changes": recent_changes if recent_changes is not None else "(git 없음)",
+            "version": {
+                "package":     versions["package"],
+                "plugin":      versions["plugin"],
+                "marketplace": versions["marketplace"],
+                "synced":      version_synced,
+            },
+        }
+        if include_skills:
+            output["skills"] = skills_list
+        if include_agents:
+            output["agents"] = agents_list
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        # text format
+        print("## Git Status")
+        if git_status_raw is None:
+            print("(git 없음)")
+        else:
+            print(f"Modified: {git_status_data['modified']} | Added: {git_status_data['added']} | Deleted: {git_status_data['deleted']}")
+        print()
+
+        print(f"## Recent Changes (HEAD~{diff_n}..HEAD)")
+        if recent_changes is None:
+            print("(git 없음)")
+        elif recent_changes:
+            for f in recent_changes:
+                print(f)
+        else:
+            print("(변경 없음)")
+        print()
+
+        print("## Version")
+        print(f"package.json:      {versions['package']}")
+        print(f"plugin.json:       {versions['plugin']}")
+        print(f"marketplace.json:  {versions['marketplace']}")
+        print("✓ 동기화됨" if version_synced else "✗ 불일치")
+        print()
+
+        if include_skills:
+            print(f"## Skills ({len(skills_list)})")
+            print(", ".join(skills_list) if skills_list else "(없음)")
+            print()
+
+        if include_agents:
+            print(f"## Agents ({len(agents_list)})")
+            print(", ".join(agents_list) if agents_list else "(없음)")
+            print()
+
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# agents subcommands
+# ---------------------------------------------------------------------------
+
+def cmd_agents_check(args):
+    root = _project_root()
+    agents_dir = root / "agents"
+    fs_agents = set()
+    if agents_dir.exists():
+        for f in agents_dir.glob("*.md"):
+            fs_agents.add(f"./agents/{f.name}")
+
+    plugin_path = root / ".claude-plugin" / "plugin.json"
+    plugin_data = load_json(plugin_path) or {}
+    plugin_agents = set(plugin_data.get("agents") or [])
+
+    missing = fs_agents - plugin_agents   # in fs but not in plugin.json
+    ghost = plugin_agents - fs_agents     # in plugin.json but not in fs
+
+    if not missing and not ghost:
+        print(f"✓ agents 배열 동기화됨 ({len(fs_agents)}개)")
+        return 0
+
+    for entry in sorted(missing):
+        print(f"+ {entry}")
+    for entry in sorted(ghost):
+        print(f"- {entry}")
+    return 1
+
+
+def cmd_agents_sync(args):
+    root = _project_root()
+    agents_dir = root / "agents"
+    fs_agents = []
+    if agents_dir.exists():
+        for f in sorted(agents_dir.glob("*.md")):
+            fs_agents.append(f"./agents/{f.name}")
+
+    plugin_path = root / ".claude-plugin" / "plugin.json"
+    plugin_data = load_json(plugin_path) or {}
+    plugin_data["agents"] = fs_agents
+    save_json(plugin_path, plugin_data)
+    print(f"Updated agents: {fs_agents}")
     return 0
 
 
@@ -739,11 +1048,11 @@ def build_parser():
     ctr_sub = ctr.add_subparsers(dest="subcommand")
 
     ctr_next = ctr_sub.add_parser("next")
-    ctr_next.add_argument("--type", choices=["req", "idn", "dsc", "dbg"], default="req")
+    ctr_next.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln"], default="req")
     ctr_next.add_argument("--dir")
 
     ctr_peek = ctr_sub.add_parser("peek")
-    ctr_peek.add_argument("--type", choices=["req", "idn", "dsc", "dbg"], default="req")
+    ctr_peek.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln"], default="req")
     ctr_peek.add_argument("--dir")
 
     # --- archive ---
@@ -751,7 +1060,7 @@ def build_parser():
     arc_sub = arc.add_subparsers(dest="subcommand")
 
     arc_run = arc_sub.add_parser("run")
-    arc_run.add_argument("--type", choices=["req", "idn", "dsc", "dbg"], default="req")
+    arc_run.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln"], default="req")
     arc_run.add_argument("--max", type=int)
     arc_run.add_argument("--dir")
 
@@ -760,6 +1069,34 @@ def build_parser():
 
     arc_restore = arc_sub.add_parser("restore")
     arc_restore.add_argument("archive_id")
+
+    # --- version ---
+    ver = sub.add_parser("version")
+    ver_sub = ver.add_subparsers(dest="subcommand")
+
+    ver_get = ver_sub.add_parser("get")
+    ver_check = ver_sub.add_parser("check")
+    ver_bump = ver_sub.add_parser("bump")
+    ver_bump.add_argument("level", choices=["patch", "minor", "major"])
+
+    # --- context ---
+    ctx = sub.add_parser("context")
+    ctx_sub = ctx.add_subparsers(dest="subcommand")
+
+    ctx_gather = ctx_sub.add_parser("gather")
+    ctx_gather.add_argument("--diff", type=int, default=1)
+    ctx_gather.add_argument("--skills", action="store_true", default=True)
+    ctx_gather.add_argument("--no-skills", dest="skills", action="store_false")
+    ctx_gather.add_argument("--agents", action="store_true", default=True)
+    ctx_gather.add_argument("--no-agents", dest="agents", action="store_false")
+    ctx_gather.add_argument("--format", choices=["text", "json"], default="text")
+
+    # --- agents ---
+    agt = sub.add_parser("agents")
+    agt_sub = agt.add_subparsers(dest="subcommand")
+
+    agt_check = agt_sub.add_parser("check")
+    agt_sync = agt_sub.add_parser("sync")
 
     # --- cleanup ---
     cln = sub.add_parser("cleanup")
@@ -826,6 +1163,12 @@ def main():
         ("plan", "sync"): cmd_plan_sync,
         ("counter", "next"): cmd_counter_next,
         ("counter", "peek"): cmd_counter_peek,
+        ("version", "get"):    cmd_version_get,
+        ("version", "check"):  cmd_version_check,
+        ("version", "bump"):   cmd_version_bump,
+        ("context", "gather"): cmd_context_gather,
+        ("agents", "check"):   cmd_agents_check,
+        ("agents", "sync"):    cmd_agents_sync,
         ("archive", "run"): cmd_archive_run,
         ("archive", "list"): cmd_archive_list,
         ("archive", "restore"): cmd_archive_restore,

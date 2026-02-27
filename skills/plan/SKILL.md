@@ -49,7 +49,10 @@ argument-hint: "{플래닝 주제}"
 ### Step 1: 초기화
 
 1. `.gran-maestro/plans/` 디렉토리 확인, 없으면 생성
-2. PLN 번호 채번: `plans/PLN-*/plan.json` 스캔 → 최대 번호 `+1` (최초: `001`); 파일은 아직 작성 안 함
+2. PLN 번호 채번:
+   - **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type pln` → PLN-NNN ID 사용
+     (최초 실행 시 자동으로 plans/PLN-* 디렉토리 스캔해 counter.json 초기화)
+   - **Fallback**: `plans/PLN-*/plan.json` 스캔 → 최대 번호 `+1` (최초: `001`); 파일은 아직 작성 안 함
 3. `.gran-maestro/plans/PLN-NNN/` 디렉토리 생성
 4. `.gran-maestro/plans/PLN-NNN/plan.json` 먼저 작성:
 
