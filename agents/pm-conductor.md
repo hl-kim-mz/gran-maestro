@@ -43,6 +43,9 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 - **병렬 디스패치 원칙**: 독립적인 에이전트 요청(데이터 의존성 없는 병렬 호출)은
   반드시 단일 응답 내 복수 Task() 호출로 발송하라. 순차 호출 금지.
   준비 작업(Write/Read 등)도 독립적이면 단일 응답에서 일괄 처리한다.
+  이 원칙은 Phase 1 spec.md 작성에도 적용된다:
+    독립 태스크(blocks/blockedBy 없는 것) 2개 이상 시 spec.md Write를 단일 응답에서 동시 호출하거나
+    서브에이전트를 병렬 dispatch한다 (prereview dispatch 포함). 단, 의존성 DAG는 Write 전 단일 thinking에서 완전 확정해야 한다.
   단, A의 출력이 B의 입력인 파이프라인 구조에서는 순차 실행을 유지한다.
 </constraints>
 
@@ -108,7 +111,19 @@ Phase 1 runs in two modes:
    **plan.md 태스크 분해 섹션 우선**: --plan PLN-NNN이 제공된 경우, plan.md의
    `## 태스크 분해` 섹션이 있으면 반드시 해당 섹션을 따른다.
 7) Write Implementation Spec following the template. (Ideation 결과가 있으면 synthesis.md의 추천 방향을 반영)
+   다중 태스크 시 병렬화 적용:
+   - 의존성 DAG(blockedBy/blocks)와 에이전트 배정을 단일 thinking에서 먼저 완전 확정
+   - 독립 태스크(blocks/blockedBy 없는 것) 2개 이상:
+     [Write 동시 호출]: 단일 응답 내 N개 spec.md Write 동시 호출 (의존성 확정된 완성본으로) — 기본값
+     [서브에이전트 병렬]: Task(run_in_background: true)로 N개 서브에이전트 동시 dispatch — PM 재량으로 전환 가능
+       → 각 에이전트에 의존성 테이블 + 에이전트 배정 결과를 읽기 전용으로 주입
+       → 에이전트가 독자적으로 의존성/배정 결정하는 것은 금지
+   - 독립 태스크 1개 이하: 기존 순차 Write 유지
 8) Save to .gran-maestro/requests/REQ-XXX/tasks/NN/spec.md.
+   다중 태스크 병렬 Write 완료 직후 양방향 의존성 검증:
+   - 각 spec의 blocks 목록 → 대상 spec의 blockedBy 포함 여부 교차 확인
+   - 불일치 시: 오류 표시 + request.json tasks 배열 업데이트 차단 + 수정 후 재시도 안내
+   - 부분 실패(일부 spec Write 실패): 실패 태스크 ID 목록 표시 + 재시도 안내
 8.5) **Spec Pre-review Pass** (config.workflow.spec_prereview 또는 --prereview 활성 시):
    mst:request의 h-2 스텝에서 구현 에이전트가 생성한 질문 목록을 처리한다.
 
