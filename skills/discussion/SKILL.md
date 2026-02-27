@@ -144,10 +144,11 @@ Critic 프롬프트 템플릿 (Round 0):
 # Critic 평가 요청 — {session_id}  Round 0
 
 ## 대기 지시
-다음 의견 파일들이 모두 생성될 때까지 대기하세요 (최대 10회, 30초 간격):
-{participants 순회 → {absolute_path}/rounds/00/{participant.key}.md 절대 경로 목록}
+다음 명령을 실행하고 결과를 기다리세요:
+python3 {PLUGIN_ROOT}/scripts/mst.py wait-files {participants 순회 → {absolute_path}/rounds/00/{participant.key}.md 절대 경로 목록}
 
-모든 파일이 존재하고 내용이 있으면 다음 단계를 수행합니다.
+마지막 줄이 ALL_READY면 다음 단계를 수행합니다.
+TIMEOUT이면 완료된 파일들만으로 진행합니다.
 
 ## 역할
 비판적 시각에서 모든 의견의 허점, 엣지 케이스, 반론을 식별합니다.
@@ -303,10 +304,11 @@ Critic 프롬프트 템플릿 (Round N):
 # Critic 평가 요청 — {session_id}  Round {N}
 
 ## 대기 지시
-다음 의견 파일들이 모두 생성될 때까지 대기하세요 (최대 10회, 30초 간격):
-{participants 순회 → {absolute_path}/rounds/NN/{participant.key}.md 절대 경로 목록}
+다음 명령을 실행하고 결과를 기다리세요:
+python3 {PLUGIN_ROOT}/scripts/mst.py wait-files {participants 순회 → {absolute_path}/rounds/NN/{participant.key}.md 절대 경로 목록}
 
-모든 파일이 존재하고 내용이 있으면 다음 단계를 수행합니다.
+마지막 줄이 ALL_READY면 다음 단계를 수행합니다.
+TIMEOUT이면 완료된 파일들만으로 진행합니다.
 
 ## 역할
 비판적 시각에서 모든 의견의 허점, 엣지 케이스, 반론을 식별합니다.

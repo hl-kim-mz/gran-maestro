@@ -196,7 +196,9 @@ projectRequestsApi.get("/requests/:id/tasks", async (c) => {
       const reqJson = await readJsonFile<{ tasks?: Array<{ id: string; status?: string; title?: string }> }>(
         `${requestDir}/request.json`
       );
-      const taskFromReq = reqJson?.tasks?.find((t) => t.id === dir);
+      const taskFromReq = reqJson?.tasks?.find(
+        (t) => t.id === dir || t.id.endsWith(`-${dir}`) || t.id.endsWith(`/${dir}`)
+      );
       tasks.push({
         id: dir,
         requestId: id,
@@ -260,7 +262,10 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
   traceFiles.sort();
 
   if (!status && !spec) {
-    return c.json({ error: "Task not found" }, 404);
+    if (!(await dirExists(taskDir))) {
+      return c.json({ error: "Task not found" }, 404);
+    }
+    // Task directory exists but files not ready yet — return partial data
   }
 
   return c.json({

@@ -31,6 +31,8 @@ Subcommands:
   session complete    <SESSION-ID>
 
   priority            <TASK-ID> [--before TASK-ID | --after TASK-ID]
+
+  wait-files          <file1> [file2 ...] [--timeout SECONDS]
 """
 
 import argparse
@@ -40,6 +42,7 @@ import shutil
 import sys
 import glob
 import tarfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -604,6 +607,42 @@ def cmd_notify(args):
 
 
 # ---------------------------------------------------------------------------
+# wait-files subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_wait_files(args):
+    files = args.files
+    total = len(files)
+
+    # 타임아웃 우선순위: CLI 인자 > config.json > 기본값 600s
+    if args.timeout is not None:
+        timeout_s = args.timeout
+    else:
+        cfg = load_json(BASE_DIR / "config.json") or {}
+        timeout_ms = cfg.get("timeouts", {}).get("wait_files_ms", 600000)
+        timeout_s = timeout_ms / 1000
+
+    completed = set()
+    start = time.time()
+
+    while time.time() - start < timeout_s:
+        for f in files:
+            if f not in completed and os.path.exists(f) and os.path.getsize(f) > 0:
+                completed.add(f)
+                name = os.path.basename(f)
+                print(f"[{len(completed)}/{total}] {name} 완료", flush=True)
+
+        if len(completed) == total:
+            print("ALL_READY", flush=True)
+            return 0
+
+        time.sleep(1)
+
+    print(f"TIMEOUT ({len(completed)}/{total})", flush=True)
+    return 1
+
+
+# ---------------------------------------------------------------------------
 # priority subcommand
 # ---------------------------------------------------------------------------
 
@@ -745,6 +784,12 @@ def build_parser():
     pri.add_argument("--before")
     pri.add_argument("--after")
 
+    # --- wait-files ---
+    wf = sub.add_parser("wait-files")
+    wf.add_argument("files", nargs="+", help="대기할 파일 경로 목록")
+    wf.add_argument("--timeout", type=float, default=None,
+                    help="타임아웃 (초). 미지정 시 config.json의 timeouts.wait_files_ms 사용")
+
     # --- notify ---
     notify_parser = sub.add_parser("notify")
     notify_parser.add_argument("event_type")
@@ -790,6 +835,7 @@ def main():
         ("session", "complete"): cmd_session_complete,
         ("priority", None): cmd_priority,
         ("notify", None): cmd_notify,
+        ("wait-files", None): cmd_wait_files,
     }
 
     key = (args.command, getattr(args, "subcommand", None))
