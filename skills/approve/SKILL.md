@@ -128,6 +128,19 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
 1. `.gran-maestro/requests/{REQ-ID}/tasks/` 하위 spec.md 확인
    - **spec.md 없으면**: Phase 1 미완료. 사용자에게 알리고 PM Conductor 분석 재실행
 2. 스펙 요약을 사용자에게 표시
+2.3. **체인 자동 실행 제안** (조건: `dependencies.blocks` 비어있지 않음 AND `workflow.auto_approve_on_unblock == false`):
+  - 조건 미충족 시 이 단계 skip, Step 2.5로 진행
+  - 조건 충족 시 blocks 체인 시각화:
+    ```
+    이 REQ가 완료되면 아래 REQ들이 순서대로 실행 가능해집니다:
+      REQ-NNN — {title} (대기 중)
+      REQ-MMM — {title} (대기 중)  ← REQ-NNN 완료 후
+    ```
+    (blocks 배열의 직접 후속 REQ만 표시; 재귀 조회는 1단계만)
+  - AskUserQuestion:
+    - "예, 자동으로 연결 실행" → `config.json`의 `workflow.auto_approve_on_unblock`을 `true`로 업데이트
+      알림: "✓ 이후 모든 체인에서 의존성 해소 시 자동 approve가 실행됩니다. (`/mst:settings workflow.auto_approve_on_unblock false`로 되돌릴 수 있습니다)"
+    - "아니오, 각 단계마다 수동 approve" → 현재 요청만 진행, 설정 변경 없음
 2.5. **Phase 2.5: Stitch 디자인 제안** (단건 + `auto_approve=false`인 경우만):
    - `config.stitch.enabled`가 false면 skip
    - spec.md §2에서 UI 관련 변경 감지 (프론트엔드 파일, "화면"/"UI"/"페이지"/"컴포넌트" 등 키워드)
