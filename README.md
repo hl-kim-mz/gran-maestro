@@ -1,5 +1,7 @@
 # Gran Maestro
 
+[한국어](README.md) | [English](README.en.md)
+
 > **"I am the Maestro — I conduct, I don't code."**
 
 **당신이 결정하면, AI 팀이 실행합니다.**
