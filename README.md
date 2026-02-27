@@ -2,24 +2,24 @@
 
 > **"I am the Maestro — I conduct, I don't code."**
 
-**Claude를 PM으로, Codex와 Gemini를 외주 개발팀으로 운영하는** Claude Code 플러그인입니다.
+**당신이 결정하면, AI 팀이 실행합니다.**
 
-## 배경
+아이디어가 생기면 Claude와 대화를 시작하세요.
+의논하고, 탐색하고, 계획을 완성하세요.
+계획이 쌓이면 한 번에 approve — Codex·Gemini가 실행합니다.
 
-각 AI는 특성이 다릅니다.
+## 어떻게 결정하나요?
 
-- **Claude** — 느리지만 세심하고 문맥을 잘 잡는다. 스펙 작성과 리뷰에 최적이다.
-- **Codex** — 빠르지만 지시가 애매하거나 범위가 넓으면 환각이 심하다. 명확한 스펙이 있을 때 위력을 발휘한다.
-- **Gemini** — 1M 토큰 컨텍스트, 대규모 코드 분석에 강하다.
-
-"Claude한테 PM 역할을 맡기고, 코딩은 Codex·Gemini에게 외주를 주면 어떨까?" — 그게 Gran Maestro의 출발점입니다.
+- **의논 (`/mst:ideation`, `/mst:discussion`)** — Claude·Codex·Gemini와 아이디어를 브레인스토밍하고 방향을 잡습니다.
+- **탐색 (`/mst:explore`)** — AI가 코드베이스를 자동 분석해 계획의 근거를 만들어 줍니다.
+- **계획 (`/mst:plan`)** — 결정 사항을 plan으로 정리합니다. 여러 plan을 쌓아두고 한 번에 approve하면 팀 전체가 움직입니다.
 
 ## Why Gran Maestro?
 
-- **Claude = PM, Codex/Gemini = 외주 개발자** — Claude는 스펙을 쓰고 리뷰합니다. 코드는 직접 작성하지 않습니다. Codex와 Gemini가 Git Worktree에서 실제 구현을 담당합니다.
+- **Claude = PM, Codex·Gemini = 개발팀** — Claude는 스펙을 쓰고 리뷰합니다. Codex와 Gemini가 Git Worktree에서 실제 구현을 담당합니다.
 - **자리를 비워도 일은 계속됩니다** — 스펙을 승인하고 자리를 비우세요. 돌아오면 구현, 리뷰, 피드백까지 끝나 있습니다.
-- **실시간 대시보드** — 워크플로우 그래프, 에이전트 스트림, 의존성 관계를 한눈에 파악합니다. 여러 프로젝트를 동시에 모니터링하는 허브 모드도 지원합니다.
-- **구독료의 가치를 극대화합니다** — 이미 결제한 Claude, Gemini, Codex를 각각에게 가장 잘하는 역할을 맡겨 팀처럼 운영합니다.
+- **실시간 대시보드** — 워크플로우 그래프, 에이전트 스트림, 의존성 관계를 한눈에 파악합니다.
+- **구독료의 가치를 극대화합니다** — 이미 결제한 Claude, Gemini, Codex를 각자 가장 잘하는 역할로 팀처럼 운영합니다.
 
 ![Gran Maestro 대시보드 — Ideation 뷰](docs/assets/dashboard-ideation.png)
 
