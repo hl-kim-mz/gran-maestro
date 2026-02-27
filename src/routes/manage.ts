@@ -5,6 +5,7 @@ import { resolveBaseDir } from "../config.ts";
 const projectManageApi = new Hono();
 
 const decoder = new TextDecoder();
+const PROJECT_ROOT = new URL("../../", import.meta.url).pathname;
 
 const ALLOWED_STATUS = {
   request: ["completed", "cancelled"],
@@ -64,7 +65,7 @@ else:
       targetStatus,
       action,
     ],
-    cwd: baseDir,
+    cwd: PROJECT_ROOT,
     stdout: "piped",
     stderr: "piped",
   });
@@ -137,16 +138,20 @@ projectManageApi.patch("/manage/status", async (c) => {
       continue;
     }
 
-    const result = await setState(baseDir, rawId, targetStatus);
-    if (result.success) {
-      succeeded.push(rawId);
-      continue;
-    }
+    try {
+      const result = await setState(baseDir, rawId, targetStatus);
+      if (result.success) {
+        succeeded.push(rawId);
+        continue;
+      }
 
-    const errorMessage = result.error ?? "";
-    if (errorMessage.includes("JSON not found for ID")) {
-      skipped.push(rawId);
-    } else {
+      const errorMessage = result.error ?? "";
+      if (errorMessage.includes("JSON not found for ID")) {
+        skipped.push(rawId);
+      } else {
+        errors.push(rawId);
+      }
+    } catch (_e) {
       errors.push(rawId);
     }
   }
