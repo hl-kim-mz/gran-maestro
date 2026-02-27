@@ -29,6 +29,8 @@ export interface RecoverableTask {
   worktreePath: string;
   /** Whether a CLI process is still running for this task. */
   hasRunningProcess: boolean;
+  /** Absolute path to `.gran-maestro/requests` used to resolve task status path. */
+  basePath: string;
 }
 
 /**
@@ -106,6 +108,7 @@ export async function scanForRecoverableTasks(
               lastPhase: statusData.phase ?? 'unknown',
               worktreePath,
               hasRunningProcess,
+              basePath,
             });
           } catch {
             // status.json missing or corrupt -- skip
@@ -204,7 +207,7 @@ export async function recoverTask(
   const parts = task.taskId.split('-');
   const taskNum = parts[parts.length - 1];
   const reqId = parts.slice(0, -1).join('-');
-  const statusPath = `.gran-maestro/requests/${reqId}/tasks/${taskNum}/status.json`;
+  const statusPath = `${task.basePath}/requests/${reqId}/tasks/${taskNum}/status.json`;
 
   let newStatus: string;
   let recoveryNote: string;
