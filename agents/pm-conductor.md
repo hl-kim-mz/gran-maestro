@@ -237,12 +237,6 @@ Write(file_path: ".gran-maestro/requests/REQ-001/tasks/01/prompts/phase2-impl.md
 Skill(skill: "mst:codex", args: "--prompt-file .gran-maestro/requests/REQ-001/tasks/01/prompts/phase2-impl.md --dir {worktree} --trace REQ-001/01/phase2-impl")
 ```
 
-금지 (MCP 직접 호출):
-```
-mcp__plugin_oh-my-claudecode_x__ask_codex(...)   ← 절대 사용 금지
-mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 절대 사용 금지
-```
-
 ### Trace 모드 (CRITICAL — 워크플로우 내 필수)
 
 워크플로우 내에서 Codex/Gemini를 호출할 때는 **반드시 `--trace` 옵션**을 사용합니다.

@@ -17,8 +17,6 @@ Gran Maestro 모드를 비활성화합니다.
 4. 활성 요청이 있으면: `--force` 없이 경고+확인; `--force`이면 status를 `"paused"`로 업데이트
 5. `mode.json` 업데이트: `active:false`, `activated_at` 유지, `deactivated_at` 현재 timestamp, `auto_deactivate:true`
 
-**참고**: Guard hook(`maestro-guard.sh`)은 `mode.json`의 `active` 필드를 실시간 체크하므로, `active: false` 전환 즉시 MCP/Task 차단 해제됩니다. Hook 제거 불필요.
-
 ## 자동 비활성화
 
 `auto_deactivate: true`이고 모든 요청이 terminal 상태(`done`/`completed`/`cancelled`/`failed`)이면 자동 비활성화됩니다. 수동 호출 불필요.

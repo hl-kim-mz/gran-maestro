@@ -45,8 +45,6 @@ Skill(skill: "mst:stitch", args: "--req REQ-NNN {요청 내용}")
 
 금지된 호출 방법:
 ```
-mcp__plugin_oh-my-claudecode_x__ask_codex(...)   ← 사용 금지
-mcp__plugin_oh-my-claudecode_g__ask_gemini(...)   ← 사용 금지
 mcp__stitch__generate_screen_from_text(...)        ← 사용 금지
 mcp__stitch__edit_screens(...)                     ← 사용 금지
 ```
