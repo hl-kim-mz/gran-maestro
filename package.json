@@ -1,13 +1,19 @@
 {
   "name": "gran-maestro",
-  "version": "0.37.0",
+  "version": "0.37.1",
   "description": "Gran Maestro — AI orchestration plugin for Claude Code",
   "main": "src/server.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/myrtlepn/gran-maestro.git"
   },
-  "keywords": ["claude-code", "plugin", "orchestration", "pm", "ai-agents"],
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "orchestration",
+    "pm",
+    "ai-agents"
+  ],
   "author": "myrtlepn",
   "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {

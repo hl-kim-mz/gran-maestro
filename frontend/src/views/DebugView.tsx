@@ -111,10 +111,28 @@ export function DebugView() {
 
   const handleStatusChange = async (targetStatus: string) => {
     try {
-      await apiFetch('/api/manage/status', projectId, {
+      const resolvedPath = projectId
+        ? `/api/projects/${projectId}/manage/status`
+        : '/api/manage/status';
+      const response = await fetch(resolvedPath, {
         method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedIds, targetStatus }),
       });
+      const result = await response.json() as {
+        succeeded: string[];
+        skipped: string[];
+        errors: string[];
+      };
+
+      if (!response.ok) {
+        throw new Error(`상태 변경 실패: ${response.status}`);
+      }
+
+      if (result.errors.length > 0) {
+        alert(`상태 변경 실패: ${result.errors.join(', ')}`);
+      }
+
       setIsEditMode(false);
       setSelectedIds([]);
       await fetchData();

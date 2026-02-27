@@ -156,7 +156,8 @@ projectManageApi.patch("/manage/status", async (c) => {
     }
   }
 
-  return c.json({ succeeded, skipped, errors });
+  const allFailed = body.ids.length > 0 && succeeded.length === 0 && errors.length > 0;
+  return c.json({ succeeded, skipped, errors }, allFailed ? 207 : 200);
 });
 
 projectManageApi.post("/manage/backup", async (c) => {
