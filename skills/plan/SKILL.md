@@ -143,15 +143,30 @@ ASCII 도식 작성 규칙:
 
 ### Step 4: plan.md 초안 제시 & 사용자 승인
 
+#### UI 키워드 감지 (Step 4 진입 시)
+
+plan 주제, 요청 텍스트, 결정사항 섹션을 대상으로 아래 키워드를 감지한다:
+`화면`, `UI`, `페이지`, `대시보드`, `컴포넌트`, `레이아웃`, `프론트엔드`, `디자인`, `화면 설계`, `목업`, `시안`
+
+- **감지됨** → AskUserQuestion 선택지에 4번째 옵션 "스티치로 디자인 시안 보기" 추가
+- **미감지** → 기존 3개 선택지만 표시 (동작 보존)
+
 1. 대화 내용 반영한 plan 초안 텍스트 제시 (**파일은 아직 작성하지 않음**)
    - `debug_context` 활성 시 `## 디버그 조사 연계` 섹션 자동 포함 (참조 세션/근본 원인 기록)
 2. `AskUserQuestion`으로 선택지 제시:
    - **"저장하고 /mst:request 실행"**: plan.md 저장 후 mst:request 호출 (직접 구현 아님 — REQ 생성+spec.md 작성으로 이동)
    - **"수정 후 진행"**: 수정 내용 입력 후 Step 4 반복
    - **"저장만 하기"**: plan.md만 저장, mst:request는 수동 실행
+   - **"스티치로 디자인 시안 보기"** *(UI 키워드 감지 시에만 표시)*: Stitch로 디자인 시안을 생성하고 plan에 통합합니다
 3. 저장 선택 시 `plans/PLN-NNN/plan.md` 작성; `debug_context` 활성 시 `plan.json`에 `"linked_debug"` 추가
 4. **"저장하고 /mst:request 실행" 시**: ⚠️ **plan.md 디스크 기록 확인 후에만** `Skill(skill: "mst:request", args: "--plan PLN-NNN {주제}")` 단 1회 호출 (미저장 상태 호출 절대 금지); `## 분리 실행` 섹션 있으면 mst:request가 다중 REQ 자동 생성
    - ⚠️ **spec.md 작성 완료 전 plan 스킬 종료 금지**
+5. **"스티치로 디자인 시안 보기" 선택 시**:
+   1. `Skill(skill: "mst:stitch", args: "--pln PLN-NNN {plan 주제}")` 호출
+      - ⚠️ `mcp__stitch__*` 도구 직접 호출 절대 금지 — 반드시 위 Skill 도구 경유
+   2. 호출 완료 후 생성된 Stitch 프로젝트/화면 정보를 plan 초안에 `## 디자인 시안` 섹션으로 추가
+      - plan.md는 여전히 디스크에 저장되지 않은 초안 상태를 유지
+   3. Step 4 재표시 (저장/수정 선택 가능)
 
 ## 출력 형식
 
