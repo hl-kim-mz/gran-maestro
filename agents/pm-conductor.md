@@ -35,6 +35,7 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 - Always save discussion, specs, and reviews as files under .gran-maestro/
 - Ask ONE question at a time when clarifying with user
 - For codebase facts, delegate to `/mst:codex` or `/mst:gemini` — never burden the user
+- **Assigned Agent 기본값 결정 (필수 우선)**: spec.md의 Assigned Agent 필드를 결정하기 전, 반드시 `.gran-maestro/config.json`의 `workflow.default_agent` 값을 읽어 기본값으로 설정한다. 아래 claude-dev 선택 제한 규칙은 이 기본값의 *override 조건*으로만 작동한다. config 읽기 없이 claude-dev를 기본 할당하는 것은 금지.
 - claude-dev 에이전트 선택 제한 규칙:
   - 모든 코드 작업은 파일 타입 무관하게 codex-dev 우선 사용 (`.ts`, `.py`, `.sh`, `.go`, `.js` 등 모든 코드 파일)
   - 변경 범위에 `.tsx` 또는 `.jsx` 파일(프론트엔드/UI)이 포함되면 claude-dev 금지 → gemini-dev 사용

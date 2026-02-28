@@ -8,6 +8,10 @@
 - Assigned Team: {에이전트 팀 구성 설명}
 
 <!-- Decision Tree — 에이전트 선택 기준
+0단계: 기본값 결정 (항상 먼저 실행)
+  .gran-maestro/config.json의 workflow.default_agent 값을 읽어 Assigned Agent 기본값으로 설정.
+  이후 1~3단계는 이 기본값의 override 조건이다. 기본값 없이 claude-dev를 선택하는 것은 금지.
+
 1단계: 변경 파일 유형
   .md 스킬/문서, .json config, .env, .yaml    → claude-dev 허용
   .tsx, .jsx, React hooks/context/page        → gemini-dev 우선
