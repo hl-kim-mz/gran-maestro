@@ -76,7 +76,7 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
      - 매칭 기준:
        - pending 항목에 `baseline_screen_ids`가 있으면: 현재 screen IDs에서 baseline_screen_ids 제거(차집합) → 차집합이 비어있지 않으면 해당 화면 중 첫 번째 선택
        - `baseline_screen_ids`가 없으면(구버전 pending): `created_at` 이후 생성된 화면 중 최근 3개를 검사 (기존 방식 유지)
-     - 미발견 시: `stale_at`(= `created_at` + 5분) 경과 여부 확인
+     - 미발견 시: `stale_at`(= `created_at` + 15분) 경과 여부 확인
        - `stale_at` 이내: pending 항목 유지 → "이전 생성 요청이 아직 처리 중일 수 있습니다. 잠시 후 다시 시도하세요." 출력 후 종료
        - `stale_at` 경과: pending 항목 제거 → 새 생성 진행
 
@@ -121,7 +121,7 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
 
    20회 모두 미감지 시:
    - "[Stitch] 화면 생성 요청이 처리 중입니다 — 수 분 내 완료됩니다. 잠시 후 /mst:stitch --list로 확인하세요." 출력
-   - pending 항목 유지 (`stale_at` = `created_at` + 5분 기존 로직 그대로 적용)
+   - pending 항목 유지 (`stale_at` = `created_at` + 15분)
    - 종료
 
 5. **화면 URL 확보** (`get_screen` 최대 3회 재시도):
@@ -144,6 +144,37 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
 ## 멀티 스타일 생성 프로토콜
 
 `--multi` 플래그 또는 plan Step 4.5 진입 시 이 프로토콜을 실행한다.
+
+-1. **기존 배치 재진입 체크** (Step 0 전 실행):
+
+   REQ-NNN이 있을 경우 `request.json`, REQ-NNN 없고 PLN-NNN이 있을 경우 `plan.json`의
+   `stitch_screens`에서 `type: "multi_style_batch"` + `status: "pending"` 항목 탐색.
+   미발견 시: 이 단계 skip → Step 0부터 정상 실행.
+
+   발견 시:
+   a. `mcp__stitch__list_screens` 호출 → 현재 screen IDs 확인
+   b. diff = 현재 screen IDs − pending 항목의 `baseline_screen_ids`
+   c. diff 크기 판단:
+
+      **diff ≥ pending 항목의 `styles` 수 (화면 생성 완료):**
+      - "[Stitch] 이전 세션에서 {N}개 스타일 화면이 생성되었습니다. 선택 화면으로 이동합니다." 출력
+      - diff의 screen_ids(최신 N개)를 `accumulated_screens`로 로드
+      - 각 screen_id에 대해 `get_screen` 호출로 `downloadUrl` 확보 (최대 3회 재시도)
+      - `styles` 배열 순서대로 스타일명 매핑 (인덱스 기반)
+      - 멀티 스타일 프로토콜 **Step 6(사용자 표시) → Q7부터 재개** (새 generation 없음)
+      - ⚠️ Step 0~5 전체 skip
+
+      **diff < styles 수 + stale_at(= `created_at` + 15분) 이내 (생성 진행 중):**
+      - "[Stitch] 이전 배치 생성이 진행 중입니다 — 폴링을 재개합니다." 출력
+      - `accumulated_screens` = 이미 수집된 diff 항목들 (부분 완료분)
+      - pending 항목의 `baseline_screen_ids`를 현재 baseline으로 재사용 (list_screens 재호출 불필요)
+      - 나머지 스타일 수 = styles 수 − diff 크기 → 폴링 목표로 설정
+      - 멀티 스타일 프로토콜 **Step 4(폴링 루프)부터 재개** (Step 2~3 skip)
+
+      **diff < styles 수 + stale_at 초과 (배치 만료):**
+      - "[Stitch] 이전 배치가 만료되었습니다. 새로 생성합니다." 출력
+      - 기존 pending 항목 제거 (`stitch_screens` 배열에서 삭제)
+      - Step 0부터 정상 실행 (새 배치 생성)
 
 0. **baseline_screen_ids 기록** (1회):
    - `mcp__stitch__list_screens` 호출 → 응답의 `screens[].name`에서 screen ID 추출 → `baseline_screen_ids` Set으로 저장
@@ -196,7 +227,8 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
         - NO: 반복 계속
    - 20회 모두 미감지 시:
      - "[Stitch] 일부 스타일 생성이 지연되고 있습니다 — 잠시 후 /mst:stitch --list로 확인하세요." 출력
-     - pending 항목 유지 → 수집된 screen IDs만으로 진행 (0개이면 종료)
+     - pending 항목 유지 (`stale_at` = `created_at` + 15분)
+     - 수집된 screen IDs만으로 진행 (0개이면 종료)
 
 5. **각 화면 URL 확보** (`get_screen` 최대 3회 재시도):
    - 각 screen_id에 대해:
@@ -438,7 +470,7 @@ variants 생성 시:
 | 오류 | 처리 |
 |------|------|
 | list_projects 타임아웃 (30초) | "[Stitch] 연결 불가 — 건너뜀. /mst:stitch로 수동 실행 가능." 출력 후 종료 |
-| generate_screen 빈 응답 | 비동기 수락으로 처리 — 재시도 금지. 폴링 루프(30초×20회) 진입. 20회 미감지 시 pending 유지 + 사용자 안내 후 종료. |
+| generate_screen 빈 응답 | 비동기 수락으로 처리 — 재시도 금지. 폴링 루프(30초×20회) 진입. 20회 미감지 시 pending 유지(stale_at = created_at + 15분) + 사용자 안내 후 종료. |
 | get_screen 실패 | 5초 간격으로 최대 3회 재시도. 모두 실패 시 screen_id를 pending 항목에 기록하고 URL 미확보 안내 출력 |
 | 화면 생성 실패 | "[Stitch] 화면 생성 실패 — {오류}. 텍스트 명세로 진행합니다." |
 | enabled=false | "[Stitch] 비활성화됨 (config.stitch.enabled=false)" |
