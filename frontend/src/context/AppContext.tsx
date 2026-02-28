@@ -77,7 +77,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Load project list on mount
   useEffect(() => {
     apiFetch<Project[]>('/api/projects').then((data) => {
-      setProjects(data.filter(p => !p.path.includes('/gran-maestro/frontend')));
+      const filtered = data.filter(p => !p.path.includes('/gran-maestro/frontend'));
+      setProjects(filtered);
+      if (projectId && filtered.length > 0 && !filtered.find(p => p.id === projectId)) {
+        addNotification({
+          type: 'warn',
+          message: '프로젝트를 찾을 수 없습니다. 첫 번째 프로젝트로 전환합니다.',
+          timestamp: new Date().toISOString(),
+        });
+        setProjectId(filtered[0].id);
+      }
     }).catch((err) => {
       console.error('Failed to fetch projects:', err);
     });
