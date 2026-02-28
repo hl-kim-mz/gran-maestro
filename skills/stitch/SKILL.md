@@ -54,6 +54,10 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
 ### D. 약한 신호 (개입 안 함)
 - 기존 화면 컴포넌트/스타일 수정만 → Stitch 개입 없음
 
+### E. 멀티 스타일 요청 (--multi 플래그 또는 plan Step 4.5 진입)
+- 감지: `--multi` 플래그 명시 or `mst:plan` Step 4.5 "스티치로 디자인 시안 보기" 선택 진입
+- 처리: 사용자 확인 없이 바로 **멀티 스타일 생성 프로토콜** 진행
+
 ## 화면 생성 프로토콜
 
 0. **baseline_screen_ids 기록**:
@@ -136,6 +140,128 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
      variantOptions: { variantCount: 3, creativeRange: "EXPLORE" }
    )
    ```
+
+## 멀티 스타일 생성 프로토콜
+
+`--multi` 플래그 또는 plan Step 4.5 진입 시 이 프로토콜을 실행한다.
+
+0. **baseline_screen_ids 기록** (1회):
+   - `mcp__stitch__list_screens` 호출 → 응답의 `screens[].name`에서 screen ID 추출 → `baseline_screen_ids` Set으로 저장
+   - screen ID 추출: `name` 필드에서 마지막 `/` 이후 값
+
+1. **스타일 세트 도출** (LLM 자율 판단):
+   - 요청 텍스트/화면 설명을 분석해 3~4개 스타일 도출
+   - 각 스타일: 이름(예: "Minimal & Clean") + 차별화 포인트 요약
+   - 스타일 예시: Minimal & Clean / Dark & Modern / Vibrant & Colorful / Corporate & Professional
+   - 맥락에 맞지 않는 스타일은 제외하고 적합한 스타일로 대체
+
+2. **배치 pending 선기록**:
+   - REQ-NNN이 있을 경우: `request.json`의 `stitch_screens`에 배치 항목 기록:
+     ```json
+     {
+       "status": "pending",
+       "type": "multi_style_batch",
+       "batch_id": "{uuid}",
+       "styles": ["Minimal & Clean", "Dark & Modern", "Vibrant & Colorful"],
+       "baseline_screen_ids": ["{id1}", "{id2}", "..."],
+       "created_at": "{TS}"
+     }
+     ```
+   - REQ-NNN 없고 PLN-NNN이 있을 경우: `plan.json`의 `stitch_screens`에 동일 형식으로 기록
+   - 둘 다 없을 경우: 선기록 생략
+
+3. **스타일별 generate_screen 순차 호출** (N = 스타일 수):
+   - 각 스타일마다:
+     ```
+     mcp__stitch__generate_screen_from_text(
+       projectId: {config.stitch.project_id},
+       prompt: "{기본 화면 설명}\n\n[스타일 방향] {스타일명}: {스타일 차별화 포인트}",
+       deviceType: "DESKTOP"
+     )
+     ```
+   - 응답 있음(screen_id 포함): screen_id 임시 보관 → 다음 스타일 호출 계속
+   - 빈 응답/null: 해당 스타일 "pending" 상태로 표시 → 폴링 루프(Step 4)에서 일괄 처리
+   - 명시적 오류: 해당 스타일 실패 기록 후 계속
+
+4. **폴링 루프** (즉시 응답 없는 스타일이 있는 경우):
+   - 대기 안내 출력:
+     ```
+     [Stitch] 멀티 스타일 시안 생성 중... (최대 5분 소요)
+     ```
+   - 최대 10회, 30초 간격:
+     a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30` (Bash 호출)
+     b. `mcp__stitch__list_screens` 호출
+     c. `현재 screen IDs - baseline_screen_ids`의 차집합 크기 >= 수집 목표 수?
+        - YES: 차집합에서 목표 수만큼 screen ID 선택 → Step 5로 진행
+        - NO: 반복 계속
+   - 10회 모두 미감지 시:
+     - "[Stitch] 일부 스타일 생성이 지연되고 있습니다 — 잠시 후 /mst:stitch --list로 확인하세요." 출력
+     - pending 항목 유지 → 수집된 screen IDs만으로 진행 (0개이면 종료)
+
+5. **각 화면 URL 확보** (`get_screen` 최대 3회 재시도):
+   - 각 screen_id에 대해:
+     ```
+     mcp__stitch__get_screen(name: "projects/{id}/screens/{screen_id}", ...)
+     ```
+   - `screenshot.downloadUrl` 추출 (없으면 null)
+   - 스타일명과 screen_id, downloadUrl을 매핑하여 보관
+
+6. **사용자에게 표시**:
+   ```
+   [Stitch] {N}개 스타일 시안이 생성되었습니다.
+
+   ## A. {스타일명1}
+   ![{스타일명1}]({downloadUrl1})
+
+   ## B. {스타일명2}
+   ![{스타일명2}]({downloadUrl2})
+
+   ... (스타일 수만큼 반복)
+
+   📊 대시보드에서 비교: http://{config.server.host}:{config.server.port}/design/{PLN-NNN 또는 REQ-NNN}
+   🔗 Stitch 프로젝트: https://stitch.withgoogle.com/projects/{project_id}
+   ```
+   - `downloadUrl`이 null인 스타일은 이미지 라인 생략, 스타일명과 "이미지 미확보" 텍스트 표시
+   - 대시보드 링크: PLN-NNN이 있으면 PLN 기반, 없으면 REQ 기반
+
+7. **Q1: 어떤 스타일을 기반으로 할까요?** (`AskUserQuestion`):
+   - 선택지: A({스타일명1}) / B({스타일명2}) / C({스타일명3}) / [D({스타일명4})] / 다시 생성 (다른 스타일로)
+   - "다시 생성" 선택 시: Step 1로 돌아가 새 스타일 세트 도출 후 재시도
+
+8. **Q2: 선택한 시안의 variants를 몇 개 만들까요?** (`AskUserQuestion`):
+   - 선택지: 0개 (이대로 완료) / 1개 / 2개 / 3개
+
+9. **variants 생성** (Q2 선택이 > 0인 경우):
+   ```
+   mcp__stitch__generate_variants(
+     projectId: {project_id},
+     selectedScreenIds: [{선택된 screen_id}],
+     prompt: "선택된 스타일을 유지하면서 레이아웃과 색상을 다양하게 변형",
+     variantOptions: { variantCount: {Q2 선택값}, creativeRange: "EXPLORE" }
+   )
+   ```
+
+10. **메타데이터 갱신**:
+    - 선택된 스타일의 배치 pending 항목을 아래 형식으로 갱신 (active):
+      ```json
+      {
+        "stitch_screen_id": "{screen_id}",
+        "url": "https://stitch.withgoogle.com/projects/{project_id}",
+        "image_url": "{downloadUrl 또는 null}",
+        "style": "{선택된 스타일명}",
+        "status": "active"
+      }
+      ```
+    - 선택되지 않은 스타일의 screen_id들은 `archived` 상태로 각각 기록:
+      ```json
+      {
+        "stitch_screen_id": "{screen_id}",
+        "style": "{스타일명}",
+        "status": "archived"
+      }
+      ```
+    - variants 생성 시: 각 variant를 `status: "variant"` 항목으로 추가 기록
+    - design.md 갱신: 선택된 스타일 + variants 항목 기록 (기존 `## PLN 컨텍스트 감지 및 design.md 저장` 프로토콜 준수)
 
 ## 메타데이터 기록
 
@@ -279,3 +405,4 @@ variants 생성 시:
 - `--req REQ-NNN`: 특정 REQ에 연결 (메타데이터 기록)
 - `--edit SCREEN_ID`: 기존 화면 수정
 - `--list`: 현재 Stitch 프로젝트의 화면 목록 조회
+- `--multi`: 멀티 스타일 시안 생성 모드. 3~4개 스타일을 자동 도출하여 각각 화면을 생성하고, 사용자가 선택 후 variants 추가 가능.
