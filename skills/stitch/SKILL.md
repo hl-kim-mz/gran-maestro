@@ -110,7 +110,7 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
    - **명시적 오류(예외)**: 실패 처리 (기존 동일)
 
 4-1. **폴링 루프** (빈 응답인 경우만):
-   최대 10회, 30초 간격 (총 최대 5분)
+   최대 20회, 30초 간격 (총 최대 10분)
 
    반복마다:
    a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30` (Bash 호출)
@@ -119,7 +119,7 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
       - YES: 차집합의 첫 번째 screen ID 선택 → step 5로 진행
       - NO: 반복 계속
 
-   10회 모두 미감지 시:
+   20회 모두 미감지 시:
    - "[Stitch] 화면 생성 요청이 처리 중입니다 — 수 분 내 완료됩니다. 잠시 후 /mst:stitch --list로 확인하세요." 출력
    - pending 항목 유지 (`stale_at` = `created_at` + 5분 기존 로직 그대로 적용)
    - 종료
@@ -186,15 +186,15 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
 4. **폴링 루프** (즉시 응답 없는 스타일이 있는 경우):
    - 대기 안내 출력:
      ```
-     [Stitch] 멀티 스타일 시안 생성 중... (최대 5분 소요)
+     [Stitch] 멀티 스타일 시안 생성 중... (최대 10분 소요)
      ```
-   - 최대 10회, 30초 간격:
+   - 최대 20회, 30초 간격:
      a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30` (Bash 호출)
      b. `mcp__stitch__list_screens` 호출
      c. `현재 screen IDs - baseline_screen_ids`의 차집합 크기 >= 수집 목표 수?
         - YES: 차집합에서 목표 수만큼 screen ID 선택 → Step 5로 진행
         - NO: 반복 계속
-   - 10회 모두 미감지 시:
+   - 20회 모두 미감지 시:
      - "[Stitch] 일부 스타일 생성이 지연되고 있습니다 — 잠시 후 /mst:stitch --list로 확인하세요." 출력
      - pending 항목 유지 → 수집된 screen IDs만으로 진행 (0개이면 종료)
 
@@ -438,7 +438,7 @@ variants 생성 시:
 | 오류 | 처리 |
 |------|------|
 | list_projects 타임아웃 (30초) | "[Stitch] 연결 불가 — 건너뜀. /mst:stitch로 수동 실행 가능." 출력 후 종료 |
-| generate_screen 빈 응답 | 비동기 수락으로 처리 — 재시도 금지. 폴링 루프(30초×10회) 진입. 10회 미감지 시 pending 유지 + 사용자 안내 후 종료. |
+| generate_screen 빈 응답 | 비동기 수락으로 처리 — 재시도 금지. 폴링 루프(30초×20회) 진입. 20회 미감지 시 pending 유지 + 사용자 안내 후 종료. |
 | get_screen 실패 | 5초 간격으로 최대 3회 재시도. 모두 실패 시 screen_id를 pending 항목에 기록하고 URL 미확보 안내 출력 |
 | 화면 생성 실패 | "[Stitch] 화면 생성 실패 — {오류}. 텍스트 명세로 진행합니다." |
 | enabled=false | "[Stitch] 비활성화됨 (config.stitch.enabled=false)" |
