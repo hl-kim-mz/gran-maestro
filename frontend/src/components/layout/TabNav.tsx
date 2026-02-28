@@ -4,7 +4,6 @@ import {
   GitBranch,
   Lightbulb,
   Bug,
-  Search,
   Files,
   Settings,
 } from 'lucide-react';
@@ -16,9 +15,8 @@ export const TABS = [
   { id: 'workflow', label: 'Workflow', icon: GitBranch, key: '2' },
   { id: 'ideation', label: 'Ideation', icon: Lightbulb, key: '3' },
   { id: 'debug', label: 'Debug', icon: Bug, key: '4' },
-  { id: 'explore', label: 'Explore', icon: Search, key: '5' },
-  { id: 'documents', label: 'Documents', icon: Files, key: '6' },
-  { id: 'settings', label: 'Settings', icon: Settings, key: '7' },
+  { id: 'documents', label: 'Documents', icon: Files, key: '5' },
+  { id: 'settings', label: 'Settings', icon: Settings, key: '6' },
 ];
 
 export function TabNav({
