@@ -53,13 +53,16 @@ projectPlansApi.get("/plans", async (c) => {
     })
   );
 
-  const plans = planResults.filter((plan): plan is PlanMeta & { has_design: boolean } =>
+  const plans = planResults.filter((plan): plan is NonNullable<typeof plan> =>
     plan !== null
-  );
+  ) as (PlanMeta & { has_design: boolean })[];
 
   plans.sort((a, b) => {
-    const aTime = a.created_at ?? "";
-    const bTime = b.created_at ?? "";
+    const aTime = a.created_at;
+    const bTime = b.created_at;
+    if (!aTime && !bTime) return 0;
+    if (!aTime) return 1;
+    if (!bTime) return -1;
     return bTime.localeCompare(aTime);
   });
 

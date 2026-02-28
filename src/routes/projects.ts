@@ -47,28 +47,38 @@ projectRegistryApi.post("/", async (c) => {
     return c.json({ error: "Project path not found" }, 404);
   }
 
-  const projectId = await generateProjectId(resolvedPath);
-  const existing = registry.projects.find((project) => project.id === projectId);
+  const existing = registry.projects.find((project) => project.path === resolvedPath);
+  const now = new Date().toISOString();
 
   if (existing) {
     existing.name = name;
     existing.path = resolvedPath;
-    existing.registered_at = new Date().toISOString();
-  } else {
-    registry.projects.push({
-      id: projectId,
+    existing.registered_at = now;
+
+    await saveRegistry();
+    return c.json({
+      id: existing.id,
       name,
       path: resolvedPath,
-      registered_at: new Date().toISOString(),
+      registered_at: existing.registered_at,
     });
   }
+
+  const projectId = await generateProjectId(resolvedPath);
+
+  registry.projects.push({
+    id: projectId,
+    name,
+    path: resolvedPath,
+    registered_at: now,
+  });
 
   await saveRegistry();
   return c.json({
     id: projectId,
     name,
     path: resolvedPath,
-    registered_at: existing ? existing.registered_at : new Date().toISOString(),
+    registered_at: now,
   });
 });
 
