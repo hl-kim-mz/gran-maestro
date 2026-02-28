@@ -11,8 +11,14 @@ export function useAuth() {
     const urlProject = params.get('project');
     if (urlProject) {
       sessionStorage.setItem('gm_project', urlProject);
+    }
+
+    if (urlToken || urlProject) {
       const newUrl = window.location.pathname + window.location.hash;
       window.history.replaceState({}, '', newUrl);
+    }
+
+    if (urlProject) {
       return urlProject;
     }
     return sessionStorage.getItem('gm_project') || '';
