@@ -18,6 +18,7 @@ def _find_json_file(base_dir: Path, id: str) -> Optional[Path]:
         base_dir / "debug" / id / "session.json",
         base_dir / "ideation" / id / "session.json",
         base_dir / "discussion" / id / "session.json",
+        base_dir / "explore" / id / "session.json",
     ]:
         if candidate.exists():
             return candidate

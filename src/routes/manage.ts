@@ -11,6 +11,7 @@ const ALLOWED_STATUS = {
   request: ["completed", "cancelled"],
   plan: ["completed"],
   session: ["completed"],
+  explore: ["completed", "cancelled"],
 } as const;
 
 type ManagedStatus = (typeof ALLOWED_STATUS)[keyof typeof ALLOWED_STATUS][number];
@@ -24,6 +25,7 @@ function getTargetType(id: string): TargetType | null {
   if (id.startsWith("REQ-")) return "request";
   if (id.startsWith("PLN-")) return "plan";
   if (id.startsWith("DBG-") || id.startsWith("IDN-") || id.startsWith("DSC-")) return "session";
+  if (id.startsWith("EXP-")) return "explore";
   return null;
 }
 
@@ -88,6 +90,7 @@ async function resolveItemDir(baseDir: string, id: string): Promise<string | nul
     `debug/${id}`,
     `ideation/${id}`,
     `discussion/${id}`,
+    `explore/${id}`,
   ];
 
   for (const candidate of candidates) {
