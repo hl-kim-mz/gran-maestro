@@ -97,8 +97,12 @@ export function PlansView() {
     try {
       await fetchPlans();
       if (selectedPlan && projectId) {
-        const data = await apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, projectId);
-        setPlanContent(data.content || null);
+        const [planData, designData] = await Promise.all([
+          apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, projectId),
+          apiFetch<{ exists: boolean; content: string | null }>(`/api/plans/${selectedPlan.id}/design`, projectId),
+        ]);
+        setPlanContent(planData.content || null);
+        setDesignContent(designData.exists ? designData.content : null);
       }
     } catch (err) {
       console.error('Failed to refresh plans:', err);
@@ -131,6 +135,9 @@ export function PlansView() {
         apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, projectId)
           .then(data => setPlanContent(data.content || null))
           .catch(() => setPlanContent(null));
+        apiFetch<{ exists: boolean; content: string | null }>(`/api/plans/${selectedPlan.id}/design`, projectId)
+          .then(data => setDesignContent(data.exists ? data.content : null))
+          .catch(() => setDesignContent(null));
       }
     }
   }, [lastSseEvent, projectId, selectedPlan?.id]);
