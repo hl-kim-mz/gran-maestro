@@ -30,6 +30,8 @@ Subcommands:
 
   context gather      [--diff N] [--skills] [--agents] [--format text|json]
 
+  task set-commit     <TASK-ID> <commit hash> <commit message>
+
   agents check
   agents sync
 
@@ -46,6 +48,7 @@ Subcommands:
 
 import argparse
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -1026,6 +1029,56 @@ def cmd_priority(args):
     return 0
 
 
+def cmd_task_set_commit(args):
+    task_id = args.task_id.upper()
+    match = re.match(r"^(REQ-\d+)-T(\d{2})$", task_id)
+    if not match:
+        print(
+            f"Error: invalid task ID '{args.task_id}'. "
+            "Expected REQ-NNN-TNN format.",
+            file=sys.stderr
+        )
+        return 1
+
+    if not args.commit_hash:
+        print("Error: commit hash is required.", file=sys.stderr)
+        return 1
+
+    req_id = match.group(1)
+
+    request_paths = [
+        BASE_DIR / "requests" / req_id / "request.json",
+        BASE_DIR / "requests" / "completed" / req_id / "request.json",
+    ]
+    request_path = next((p for p in request_paths if p.exists()), None)
+    if request_path is None:
+        print(f"Error: request.json not found for {req_id}", file=sys.stderr)
+        return 1
+
+    data = load_json(request_path)
+    if data is None:
+        print(f"Error: failed to load request.json for {req_id}", file=sys.stderr)
+        return 1
+
+    tasks = data.get("tasks")
+    if not isinstance(tasks, list):
+        print(f"Error: tasks field not found in {request_path}", file=sys.stderr)
+        return 1
+
+    for task in tasks:
+        if isinstance(task, dict) and task.get("id", "").upper() == task_id:
+            task["commit_hash"] = args.commit_hash
+            task["commit_message"] = args.commit_message or ""
+            break
+    else:
+        print(f"Error: task {task_id} not found in request.json", file=sys.stderr)
+        return 1
+
+    save_json(request_path, data)
+    print(f"commit metadata saved: {task_id}")
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
@@ -1187,6 +1240,14 @@ def build_parser():
     pri.add_argument("--before")
     pri.add_argument("--after")
 
+    # --- task ---
+    task = sub.add_parser("task")
+    task_sub = task.add_subparsers(dest="subcommand")
+    task_set_commit = task_sub.add_parser("set-commit")
+    task_set_commit.add_argument("task_id")
+    task_set_commit.add_argument("commit_hash", nargs="?")
+    task_set_commit.add_argument("commit_message", nargs="?")
+
     # --- wait-files ---
     wf = sub.add_parser("wait-files")
     wf.add_argument("files", nargs="+", help="대기할 파일 경로 목록")
@@ -1253,6 +1314,7 @@ def main():
         ("session", "inspect"): cmd_session_inspect,
         ("session", "complete"): cmd_session_complete,
         ("priority", None): cmd_priority,
+        ("task", "set-commit"): cmd_task_set_commit,
         ("notify", None): cmd_notify,
         ("stitch", "sleep"): cmd_stitch_sleep,
         ("wait-files", None): cmd_wait_files,

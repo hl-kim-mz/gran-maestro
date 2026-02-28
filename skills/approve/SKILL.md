@@ -540,7 +540,15 @@ Step 5 PASS 후 PM이 직접 커밋합니다 (외주 에이전트의 `index.lock
    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
    ```
 
-4. 해당 태스크 `status`를 `committed`로 변경 → Step 6 진행. `background_task_ids` 항목 status → `"completed"` 업데이트
+4. 커밋 hash/message 저장:
+   ```bash
+   COMMIT_HASH=$(git -C {worktree_path} log -1 --format="%H")
+   COMMIT_MSG=$(git -C {worktree_path} log -1 --format="%s")
+   python3 {PLUGIN_ROOT}/scripts/mst.py task set-commit {REQ_ID}-T{TASK_ID_PAD} "$COMMIT_HASH" "$COMMIT_MSG"
+   ```
+   - 실패 시 경고만 출력하고 워크플로우는 계속 진행.
+
+5. 해당 태스크 `status`를 `committed`로 변경 → Step 6 진행. `background_task_ids` 항목 status → `"completed"` 업데이트
 
 #### Step 5b: 사전검증 실패 재외주 (Pre-check Failure Re-outsourcing)
 
