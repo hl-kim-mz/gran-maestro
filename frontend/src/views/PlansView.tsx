@@ -362,7 +362,7 @@ export function PlansView() {
                               <img
                                 src={section.imageUrl}
                                 alt={section.title || 'design image'}
-                                className="w-full object-cover max-h-80"
+                                className="max-w-[85%] block mx-auto"
                               />
                             </a>
                           )}
