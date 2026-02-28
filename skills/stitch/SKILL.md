@@ -322,80 +322,97 @@ REQ-NNN의 spec.md 하단에 Stitch 섹션 추가:
 - {화면명}: {Stitch URL}
 ```
 
-## PLN 컨텍스트 감지 및 design.md 저장
+## DES 세션 생성 및 screen-NNN.md 저장
 
-화면 생성이 완료된 후(메타데이터 기록 이후), 아래 로직을 실행한다.
+Stitch 화면 생성 완료 후, PLN/REQ 유무와 **무관하게** 항상 DES-NNN 세션을 생성하고
+개별 스크린 파일을 저장한다.
 
-### PLN 자동 감지
+### Step A: DES 채번
 
-1. `.gran-maestro/plans/PLN-*/plan.json` 파일들을 스캔
-2. `status`가 `"active"` 또는 `"in_progress"`인 항목 추출
-3. 여러 개인 경우: `created_at` 기준 가장 최근 것을 선택
-4. 없으면: 이 단계 전체를 skip (기존 REQ 기반 동작 그대로 유지)
+```
+python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
+```
+출력: `DES-NNN` (예: `DES-001`)
 
-### design.md 생성/갱신
+최초 실행 시 `.gran-maestro/designs/` 디렉토리와 `counter.json`이 자동 생성된다.
 
-활성 PLN 감지 시 `.gran-maestro/plans/PLN-NNN/design.md` 파일에 기록한다.
+### Step B: DES-NNN 디렉토리 생성
 
-**신규 파일 생성 시 헤더 (파일이 없는 경우에만):**
-```markdown
-# 디자인 시안 — PLN-NNN
-
-> mst:stitch로 생성된 화면입니다.
-
----
+```
+.gran-maestro/designs/DES-NNN/
 ```
 
-**각 생성된 화면에 대해 append:**
-```markdown
-## {screen_title}
-
-[Stitch에서 보기 ↗]({stitch_web_url})
-
-![{screen_title} 미리보기]({image_url})
-
-> ⚠️ 이미지 URL은 수 시간 후 만료됩니다. 만료 시 `/mst:stitch`로 재생성하세요.
-
-{screen_description_or_empty_string}
-
----
-```
-
-**필드 출처:**
-- `screen_title`: `stitch_screens[].title` (또는 `"시안 N"` 자동 생성)
-- `stitch_web_url`: `https://stitch.withgoogle.com/projects/{project_id}` 형식으로 구성
-  (Stitch는 SPA — 화면 수준 직접 URL 미지원, `/screens/{screen_id}` 경로는 404 반환)
-- `image_url`: `get_screen()` 응답의 `screenshot.downloadUrl` 필드 (중첩 `FileReference` 객체);
-             `screenshot` 키 미존재 · `downloadUrl` 미존재 · 빈 문자열 → 모두 `null` 처리
-             → 이미지 라인 생략, 프로젝트 링크만 표시
-             (⚠️ `imageUrl`, `screenshotUrl` 필드는 실제 API 응답에 존재하지 않음)
-- `screen_description`: 생성 시 사용된 프롬프트 요약 (없으면 생략)
-
-### plan.json stitch_screens[] 갱신
-
-`design.md` 기록 후 `.gran-maestro/plans/PLN-NNN/plan.json`의 `stitch_screens[]` 배열에 추가:
+### Step C: design.json 작성
 
 ```json
 {
-  "screen_id": "uuid-{random}",
-  "stitch_screen_id": "{Stitch의 실제 screen_id}",
-  "pln_id": "PLN-NNN",
-  "title": "{screen_title}",
+  "id": "DES-NNN",
+  "title": "{Stitch 화면 제목 또는 사용자 요청 요약}",
+  "status": "active",
+  "created_at": "{python3 {PLUGIN_ROOT}/scripts/mst.py timestamp now 출력값}",
+  "linked_plan": "{활성 PLN ID 또는 null}",
+  "linked_req": "{활성 REQ ID 또는 null}",
+  "screens": []
+}
+```
+
+### Step D: screen-NNN.md 파일 작성 (스크린별)
+
+스크린 번호는 001부터 순차 증가. 각 화면마다 파일 1개.
+
+```markdown
+## {화면 제목}
+
+[Stitch에서 보기 ↗]({stitch_web_url})
+
+![{화면 제목} 미리보기]({image_url})
+
+> ⚠️ 이미지 URL은 수 시간 후 만료됩니다. 만료 시 `/mst:stitch`로 재생성하세요.
+
+{화면 설명 (있으면)}
+```
+
+### Step E: design.json의 screens[] 갱신
+
+screen-NNN.md 저장 후 design.json의 `screens` 배열에 메타데이터 추가:
+
+```json
+{
+  "id": "screen-NNN",
+  "stitch_screen_id": "{Stitch screen_id}",
+  "title": "{화면 제목}",
   "url": "{stitch_web_url}",
-  "image_url": "{image_url_or_null}",
+  "image_url": "{image_url 또는 null}",
   "created_at": "{ISO timestamp}",
   "status": "active"
 }
 ```
 
-`plan.json`에 `stitch_screens` 키가 없으면 빈 배열로 초기화 후 추가한다.
+### Step F: PLN 링크 (PLN 존재 시에만)
 
-### 완료 보고 (기존 사용자 보고 메시지 이후 추가 출력)
+활성 PLN이 있으면 `plan.json`에 `linked_designs` 배열 추가/갱신:
 
+```json
+{
+  "linked_designs": ["DES-NNN"]
+}
 ```
-✅ design.md에 {N}개 시안이 기록되었습니다. (PLN-NNN)
-   → .gran-maestro/plans/PLN-NNN/design.md
+(기존 `stitch_screens[]` 배열은 유지 — 하위 호환)
+
+### Step G: REQ 링크 (REQ 존재 시에만)
+
+활성 REQ가 있으면 `request.json`에 `linked_designs` 추가/갱신:
+
+```json
+{
+  "linked_designs": ["DES-NNN"]
+}
 ```
+
+### 이전 design.md 생성 중단
+
+`.gran-maestro/plans/PLN-NNN/design.md` 파일은 더 이상 생성하지 않는다.
+기존 파일이 있으면 유지 (삭제하지 않음 — 하위 호환).
 
 ## 사용자 보고
 
