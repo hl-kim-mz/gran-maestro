@@ -509,9 +509,18 @@ while (실행 중인 태스크가 있음):
 
 Step 5 PASS 후 PM이 직접 커밋합니다 (외주 에이전트의 `index.lock` 문제 방지).
 
-1. spec §2 변경 파일 기반 git add:
+0. 이중 커밋 방지 체크:
    ```bash
-   git -C {worktree_path} add {spec §2에 명시된 파일 목록}
+   STATUS=$(git -C {worktree_path} status --porcelain)
+   if [ -z "$STATUS" ]; then
+     echo "[Step 5.5 skip] worktree가 이미 커밋된 상태 (clean). 이중 커밋 방지."
+   fi
+   ```
+   clean이면 커밋 없이 `status` → `committed` 전환 후 Step 6 진행.
+
+1. 전체 변경 스테이징 (worktree 격리로 인해 -A 사용 안전):
+   ```bash
+   git -C {worktree_path} add -A
    ```
 
 2. staged 파일 중 `frontend/` 변경 자동 감지 후 빌드:
