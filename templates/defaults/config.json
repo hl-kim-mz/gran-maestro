@@ -176,7 +176,7 @@
     }
   },
   "review": {
-    "auto_review": false,
+    "auto_review": true,
     "max_iterations": 3,
     "roles": {
       "code_reviewer": {
