@@ -240,4 +240,37 @@ projectManageApi.post("/manage/backup", async (c) => {
   }
 });
 
+projectManageApi.post("/manage/archive-all", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const command = new Deno.Command("python3", {
+    args: [
+      `${PROJECT_ROOT}/scripts/mst.py`,
+      "archive",
+      "run-all",
+      "--dir",
+      baseDir,
+    ],
+    cwd: PROJECT_ROOT,
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const output = await command.output();
+  const stdout = decoder.decode(output.stdout).trim();
+  const stderr = decoder.decode(output.stderr).trim();
+
+  if (output.code === 0) {
+    return c.json({ success: true, message: stdout || "[Archive] 정리 대상 없음" });
+  }
+
+  return c.json(
+    { success: false, error: stderr || stdout || "archive run-all failed" },
+    500,
+  );
+});
+
 export { projectManageApi };
