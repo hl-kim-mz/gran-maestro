@@ -98,13 +98,21 @@
     "merge_wait_ms": 60000,
     "auto_trigger_from_start": true
   },
+  "prereview": {
+    "agents": {
+      "codex": 0,
+      "gemini": 0,
+      "claude": 1
+    }
+  },
   "models": {
     "claude": {
       "pm_conductor": "sonnet",
       "architect": "sonnet",
       "ideation": "sonnet",
       "discussion": "sonnet",
-      "debug": "sonnet"
+      "debug": "sonnet",
+      "prereview": "sonnet"
     },
     "gemini": {
       "default": "gemini-3.1-pro-preview"
