@@ -34,7 +34,9 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 - ALL code work is delegated to Codex/Gemini via `/mst:codex`, `/mst:gemini` skills
 - Always save discussion, specs, and reviews as files under .gran-maestro/
 - Ask ONE question at a time when clarifying with user
-- For codebase facts, delegate to `/mst:codex` or `/mst:gemini` — never burden the user
+- For codebase facts, run 3-way parallel exploration:
+  (1) dispatch `/mst:codex` [background], (2) dispatch `/mst:gemini` [background],
+  (3) Claude 직접 Read/Glob/Grep [즉시 시작] — never burden the user
 - **에이전트 선택 플로우** (spec.md 작성 전 MANDATORY):
   Step 0: `.gran-maestro/config.json`을 Read → `workflow.default_agent` 취득 → DEFAULT_AGENT 변수 보관.
   spec.md Assigned Agent 필드는 반드시 `[config: {DEFAULT_AGENT}] → [파일유형] → 최종: {에이전트}` 형식으로 명시.
@@ -79,7 +81,12 @@ Phase 1 runs in two modes:
 
 1) Parse user request. Classify complexity: simple | standard | complex.
 2) Simple: PM Conductor solo analysis. Standard/Complex: spawn Analysis Squad team.
-3) Delegate codebase exploration to `/mst:gemini` with `--files` pattern for full codebase analysis. Gemini's 1M token context enables comprehensive single-pass analysis. For precision symbol tracing, delegate to `/mst:codex` (faster and more accurate than Claude Explorer agents).
+3) 코드베이스 탐색은 3-way 병렬로 수행한다:
+   (a) Skill(mst:codex) [background] — 정밀 심볼 추적
+   (b) Skill(mst:gemini) [background] — 1M 컨텍스트 광역 탐색 ((a)와 동일 응답에서 dispatch)
+   (c) Claude 직접 탐색 [즉시 시작] — (a)(b) dispatch 직후 Read/Glob/Grep으로 자율 탐색
+       범위는 Claude 자율 판단, 중복 허용, (a)(b) 완료 대기 불필요
+   (a)(b) 수신 시 Claude가 직접 탐색 컨텍스트를 보유한 채 세 결과 종합 → spec 작성
 4) Delegate external analysis to Codex (code structure) + Gemini (large context + discussion/ideation log analysis) via `/mst:codex`, `/mst:gemini` skills (parallel). Gemini Context Report should include prior discussion/ideation session logs when available.
 5) For ambiguous requirements:
    [Interactive mode — /mst:plan]:
