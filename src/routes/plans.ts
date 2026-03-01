@@ -199,6 +199,65 @@ projectPlansApi.get("/plans/:planId/design", async (c) => {
   return c.json({ exists: false, content: null });
 });
 
+interface ReviewIssue {
+  severity: "CRITICAL" | "MAJOR" | "MINOR";
+  title: string;
+  description: string;
+}
+
+interface RoleReviewResult {
+  role: string;
+  no_issues: boolean;
+  issues: ReviewIssue[];
+}
+
+const REVIEW_ROLES = ["architect", "devils_advocate", "completeness", "ux_reviewer"] as const;
+const REVIEW_LINE_RE = /^(CRITICAL|MAJOR|MINOR):\s+(.+?)\s+\u2014\s+(.+)$/;
+
+function parseReviewLog(content: string): { no_issues: boolean; issues: ReviewIssue[] } {
+  const lines = content.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length > 0 && lines[0] === "NO_ISSUES") {
+    return { no_issues: true, issues: [] };
+  }
+  const issues: ReviewIssue[] = [];
+  for (const line of lines) {
+    const match = REVIEW_LINE_RE.exec(line);
+    if (!match) continue;
+    issues.push({
+      severity: match[1] as "CRITICAL" | "MAJOR" | "MINOR",
+      title: match[2],
+      description: match[3],
+    });
+  }
+  return { no_issues: false, issues };
+}
+
+projectPlansApi.get("/plans/:planId/review", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const planId = c.req.param("planId");
+  const promptsDir = `${baseDir}/plans/${planId}/prompts`;
+  if (!(await dirExists(promptsDir))) {
+    return c.json({ roles: [] });
+  }
+
+  const roleResults = await Promise.all(
+    REVIEW_ROLES.map(async (role): Promise<RoleReviewResult | null> => {
+      const logPath = `${promptsDir}/review-${role}.log`;
+      const content = await readTextFile(logPath);
+      if (content === null) return null;
+      const parsed = parseReviewLog(content);
+      return { role, ...parsed };
+    })
+  );
+
+  const roles = roleResults.filter((r): r is RoleReviewResult => r !== null);
+  return c.json({ roles });
+});
+
 projectPlansApi.get("/plans/:planId/graph", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
   if (!baseDir) {

@@ -7,12 +7,24 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { ClipboardList, ExternalLink, FileText, Palette } from 'lucide-react';
+import { ClipboardList, ExternalLink, FileText, Palette, ShieldAlert } from 'lucide-react';
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseDesignSections } from '@/shared/designUtils';
+
+interface ReviewIssue {
+  severity: "CRITICAL" | "MAJOR" | "MINOR";
+  title: string;
+  description: string;
+}
+
+interface RoleReviewResult {
+  role: string;
+  no_issues: boolean;
+  issues: ReviewIssue[];
+}
 
 interface PlanMeta {
   id: string;
@@ -49,6 +61,7 @@ export function PlansView() {
   const [linkedDesignId, setLinkedDesignId] = useState<string | null>(null);
   const [selectedLinkedScreenFile, setSelectedLinkedScreenFile] = useState<string | null>(null);
   const [linkedScreenContent, setLinkedScreenContent] = useState<string | null>(null);
+  const [reviewRoles, setReviewRoles] = useState<RoleReviewResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -121,6 +134,9 @@ export function PlansView() {
         apiFetch<{ exists: boolean; content: string | null }>(`/api/plans/${selectedPlan.id}/design`, projectId)
           .then(data => setDesignContent(data.exists ? data.content : null))
           .catch(() => setDesignContent(null));
+        apiFetch<{ roles: RoleReviewResult[] }>(`/api/plans/${selectedPlan.id}/review`, projectId)
+          .then(data => setReviewRoles(data.roles || []))
+          .catch(() => setReviewRoles([]));
       }
     }
   }, [lastSseEvent, projectId, selectedPlan?.id]);
@@ -134,6 +150,7 @@ export function PlansView() {
       setLinkedDesignId(null);
       setSelectedLinkedScreenFile(null);
       setLinkedScreenContent(null);
+      setReviewRoles([]);
       return;
     }
     apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, projectId)
@@ -142,6 +159,9 @@ export function PlansView() {
     apiFetch<{ exists: boolean; content: string | null }>(`/api/plans/${selectedPlan.id}/design`, projectId)
       .then(data => setDesignContent(data.exists ? data.content : null))
       .catch(() => setDesignContent(null));
+    apiFetch<{ roles: RoleReviewResult[] }>(`/api/plans/${selectedPlan.id}/review`, projectId)
+      .then(data => setReviewRoles(data.roles || []))
+      .catch(() => setReviewRoles([]));
 
     // linked_designs의 첫 번째 DES-NNN 로드
     const firstLinked = selectedPlan.linked_designs?.[0] ?? null;
@@ -269,6 +289,7 @@ export function PlansView() {
   }
 
   const hasDesignContent = designSections.length > 0 || linkedDesignScreenFiles.length > 0;
+  const hasReviewContent = reviewRoles.length > 0;
 
   // linked DES 스크린 파싱 (parseScreenContent 인라인)
   function parseScreenContent(content: string) {
@@ -374,6 +395,12 @@ export function PlansView() {
                     >
                       <Palette className="h-3 w-3 mr-2" />
                       Design {designSections.length > 0 && `(${designSections.length})`}
+                    </TabsTrigger>
+                  )}
+                  {hasReviewContent && (
+                    <TabsTrigger value="review" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1">
+                      <ShieldAlert className="h-3 w-3 mr-2" />
+                      Review ({reviewRoles.length})
                     </TabsTrigger>
                   )}
                 </TabsList>
@@ -502,6 +529,42 @@ export function PlansView() {
                           </Tabs>
                         </div>
                       )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              )}
+              {hasReviewContent && (
+                <TabsContent value="review" className="flex-1 overflow-auto m-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-8 space-y-4">
+                      {reviewRoles.map((r) => (
+                        <Card key={r.role}>
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="font-semibold capitalize">{r.role.replace(/_/g, ' ')}</h3>
+                              {r.no_issues
+                                ? <span className="text-xs text-green-600 font-medium">NO_ISSUES</span>
+                                : <span className="text-xs text-red-600 font-medium">
+                                    {r.issues.filter(i => i.severity === 'CRITICAL').length} CRITICAL
+                                  </span>
+                              }
+                            </div>
+                            {!r.no_issues && (
+                              <div className="space-y-2">
+                                {r.issues.map((issue, idx) => (
+                                  <div key={idx} className="flex gap-2 text-sm">
+                                    <span className={`shrink-0 text-xs font-bold ${
+                                      issue.severity === 'CRITICAL' ? 'text-red-600' :
+                                      issue.severity === 'MAJOR' ? 'text-orange-500' : 'text-gray-500'
+                                    }`}>{issue.severity}</span>
+                                    <span><strong>{issue.title}</strong> — {issue.description}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   </ScrollArea>
                 </TabsContent>
