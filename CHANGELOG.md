@@ -4,6 +4,22 @@
 
 ---
 
+## [0.43.0] — 2026-03-02
+
+### 새 기능
+
+- **Phase 1 탐색 에이전트 role 기반 config 설정**: `config.json`의 `phase1_exploration.roles`로 탐색 에이전트를 교체하거나 비활성화 가능
+  - `symbol_tracing` (기본: codex) / `broad_scan` (기본: gemini) 역할별 agent·enabled·model 설정
+  - `enabled: false` 시 해당 에이전트 dispatch 생략; Claude 직접 탐색은 항상 활성
+
+### 개선
+
+- **Phase 1 3-way 병렬 탐색**: PM Conductor(Claude)가 codex/gemini와 동시에 직접 Read/Glob/Grep 탐색 수행
+  - 총 소요 = `max(codex_time, gemini_time, claude_direct_time)` — 추가 지연 없음
+- **Phase 1 탐색 명세 명확화**: pm-conductor.md + SKILL.md에서 하드코딩 제거, config 기반 role dispatch로 통일
+
+---
+
 ## [0.42.0] — 2026-03-01
 
 ### 새 기능
