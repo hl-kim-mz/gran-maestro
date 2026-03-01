@@ -245,7 +245,7 @@ export function IdeationView() {
                     title={s.objective || s.topic || s.focus || 'Session'}
                     status={s.status}
                     createdAt={s.created_at}
-                    extraBadge={s.id.startsWith('EXP') && s.focus ? s.focus : undefined}
+                    extraBadge={s.id.startsWith('EXP') && s.focus && (s.objective || s.topic) ? s.focus : undefined}
                     icon={
                       s.id.startsWith('IDN')
                         ? <Lightbulb className="h-3 w-3 text-yellow-500" />
