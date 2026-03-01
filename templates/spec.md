@@ -122,6 +122,10 @@ Q3: .md / .json / .yaml / .env 등 문서·설정 파일만인가?
 
 ## 10. UI 설계 (Stitch)
 
-> 이 섹션은 UI 화면 설계가 포함된 경우 작성합니다. `/mst:stitch --req {REQ_ID}` 실행 시 자동으로 채워집니다.
+> 이 섹션은 UI 화면 설계가 포함된 경우 작성합니다.
+> `/mst:stitch --req {REQ_ID}` 실행 시, 또는 `--plan PLN-NNN`의 `linked_designs`에 DES가 연결되어 있을 때 자동으로 채워집니다.
+> ⚠️ 이미지 URL은 수 시간 후 만료될 수 있습니다.
 
-- [ ] {화면명}: {Stitch URL — 미기입}
+- Stitch 프로젝트: {stitch_project_url — 미기입}
+- 생성 화면:
+  - {화면명}: {Stitch 화면 URL — 미기입}
