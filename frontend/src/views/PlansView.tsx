@@ -56,7 +56,8 @@ function parseDesignSections(content: string): DesignSection[] {
         stitchLabel: linkMatch?.[1] ?? 'Stitch에서 보기',
         description,
       };
-    });
+    })
+    .filter(section => section.imageUrl !== null || section.stitchUrl !== null);
 }
 
 export function PlansView() {
@@ -373,9 +374,7 @@ export function PlansView() {
                               </h3>
                             )}
                             {section.description && (
-                              <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">
-                                {section.description}
-                              </p>
+                              <MarkdownRenderer content={section.description} />
                             )}
                             {section.stitchUrl && (
                               <a
