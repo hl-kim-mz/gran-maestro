@@ -144,6 +144,100 @@ ASCII 도식 작성 규칙:
 아래 신호 있으면 plan.md `## 태스크 분해` 섹션에 순서와 내용 명시:
 - 순서 의존성 (DB→API→UI 등), 분석/구현/테스트 명확히 구분, 전문 영역 분리로 순서 중요
 
+### Step 3.8: Plan Review Pass (선택적)
+
+#### 3.8.0: config 읽기 및 enabled 확인
+
+Read(.gran-maestro/config.json) → plan_review 섹션 취득
+enabled, parallel, max_user_questions, roles 값을 메모리에 보관
+
+- **enabled == false (기본)**: 이 단계 전체 skip → Step 4로 진행
+- **enabled == true**: 아래 3.8.1부터 실행
+
+#### 3.8.1: PM 내부 초안 작성
+
+Q&A 대화 내용을 바탕으로 PM이 플랜 초안 텍스트를 작성한다 (디스크 미저장, 메모리 내).
+이 초안은 Step 4에서 최종 제시될 내용의 초기 버전이다.
+
+#### 3.8.2: 역할별 프롬프트 파일 생성
+
+`.gran-maestro/plans/PLN-NNN/prompts/` 디렉토리 생성 (미존재 시).
+
+`Read(templates/plan-review-prompt.md)` → 템플릿 내용 취득.
+
+활성화된 역할(`config.plan_review.roles.{role}.enabled == true`)에 대해
+템플릿 내용을 변수 치환 후 `.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md`로 동시 Write:
+
+변수 치환:
+- `{{ROLE}}`: 역할명 (architect | devils_advocate | completeness | ux_reviewer)
+- `{{PERSPECTIVE}}`: 역할별 관점 텍스트 (아래 참조)
+- `{{PLAN_DRAFT}}`: 3.8.1에서 작성한 PM 내부 초안 전문
+- `{{QA_SUMMARY}}`: Step 2~3 Q&A 핵심 결정사항 요약 (500자 이내)
+- `{{PLN_ID}}`: 현재 PLN ID
+
+역할별 PERSPECTIVE:
+- architect: "시스템 정합성·실현 가능성 관점에서 검토하라. 기존 아키텍처와의 충돌, 의존성 누락, 레이어 위반, 기술 부채 관점에서 플랜의 맹점을 찾아라."
+- devils_advocate: "PM의 가정에 반론을 제기하라. 숨겨진 복잡도, 엣지 케이스, 더 나은 대안의 존재 여부를 탐색하라. 낙관적 가정에 의문을 제기하라."
+- completeness: "요구사항 완전성을 검토하라. 누락된 기능, 미정의 동작, 측정 불가능한 수락 조건, 범위 모호함을 찾아라."
+- ux_reviewer: "사용자 경험 일관성을 검토하라. UI 흐름의 모호함, 누락된 인터랙션, 접근성, 기존 시스템과의 UX 불일치를 찾아라."
+
+#### 3.8.3: 에이전트 dispatch
+
+⚠️ `Skill()` 도구는 순차 실행이므로 병렬화에 사용 불가.
+병렬화 시 `Skill()`을 `Task(run_in_background: true)` 래퍼로 감싼다 (discussion/debug 스킬과 동일한 패턴).
+
+`config.plan_review.parallel == true`이면:
+
+**[사전 단계]** agent가 `"claude"`인 활성 역할에 대해 먼저 순차적으로 파일 내용을 취득:
+`Read(.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)` → 내용을 역할명과 함께 메모리에 보관
+
+**[동시 dispatch]** 모든 활성 역할을 단일 응답 내 동시 실행:
+
+에이전트 선택 (`config.plan_review.roles.{role}.agent` 기반):
+- `"codex"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: "Skill(skill: 'mst:codex', args: '--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --output .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log') 실행 후 완료 보고")`
+- `"gemini"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --sandbox > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log') 실행 후 완료 보고")`
+- `"claude"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: {사전 단계에서 보관한 파일 내용})`
+
+각 Task 호출의 반환값에서 task_id를 추출하여 역할명과 함께 메모리에 보관 (결과 추적용).
+예: `{ architect: "task-abc123", completeness: "task-def456", ... }`
+
+`config.plan_review.parallel == false`이면 역할 순서대로 순차 실행:
+- codex 역할: `Skill(skill: "mst:codex", args: "--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --output .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")` → 완료 후 Read(.log) → 다음 역할 진행
+- gemini 역할: `Skill(skill: "mst:gemini", args: "--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --sandbox > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")` → 완료 후 Read(.log) → 다음 역할 진행
+- claude 역할: `Read(.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)` 후 → `Task(subagent_type: "general-purpose", prompt: {파일 내용})` (블로킹) → 반환값 직접 사용 → 다음 역할 진행
+(순차 실행 시 task_id 불필요, TaskOutput 호출 없음)
+
+#### 3.8.4: 결과 수집 및 PM 분석
+
+**병렬 실행 시 (`parallel == true`)**:
+- codex/gemini 역할: `TaskOutput(task_id, block: true)` 완료 대기 (래퍼 Task 완료 신호) → `Read(.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log)`로 실제 결과 확인
+- claude 역할: `TaskOutput(task_id, block: true)` 반환값을 직접 결과로 사용
+
+**순차 실행 시 (`parallel == false`)**:
+- codex/gemini 역할: Skill 호출 자체가 블로킹 완료 → `Read(.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log)`로 결과 확인
+- claude 역할: Task 반환값을 직접 결과로 사용 (TaskOutput 불필요)
+
+모든 에이전트 결과를 수집한 후 PM이 분석:
+- `NO_ISSUES` 응답: 해당 역할 이슈 없음으로 처리
+- `CRITICAL:` 항목: 사용자에게 반드시 질문 필요
+- `MAJOR:` 항목: PM이 자체 판단으로 초안에 반영
+- `MINOR:` 항목: PM이 자체 판단으로 초안에 반영 또는 무시
+
+#### 3.8.5: 조건부 사용자 추가 질문
+
+CRITICAL 이슈가 1개 이상 존재 시:
+- 중복·유사 이슈 병합 후 우선순위 정렬
+- `config.plan_review.max_user_questions`(기본 2)개 이내로 선별
+- `AskUserQuestion`으로 질문 제시:
+  - 각 선택지: CRITICAL 이슈를 해소할 수 있는 구체적 옵션 제시
+  - 또는 직접 입력 유도
+- 사용자 답변 반영하여 PM 초안 재정제 → Step 4로 진행 (재리뷰 없음)
+
+CRITICAL 이슈 없음(또는 `max_user_questions == 0`) 시:
+- MAJOR/MINOR 이슈만 PM이 자체 반영 → 초안 재정제 → 바로 Step 4 진행
+
+Step 4 진입 시 초안은 에이전트 피드백이 반영된 정제 버전이다.
+
 ### Step 4: plan.md 초안 제시 & 사용자 승인
 
 #### UI 감지 (Step 4 진입 시)
