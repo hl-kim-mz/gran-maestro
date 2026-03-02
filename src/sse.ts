@@ -10,6 +10,7 @@ import {
 
 // 전역 SSE 브로드캐스트 함수 (모든 연결에 전송)
 const activeSenders: Set<(event: SSEEvent) => void> = new Set();
+const completedAlerts = new Set<string>();
 
 const sseApi = new Hono();
 sseApi.get("/events", async (c) => {
@@ -76,7 +77,7 @@ sseApi.get("/events", async (c) => {
                 for (const p of event.paths) {
                   state.pendingPaths.set(p, event.kind); // dedup: same path → latest kind
                 }
-                state.debounceTimer = setTimeout(() => {
+                state.debounceTimer = setTimeout(async () => {
                   const pending = [...state.pendingPaths.entries()];
                   state.pendingPaths.clear();
                   for (const [p, kind] of pending) {
@@ -89,6 +90,7 @@ sseApi.get("/events", async (c) => {
                     if (sseEvent) {
                       send(sseEvent);
                     }
+                    await checkCompletionAlert(p, kind, send, state.projectId);
                   }
                 }, SSE_DEBOUNCE_MS);
               }
@@ -151,7 +153,7 @@ sseApi.post("/notify", async (c) => {
   return c.json({ ok: true });
 });
 
-/** Classify a filesystem change into an SSE event type. */
+      /** Classify a filesystem change into an SSE event type. */
 export function classifyFsEvent(
   path: string,
   kind: string,
@@ -271,6 +273,58 @@ export function classifyFsEvent(
   }
 
   return null;
+}
+
+async function checkCompletionAlert(
+  absPath: string,
+  kind: string,
+  send: (event: SSEEvent) => void,
+  projectId?: string
+): Promise<void> {
+  if (kind === "remove") return;
+
+  const normPath = absPath.replace(/\\/g, "/");
+  let id: string | null = null;
+
+  const reqMatch = normPath.match(
+    /requests\/(?:completed\/)?(REQ-[^/]+)\/request\.json$/
+  );
+  if (reqMatch) id = reqMatch[1];
+
+  const planMatch = normPath.match(/plans\/(PLN-[^/]+)\/plan\.json$/);
+  if (planMatch) id = planMatch[1];
+
+  const ideationMatch = normPath.match(/ideation\/(IDN-[^/]+)\/session\.json$/);
+  if (ideationMatch) id = ideationMatch[1];
+
+  const debugMatch = normPath.match(/debug\/(DBG-[^/]+)\/session\.json$/);
+  if (debugMatch) id = debugMatch[1];
+
+  const discussionMatch = normPath.match(/discussion\/(DSC-[^/]+)\/session\.json$/);
+  if (discussionMatch) id = discussionMatch[1];
+
+  const designMatch = normPath.match(/designs\/(DES-[^/]+)\/design\.json$/);
+  if (designMatch) id = designMatch[1];
+
+  if (!id || completedAlerts.has(id)) return;
+
+  try {
+    const text = await Deno.readTextFile(absPath);
+    const json = JSON.parse(text);
+    const isCompleted =
+      json.status === "completed" ||
+      (typeof json.phase === "number" && json.phase >= 5);
+    if (isCompleted) {
+      completedAlerts.add(id);
+      send({
+        type: "completion_alert",
+        projectId,
+        data: { id, timestamp: new Date().toISOString() },
+      });
+    }
+  } catch {
+    // ignore read/parse errors
+  }
 }
 
 export { sseApi };

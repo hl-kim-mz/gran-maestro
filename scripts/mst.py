@@ -17,18 +17,21 @@ Subcommands:
   plan complete      <PLN-ID>
   plan count         [--active | --all]
 
-  archive run         [--type req|idn|dsc|dbg|exp|pln] [--max N] [--dir PATH]
+  archive run         [--type req|idn|dsc|dbg|exp|pln|des] [--max N] [--dir PATH]
+  archive run-all     [--max N]
   archive list        [--type TYPE]
   archive restore     <ARCHIVE-ID>
 
-  counter next        [--type req|idn|dsc|dbg|exp|pln] [--dir PATH]
-  counter peek        [--type req|idn|dsc|dbg|exp|pln]
+  counter next        [--type req|idn|dsc|dbg|exp|pln|des] [--dir PATH]
+  counter peek        [--type req|idn|dsc|dbg|exp|pln|des]
 
   version get
   version check
   version bump        <patch|minor|major>
 
   context gather      [--diff N] [--skills] [--agents] [--format text|json]
+
+  task set-commit     <TASK-ID> <commit hash> <commit message>
 
   agents check
   agents sync
@@ -46,6 +49,7 @@ Subcommands:
 
 import argparse
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -53,6 +57,7 @@ import sys
 import glob
 import tarfile
 import time
+from typing import Optional
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -366,6 +371,108 @@ def cmd_plan_complete(args):
     return 1
 
 
+def cmd_plan_render_review(args):
+    """plan-review 템플릿을 치환해 prompts/review-{role}.md 파일로 생성한다."""
+    pln_id = args.pln_id.upper()
+
+    # 1. PLN 디렉토리 확인
+    pln_dir = plans_dir() / pln_id
+    if not pln_dir.exists():
+        print(f"Error: {pln_id} not found.", file=sys.stderr)
+        return 1
+
+    # 2. plan_draft 취득 (파일 우선, 없으면 인라인 인자)
+    if args.plan_draft_file:
+        plan_draft = Path(args.plan_draft_file).read_text(encoding="utf-8")
+    else:
+        plan_draft = args.plan_draft or ""
+    qa_summary = args.qa_summary or ""
+
+    # 3. config에서 활성 역할 결정 (기본값 True = 모두 활성)
+    config = load_json(BASE_DIR / "config.json") or {}
+    plan_review = config.get("plan_review", {})
+    roles_config = plan_review.get("roles", {})
+    all_roles = ["architect", "devils_advocate", "completeness", "ux_reviewer"]
+    active_roles = [
+        r for r in all_roles
+        if roles_config.get(r, {}).get("enabled", True)
+    ]
+
+    # 4. 템플릿 디렉토리 (PROJECT_ROOT/templates/plan-review/)
+    # Path(__file__)을 기준으로 project_root 계산: scripts/mst.py → scripts/ → project_root
+    # BASE_DIR.parent는 워크트리에서 항상 메인 repo 루트를 가리키므로 사용 불가
+    project_root = Path(__file__).parent.parent
+    template_dir = project_root / "templates" / "plan-review"
+
+    # 5. prompts/ 디렉토리 생성
+    prompts_dir = pln_dir / "prompts"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+
+    # 6. 각 역할별 템플릿 읽기 → 치환 → 파일 쓰기 → stdout 출력
+    generated = []
+    for role in active_roles:
+        tmpl_path = template_dir / f"{role}.md"
+        if not tmpl_path.exists():
+            print(f"Warning: template not found: {tmpl_path}", file=sys.stderr)
+            continue
+        content = tmpl_path.read_text(encoding="utf-8")
+        content = content.replace("{{PLAN_DRAFT}}", plan_draft)
+        content = content.replace("{{QA_SUMMARY}}", qa_summary)
+        content = content.replace("{{PLN_ID}}", pln_id)
+
+        out_path = prompts_dir / f"review-{role}.md"
+        out_path.write_text(content, encoding="utf-8")
+        generated.append(str(out_path))
+        print(str(out_path))
+
+    return 0 if generated else 1
+
+
+def cmd_session_split_prompts(args):
+    if not args.prompts_dir:
+        print("Error: directory not found", file=sys.stderr)
+        return 1
+
+    prompts_dir = Path(args.prompts_dir)
+    if not prompts_dir.exists():
+        print("Error: directory not found", file=sys.stderr)
+        return 1
+
+    combined_path = prompts_dir / "combined-prompts.txt"
+    if not combined_path.exists():
+        print("Error: combined-prompts.txt not found", file=sys.stderr)
+        return 1
+
+    content = combined_path.read_text(encoding="utf-8")
+    marker_re = re.compile(r"^===SPLIT: (.+)===$")
+    generated = []
+    target_name = None
+    target_lines = []
+
+    for raw_line in content.splitlines(keepends=True):
+        m = marker_re.match(raw_line.strip())
+        if m:
+            if target_name is not None:
+                out_path = prompts_dir / target_name
+                out_path.write_text("".join(target_lines).strip("\n\r"), encoding="utf-8")
+                generated.append(str(out_path))
+                print(str(out_path))
+            target_name = m.group(1)
+            target_lines = []
+            continue
+
+        if target_name is not None:
+            target_lines.append(raw_line)
+
+    if target_name is not None:
+        out_path = prompts_dir / target_name
+        out_path.write_text("".join(target_lines).strip("\n\r"), encoding="utf-8")
+        generated.append(str(out_path))
+        print(str(out_path))
+
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # counter subcommands
 # ---------------------------------------------------------------------------
@@ -377,6 +484,7 @@ TYPE_DIRS = {
     "dbg": ("debug", "DBG"),
     "exp": ("explore",   "EXP"),
     "pln": ("plans",     "PLN"),
+    "des": ("designs",   "DES"),
 }
 
 
@@ -715,25 +823,57 @@ def cmd_agents_sync(args):
 
 def cmd_archive_run(args):
     type_key = getattr(args, "type", None) or "req"
+    max_active = args.max or 20
+    _archive_run_type(type_key, max_active, emit_output=True)
+    return 0
+
+
+def _load_archive_max_active(cli_max: Optional[int]) -> int:
+    if cli_max is not None:
+        return cli_max
+
+    config_paths = [
+        BASE_DIR / ".." / ".gran-maestro" / "config.json",
+        BASE_DIR.parent / "config.json",
+    ]
+    cfg = None
+    for path in config_paths:
+        loaded = load_json(path)
+        if loaded is not None:
+            cfg = loaded
+            break
+
+    max_active = 20
+    if isinstance(cfg, dict):
+        max_active = cfg.get("archive", {}).get("max_active_sessions", 20)
+    try:
+        max_active = int(max_active)
+    except (TypeError, ValueError):
+        max_active = 20
+    return max_active
+
+
+def _archive_run_type(type_key: str, max_active: int, emit_output: bool) -> int:
     subdir, prefix = TYPE_DIRS.get(type_key, ("requests", "REQ"))
     src_dir = BASE_DIR / subdir
     dst_dir = type_archived_dir(type_key)
     dst_dir.mkdir(parents=True, exist_ok=True)
 
     dirs = sorted(src_dir.glob(f"{prefix}-*"))
-    max_active = args.max or 20
     json_file = "request.json" if type_key == "req" else "session.json"
 
     completed = [d for d in dirs if d.is_dir() and
                  (load_json(d / json_file) or {}).get("status") in ("completed", "cancelled")]
 
     if len(dirs) - len(completed) <= max_active:
-        print("No archiving needed.")
+        if emit_output:
+            print("No archiving needed.")
         return 0
 
     to_archive = completed[:len(dirs) - max_active]
     if not to_archive:
-        print("No completed sessions to archive.")
+        if emit_output:
+            print("No completed sessions to archive.")
         return 0
 
     ids = [d.name for d in to_archive]
@@ -748,7 +888,30 @@ def cmd_archive_run(args):
     for d in to_archive:
         shutil.rmtree(d)
 
-    print(f"Archived {len(to_archive)} sessions → {archive_name}")
+    if emit_output:
+        print(f"Archived {len(to_archive)} sessions → {archive_name}")
+    return len(to_archive)
+
+
+def cmd_archive_run_all(args):
+    max_active = _load_archive_max_active(args.max)
+
+    counts = {}
+    had_error = False
+    for type_key in TYPE_DIRS:
+        try:
+            counts[type_key] = _archive_run_type(type_key, max_active=max_active, emit_output=False)
+        except Exception as exc:
+            print(f"[Archive] {type_key} 정리 실패: {exc}", file=sys.stderr)
+            counts[type_key] = 0
+            had_error = True
+
+    if sum(counts.values()) == 0 and not had_error:
+        print("[Archive] 정리 대상 없음")
+        return 0
+
+    summary = ", ".join(f"{k}:{counts[k]}" for k in counts.keys())
+    print(f"[Archive] 전체 정리 완료 — {summary}")
     return 0
 
 
@@ -971,6 +1134,15 @@ def cmd_wait_files(args):
     return 1
 
 
+def cmd_stitch_sleep(args):
+    """Stitch 비동기 생성 대기용 인터벌 sleep."""
+    interval = args.interval
+    print(f"[Stitch] {interval}초 대기 중...", flush=True)
+    time.sleep(interval)
+    print("SLEEP_DONE", flush=True)
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # priority subcommand
 # ---------------------------------------------------------------------------
@@ -1014,6 +1186,56 @@ def cmd_priority(args):
 
     save_json(status_path, data)
     print(f"priority updated: {task_id}")
+    return 0
+
+
+def cmd_task_set_commit(args):
+    task_id = args.task_id.upper()
+    match = re.match(r"^(REQ-\d+)-T(\d{2})$", task_id)
+    if not match:
+        print(
+            f"Error: invalid task ID '{args.task_id}'. "
+            "Expected REQ-NNN-TNN format.",
+            file=sys.stderr
+        )
+        return 1
+
+    if not args.commit_hash:
+        print("Error: commit hash is required.", file=sys.stderr)
+        return 1
+
+    req_id = match.group(1)
+
+    request_paths = [
+        BASE_DIR / "requests" / req_id / "request.json",
+        BASE_DIR / "requests" / "completed" / req_id / "request.json",
+    ]
+    request_path = next((p for p in request_paths if p.exists()), None)
+    if request_path is None:
+        print(f"Error: request.json not found for {req_id}", file=sys.stderr)
+        return 1
+
+    data = load_json(request_path)
+    if data is None:
+        print(f"Error: failed to load request.json for {req_id}", file=sys.stderr)
+        return 1
+
+    tasks = data.get("tasks")
+    if not isinstance(tasks, list):
+        print(f"Error: tasks field not found in {request_path}", file=sys.stderr)
+        return 1
+
+    for task in tasks:
+        if isinstance(task, dict) and task.get("id", "").upper() == task_id:
+            task["commit_hash"] = args.commit_hash
+            task["commit_message"] = args.commit_message or ""
+            break
+    else:
+        print(f"Error: task {task_id} not found in request.json", file=sys.stderr)
+        return 1
+
+    save_json(request_path, data)
+    print(f"commit metadata saved: {task_id}")
     return 0
 
 
@@ -1100,16 +1322,22 @@ def build_parser():
     p_plan_sync = plan_sub.add_parser("sync", help="Plan 완료 여부 동기화")
     p_plan_sync.add_argument("plan_id", help="Plan ID (예: PLN-068)")
 
+    plan_render_review = plan_sub.add_parser("render-review", help="plan-review 프롬프트 파일 생성")
+    plan_render_review.add_argument("--pln", dest="pln_id", required=True)
+    plan_render_review.add_argument("--plan-draft", dest="plan_draft", default="")
+    plan_render_review.add_argument("--plan-draft-file", dest="plan_draft_file", default=None)
+    plan_render_review.add_argument("--qa-summary", dest="qa_summary", default="")
+
     # --- counter ---
     ctr = sub.add_parser("counter")
     ctr_sub = ctr.add_subparsers(dest="subcommand")
 
     ctr_next = ctr_sub.add_parser("next")
-    ctr_next.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln"], default="req")
+    ctr_next.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des"], default="req")
     ctr_next.add_argument("--dir")
 
     ctr_peek = ctr_sub.add_parser("peek")
-    ctr_peek.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln"], default="req")
+    ctr_peek.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des"], default="req")
     ctr_peek.add_argument("--dir")
 
     # --- archive ---
@@ -1117,9 +1345,12 @@ def build_parser():
     arc_sub = arc.add_subparsers(dest="subcommand")
 
     arc_run = arc_sub.add_parser("run")
-    arc_run.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln"], default="req")
+    arc_run.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des"], default="req")
     arc_run.add_argument("--max", type=int)
     arc_run.add_argument("--dir")
+
+    arc_run_all = arc_sub.add_parser("run-all")
+    arc_run_all.add_argument("--max", type=int)
 
     arc_list = arc_sub.add_parser("list")
     arc_list.add_argument("--type")
@@ -1172,17 +1403,38 @@ def build_parser():
     sess_complete = sess_sub.add_parser("complete")
     sess_complete.add_argument("session_id")
 
+    sess_split = sess_sub.add_parser("split-prompts", help="combined-prompts.txt를 개별 프롬프트 파일로 분리")
+    sess_split.add_argument("--dir", dest="prompts_dir", required=False, help="prompts 디렉토리 경로")
+
     # --- priority ---
     pri = sub.add_parser("priority")
     pri.add_argument("task_id")
     pri.add_argument("--before")
     pri.add_argument("--after")
 
+    # --- task ---
+    task = sub.add_parser("task")
+    task_sub = task.add_subparsers(dest="subcommand")
+    task_set_commit = task_sub.add_parser("set-commit")
+    task_set_commit.add_argument("task_id")
+    task_set_commit.add_argument("commit_hash", nargs="?")
+    task_set_commit.add_argument("commit_message", nargs="?")
+
     # --- wait-files ---
     wf = sub.add_parser("wait-files")
     wf.add_argument("files", nargs="+", help="대기할 파일 경로 목록")
     wf.add_argument("--timeout", type=float, default=None,
                     help="타임아웃 (초). 미지정 시 config.json의 timeouts.wait_files_ms 사용")
+
+    # --- stitch ---
+    stitch = sub.add_parser("stitch")
+    stitch_sub = stitch.add_subparsers(dest="subcommand")
+
+    stitch_sleep = stitch_sub.add_parser("sleep")
+    stitch_sleep.add_argument(
+        "--interval", type=float, default=30.0,
+        help="대기 시간(초). 기본값 30."
+    )
 
     # --- notify ---
     notify_parser = sub.add_parser("notify")
@@ -1218,6 +1470,7 @@ def main():
         ("plan", "inspect"): cmd_plan_inspect,
         ("plan", "complete"): cmd_plan_complete,
         ("plan", "sync"): cmd_plan_sync,
+        ("plan", "render-review"): cmd_plan_render_review,
         ("counter", "next"): cmd_counter_next,
         ("counter", "peek"): cmd_counter_peek,
         ("version", "get"):    cmd_version_get,
@@ -1227,14 +1480,18 @@ def main():
         ("agents", "check"):   cmd_agents_check,
         ("agents", "sync"):    cmd_agents_sync,
         ("archive", "run"): cmd_archive_run,
+        ("archive", "run-all"): cmd_archive_run_all,
         ("archive", "list"): cmd_archive_list,
         ("archive", "restore"): cmd_archive_restore,
         ("cleanup", None): cmd_cleanup,
         ("session", "list"): cmd_session_list,
         ("session", "inspect"): cmd_session_inspect,
         ("session", "complete"): cmd_session_complete,
+        ("session", "split-prompts"): cmd_session_split_prompts,
         ("priority", None): cmd_priority,
+        ("task", "set-commit"): cmd_task_set_commit,
         ("notify", None): cmd_notify,
+        ("stitch", "sleep"): cmd_stitch_sleep,
         ("wait-files", None): cmd_wait_files,
     }
 

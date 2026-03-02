@@ -32,6 +32,13 @@
 | `REQ-NNN` | 사용자 원본 요청 | REQ-001 |
 | `REQ-NNN-NN` | PM이 분할한 태스크 | REQ-001-02 |
 | `REQ-NNN-NN-RN` | 피드백 리비전 | REQ-001-02-R1 |
+| `PLN-NNN` | 플랜 세션 | PLN-001 |
+| `DBG-NNN` | 디버그 세션 | DBG-001 |
+| `IDN-NNN` | 아이디에이션 세션 | IDN-001 |
+| `DSC-NNN` | 디스커션 세션 | DSC-001 |
+| `EXP-NNN` | 탐색 세션 | EXP-001 |
+| `DES-NNN` | 디자인 세션 | DES-001 |
+| `RV-NNN` | 리뷰 회차 (REQ 하위) | RV-001 |
 
 ## 태스크 상태 (FSM)
 
@@ -42,6 +49,7 @@
 | `executing` | CLI 실행 중 | 2 |
 | `pre_check` | 사전 검증 (타입체크/테스트) | 2 |
 | `pre_check_failed` | 사전 검증 실패 | 2 |
+| `committed` | Phase 2 구현 완료 + git commit 완료 (리뷰 대기) | 2→3 |
 | `review` | PM 리뷰 중 | 3 |
 | `feedback` | 피드백 작성 → 재실행 대기 | 4 |
 | `merging` | rebase + merge 진행 중 | 5 |

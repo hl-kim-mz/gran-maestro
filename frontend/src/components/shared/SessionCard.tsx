@@ -10,6 +10,7 @@ interface SessionCardProps {
   icon?: React.ReactNode;
   hasDesign?: boolean;
   extraBadge?: string;
+  reviewBadge?: string;
   extraLinks?: string[];
   isSelected: boolean;
   onClick: () => void;
@@ -31,6 +32,7 @@ export function SessionCard({
   icon,
   hasDesign,
   extraBadge,
+  reviewBadge,
   extraLinks,
   isSelected,
   onClick,
@@ -53,9 +55,10 @@ export function SessionCard({
           <StatusBadge status={status} />
         </div>
         <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{title}</p>
-        {(extraBadge || (extraLinks && extraLinks.length > 0) || dateTime) && (
+        {(extraBadge || reviewBadge || (extraLinks && extraLinks.length > 0) || dateTime) && (
           <div className="flex items-center gap-1.5 mt-1 text-[10px] text-muted-foreground flex-wrap">
             {extraBadge && <Badge variant="secondary" className="text-[10px]">{extraBadge}</Badge>}
+            {reviewBadge && <Badge variant="outline" className="text-[10px] text-purple-600 border-purple-400">{reviewBadge}</Badge>}
             {extraLinks && extraLinks.length > 0 && (
               <span className="inline-flex items-center gap-1 flex-wrap">
                 {extraLinks.slice(0, 10).map((link) =>

@@ -97,12 +97,17 @@ mcp__stitch__edit_screens(...)                     ← 사용 금지
 | 스킬 | 설명 |
 |------|------|
 | `/mst:request` | 새 요청 시작 — PM 분석 워크플로우 진입 |
+| `/mst:plan` | 요구사항 Q&A 정제 + 실행 가능한 plan.md 작성 |
 | `/mst:list` | 모든 요청/태스크 현황 목록 |
 | `/mst:inspect` | 특정 요청의 상세 상태 |
 | `/mst:approve` | 스펙 승인 (Phase 1 → Phase 2) |
 | `/mst:accept` | 최종 수락 (Phase 3 → Phase 5), 기본 자동 실행 |
 | `/mst:feedback` | 수동 피드백 제공 (Phase 4) |
 | `/mst:cancel` | 요청/태스크 취소 + worktree 정리 |
+| `/mst:review` | 구현 완성도 반복 검토 — AC 검증 + 병렬 코드/아키텍처/UI 리뷰 |
+| `/mst:recover` | 세션 종료 후 미완료 요청 복구 + 마지막 Phase 재개 |
+| `/mst:cleanup` | ideation/discussion/requests 세션 일괄 정리 |
+| `/mst:archive` | 세션 아카이브 타입별 세밀 관리 |
 | `/mst:dashboard` | 대시보드 서버 시작/열기 |
 | `/mst:priority` | 태스크 우선순위/실행 순서 변경 |
 | `/mst:history` | 완료된 요청 이력 조회 |
@@ -121,24 +126,63 @@ mcp__stitch__edit_screens(...)                     ← 사용 금지
 |------|------|
 | `/mst:codex` | Codex 호출 (단일 진입점) |
 | `/mst:gemini` | Gemini 호출 (단일 진입점) |
+| `/mst:claude` | Claude 서브에이전트 호출 (단일 진입점) |
 
 ### 분석/아이디에이션 스킬 (모드 무관)
 
 | 스킬 | 설명 |
 |------|------|
-| `/mst:ideation` | 3 AI 의견 수집 + 종합 + 토론 (독립 실행) |
+| `/mst:ideation` | 3 AI 의견 수집 + 종합 (독립 실행) |
+| `/mst:discussion` | AI 팀원 반복 토론 — 합의 도달까지 N회 수렴 |
+| `/mst:debug` | 병렬 버그 조사 + 종합 디버그 리포트 생성 |
+| `/mst:explore` | 코드베이스 자율 탐색 — 파일/함수/의존성 자동 분석 |
+
+### 설계 도구 스킬 (모드 무관)
+
+| 스킬 | 설명 |
+|------|------|
+| `/mst:stitch` | Google Stitch MCP로 UI 목업/시안 생성 |
+| `/mst:ui-designer` | 화면 설계, 컴포넌트 구조, 인터랙션 흐름 설계 |
+| `/mst:schema-designer` | DB 스키마, 데이터 모델, ERD 설계 |
+| `/mst:feedback-composer` | 리뷰 결과를 실행 가능한 피드백 문서로 종합 |
+
+### 유틸리티 스킬 (모드 무관)
+
+| 스킬 | 설명 |
+|------|------|
+| `/mst:setup-omx` | Codex CLI 프로젝트에 oh-my-codex 설치 자동화 |
 
 ### 한국어 트리거
 
 | 패턴 | 트리거 스킬 |
 |------|-----------|
-| "아이디어", "브레인스토밍", "의견 수렴" | `/mst:ideation` |
-| "구현해줘", "만들어줘", "개발해줘" | `/mst:request` |
-| "현황", "상태 보여줘" | `/mst:list` |
-| "승인", "진행해" | `/mst:approve` |
-| "수락", "머지", "최종 수락" | `/mst:accept` |
-| "취소", "중단" | `/mst:cancel` |
-| "우선순위 변경" | `/mst:priority` |
+| "구현해줘", "만들어줘", "개발해줘", "추가해줘", "작성해줘" | `/mst:request` |
+| "계획 세워줘", "플랜 짜줘", "정제해줘", "범위 잡아줘" | `/mst:plan` |
+| "리뷰", "코드 검토", "구현 검증" | `/mst:review` |
+| "승인", "진행해", "OK 진행", "시작해", "실행해" | `/mst:approve` |
+| "수락", "머지", "최종 수락", "합쳐줘" | `/mst:accept` |
+| "피드백", "수정 요청", "이건 틀렸어", "다시 해줘" | `/mst:feedback` |
+| "취소", "중단", "그만", "멈춰" | `/mst:cancel` |
+| "복구", "재개", "이어서", "계속해줘", "다시 시작" | `/mst:recover` |
+| "우선순위 변경", "순서 변경", "먼저 실행", "앞으로" | `/mst:priority` |
+| "현황", "상태 보여줘", "목록", "뭐 하고 있어" | `/mst:list` |
+| "상세 상태", "자세히 보여줘", "REQ-NNN 상태" | `/mst:inspect` |
+| "이력", "히스토리", "완료된 요청", "과거 작업" | `/mst:history` |
+| "대시보드", "대시보드 열어", "모니터링", "시각화" | `/mst:dashboard` |
+| "아이디어", "브레인스토밍", "의견 수렴", "관점 모아줘" | `/mst:ideation` |
+| "토론", "합의", "디스커션", "심화 논의" | `/mst:discussion` |
+| "버그", "에러", "오류", "안 돼", "안 됨", "고쳐", "문제 분석", "디버그" | `/mst:debug` |
+| "탐색", "코드 찾아줘", "어디 있어", "구조 분석" | `/mst:explore` |
+| "화면 디자인해줘", "목업 만들어줘", "Stitch로 그려줘", "UI 시안", "페이지 설계" | `/mst:stitch` |
+| "코덱스 실행", "코덱스로", "Codex로 작업" | `/mst:codex` |
+| "제미나이 실행", "제미나이로", "Gemini로 분석", "대용량 분석" | `/mst:gemini` |
+| "클로드로 실행", "클로드 서브에이전트", "Claude 서브에이전트" | `/mst:claude` |
+| "설정", "설정 변경", "환경 설정", "config" | `/mst:settings` |
+| "마에스트로 켜", "마에스트로 시작", "지휘자 모드 켜" | `/mst:on` |
+| "마에스트로 꺼", "지휘자 모드 끝", "Maestro 비활성" | `/mst:off` |
+| "정리", "클린업", "청소", "세션 정리 전부" | `/mst:cleanup` |
+| "아카이브", "세션 아카이브", "압축 보관" | `/mst:archive` |
+| "OMX 설치", "oh-my-codex 설정" | `/mst:setup-omx` |
 
 </skills_reference>
 
@@ -219,6 +263,14 @@ REQ-001                    # 사용자의 원본 요청
 │   └── REQ-001-01-R2      # 피드백 리비전 2
 ├── REQ-001-02             # PM이 분할한 태스크 2
 └── REQ-001-03             # PM이 분할한 태스크 3
+
+PLN-001                    # 플랜 세션
+DBG-001                    # 디버그 세션
+IDN-001                    # 아이디에이션 세션
+DSC-001                    # 디스커션 세션
+EXP-001                    # 탐색 세션
+DES-001                    # Stitch 디자인 세션
+RV-001                     # 리뷰 회차 (REQ 하위)
 ```
 
 </id_system>
@@ -241,11 +293,43 @@ REQ-001                    # 사용자의 원본 요청
     │       ├── opinion-*.md
     │       ├── synthesis.md
     │       └── discussion.md
+    ├── discussion/            # 토론 세션
+    │   └── DSC-NNN/
+    │       ├── session.json
+    │       ├── rounds/
+    │       │   └── 01/        # 라운드별 응답/비평/종합
+    │       └── consensus.md
+    ├── debug/                 # 디버그 세션
+    │   └── DBG-NNN/
+    │       ├── session.json
+    │       └── debug-report.md
+    ├── explore/               # 탐색 세션
+    │   └── EXP-NNN/
+    │       ├── session.json
+    │       ├── explore-*.md   # 에이전트별 결과
+    │       └── explore-report.md
+    ├── designs/               # Stitch 디자인 세션
+    │   └── DES-NNN/
+    │       ├── design.json
+    │       └── screen-*.md
+    ├── plans/                 # 플랜 세션
+    │   └── PLN-NNN/
+    │       ├── plan.json
+    │       ├── plan.md
+    │       └── prompts/       # 사전 리뷰 프롬프트/결과
     ├── requests/
     │   └── REQ-XXX/
     │       ├── request.json   # 요청 메타데이터 + 상태
     │       ├── discussion/    # PM ↔ 사용자 논의 기록
     │       ├── design/        # Design Wing 산출물
+    │       ├── reviews/       # 리뷰 세션
+    │       │   └── RV-NNN/
+    │       │       ├── review.json
+    │       │       ├── ac-results.md
+    │       │       ├── review-code.md
+    │       │       ├── review-arch.md
+    │       │       ├── review-ui.md
+    │       │       └── review-report.md
     │       ├── tasks/
     │       │   └── NN/
     │       │       ├── spec.md
@@ -260,6 +344,7 @@ REQ-001                    # 사용자의 원본 요청
     │       │           ├── codex-phase3-code-review-{timestamp}.md
     │       │           └── gemini-phase3-consistency-review-{timestamp}.md
     │       └── summary.md
+    ├── archive/               # 아카이브 저장소
     └── worktrees/             # Git Worktree 루트
 ```
 

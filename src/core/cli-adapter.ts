@@ -180,9 +180,6 @@ export class GeminiAdapter implements CLIAdapter {
     if (opts.outputFormat === 'json') {
       cmd += ' --json';
     }
-    if (opts.ephemeral) {
-      cmd += ' --sandbox';
-    }
     return await runWithTimeout(cmd, opts.workingDir, opts.timeout_ms);
   }
 

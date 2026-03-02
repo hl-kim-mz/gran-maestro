@@ -509,7 +509,7 @@ Single entry point for Codex CLI calls. Every Codex call inside and outside Gran
 
 **One-line description**: call Gemini CLI for large-context jobs.
 
-**Arguments**: `{prompt} [--prompt-file {path}] [--files {pattern}] [--sandbox] [--trace {REQ/TASK/label}]`
+**Arguments**: `{prompt} [--prompt-file {path}] [--files {pattern}] [--trace {REQ/TASK/label}]`
 
 #### Purpose
 
@@ -526,7 +526,6 @@ Single entry point for Gemini CLI calls. Suitable for large-context tasks such a
 ```
 /mst:gemini "Analyze this codebase architecture"
 /mst:gemini --prompt-file .gran-maestro/requests/REQ-007/tasks/01/spec.md --dir .gran-maestro/worktrees/REQ-007-01
-/mst:gemini "Draft full frontend refactor plan" --sandbox
 ```
 
 ---

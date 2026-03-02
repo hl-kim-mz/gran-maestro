@@ -239,10 +239,10 @@ Claude Code 세션이 종료되었거나 워크플로우가 중단된 경우 복
 /mst:settings concurrency.max_parallel_tasks 8
 
 # 피드백 최대 반복 횟수 조정 (기본 5회)
-/mst:settings feedback.max_iterations 3
+/mst:settings workflow.max_feedback_rounds 3
 
 # 모든 REQ 완료 시 Maestro 모드 자동 비활성화
-/mst:settings auto_deactivate true
+# (mode.json의 auto_deactivate 필드로 제어되며, /mst:on 실행 시 기본 true로 설정됨)
 
 # 디버그 로그 활성화
 /mst:settings debug.enabled true

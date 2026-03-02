@@ -34,12 +34,29 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
 - ALL code work is delegated to Codex/Gemini via `/mst:codex`, `/mst:gemini` skills
 - Always save discussion, specs, and reviews as files under .gran-maestro/
 - Ask ONE question at a time when clarifying with user
-- For codebase facts, delegate to `/mst:codex` or `/mst:gemini` — never burden the user
-- claude-dev 에이전트 선택 제한 규칙:
-  - 모든 코드 작업은 파일 타입 무관하게 codex-dev 우선 사용 (`.ts`, `.py`, `.sh`, `.go`, `.js` 등 모든 코드 파일)
-  - 변경 범위에 `.tsx` 또는 `.jsx` 파일(프론트엔드/UI)이 포함되면 claude-dev 금지 → gemini-dev 사용
-  - claude-dev 허용 범위: `.md` 스킬/문서, `.json` config, `.env`, `.yaml` (코드 파일 제외)
-  - ⚠️ 컨텍스트 보유를 이유로 한 claude-dev 선택은 유효하지 않다. 외주 에이전트는 worktree를 직접 탐색하므로 컨텍스트 보유는 실질적 이점이 아님.
+- For codebase facts, run 3-way parallel exploration based on `config.phase1_exploration.roles`:
+  (1) `symbol_tracing` role agent [background] — enabled=true면 Skill(mst:{agent}) dispatch
+  (2) `broad_scan` role agent [background] — enabled=true면 Skill(mst:{agent}) dispatch ((1)과 동일 응답에서)
+  (3) Claude 직접 Read/Glob/Grep [즉시 시작] — never burden the user
+  기본값: symbol_tracing=codex, broad_scan=gemini
+- **에이전트 선택 플로우** (spec.md 작성 전 MANDATORY):
+  Step 0: `.gran-maestro/config.json`을 Read → `workflow.default_agent` 취득 → DEFAULT_AGENT 변수 보관.
+  spec.md Assigned Agent 필드는 반드시 `[config: {DEFAULT_AGENT}] → [파일유형] → 최종: {에이전트}` 형식으로 명시.
+  config 미참조 시 에이전트 결정 에러로 처리.
+
+  Q1: 변경 파일에 `.tsx` 또는 `.jsx`가 1개라도 있는가?
+    YES → gemini-dev ✅ (확정, Q2·Q3 건너뜀)
+    NO  → Q2
+
+  Q2: `.ts` / `.py` / `.js` / `.go` / `.sh` 등 코드 파일이 있거나 신규 코드 파일 생성이 포함되는가?
+    YES → codex-dev ✅ (확정, Q3 건너뜀)
+    NO  → Q3
+
+  Q3: `.md` / `.json` / `.yaml` / `.env` 등 문서·설정 파일만인가?
+    YES → claude-dev ✅ (확정)
+
+  혼재(코드+문서): Q1→Q2 순서의 확정 에이전트 사용. 문서 파일은 같은 태스크에 포함 가능.
+  ⚠️ 컨텍스트 보유를 이유로 한 claude-dev 선택은 유효하지 않다.
 - **병렬 디스패치 원칙**: 독립적인 에이전트 요청(데이터 의존성 없는 병렬 호출)은
   반드시 단일 응답 내 복수 Task() 호출로 발송하라. 순차 호출 금지.
   준비 작업(Write/Read 등)도 독립적이면 단일 응답에서 일괄 처리한다.
@@ -66,7 +83,15 @@ Phase 1 runs in two modes:
 
 1) Parse user request. Classify complexity: simple | standard | complex.
 2) Simple: PM Conductor solo analysis. Standard/Complex: spawn Analysis Squad team.
-3) Delegate codebase exploration to `/mst:gemini` with `--files` pattern for full codebase analysis. Gemini's 1M token context enables comprehensive single-pass analysis. For precision symbol tracing, delegate to `/mst:codex` (faster and more accurate than Claude Explorer agents).
+3) 코드베이스 탐색은 `config.phase1_exploration.roles`를 읽어 role 기반으로 수행한다:
+   config 읽기: `.gran-maestro/config.json`의 `phase1_exploration.roles` 참조
+   (a) `symbol_tracing` role [background] — enabled=true이면 해당 agent(Skill(mst:{agent})) dispatch, 정밀 심볼 추적
+   (b) `broad_scan` role [background] — enabled=true이면 해당 agent(Skill(mst:{agent})) dispatch, 광역 탐색
+       (a)(b)는 동일 응답에서 dispatch; enabled=false인 role은 건너뜀
+   (c) Claude 직접 탐색 [즉시 시작] — (a)(b) dispatch 직후 Read/Glob/Grep으로 자율 탐색
+       범위는 Claude 자율 판단, 중복 허용, (a)(b) 완료 대기 불필요
+   (a)(b) 수신 결과(enabled role들)와 (c) Claude 직접 탐색 컨텍스트를 종합 → spec 작성
+   기본값: symbol_tracing=codex, broad_scan=gemini (설정 미존재 시 기존 동작 유지)
 4) Delegate external analysis to Codex (code structure) + Gemini (large context + discussion/ideation log analysis) via `/mst:codex`, `/mst:gemini` skills (parallel). Gemini Context Report should include prior discussion/ideation session logs when available.
 5) For ambiguous requirements:
    [Interactive mode — /mst:plan]:
@@ -94,19 +119,37 @@ Phase 1 runs in two modes:
    - Gemini (input only): provides context report (codebase mapping, dependency graph). Does NOT produce decomposition output.
    PM reviews and approves the decomposition before spec writing.
 6.6) **다중 태스크 분해** (LLM 자율 판단):
-   작업이 순서 의존적인 N개의 단계로 나뉜다고 판단되면:
+   작업이 N개의 독립·순서 의존 단계로 나뉜다고 판단되면:
    ⚠️ "Phase로 나눠서 진행하자"는 절대 권고하지 않는다.
    대신 tasks/01, tasks/02..N을 직접 생성하고 각 spec.md §7 blockedBy에 의존성을 기록한다.
    모든 태스크는 request.json의 tasks[] 배열에 등록한다.
 
+   **태스크 = 비즈니스 기능 단위 1개** (핵심 원칙):
+   - 각 태스크는 단일 비즈니스 기능 책임을 구현한다 (예: "JWT 토큰 발급", "검색 필터 UI")
+   - 파일 수·타입이 아닌 기능 책임 범위로 경계를 설정한다
+   - 태스크 제목은 구현할 기능 이름으로 작성한다
+     (예: ✅ "사용자 인증 토큰 발급" / ❌ "src/auth.ts 수정")
+
    **분해 필요 기준** (하나라도 해당 시 분해):
+   - 기능 책임 분리: 서로 다른 비즈니스 기능이 혼재하는 경우 (예: 인증 + 권한 관리)
    - 순서 의존성: 선행 완료 없이 후행 실행 불가 (예: DB 스키마 → API → UI)
-   - 성격 차이: 스키마 변경, 백엔드 로직, 프론트엔드 연동처럼 명확히 구분되는 경우
-   - 독립 검증 가능: 각 단계가 독립적으로 커밋·테스트 가능한 경우
+   - 기능 크기 초과: 단일 기능이 독립 커밋/테스트 단위를 넘어설 경우 서브 기능으로 세분화
+     참고 크기 힌트: 신규 파일 ~3개 초과 or 2 개발자-일 초과 → 분해 검토
+   - **레이어 분리 (2차 분해)**: 동일 기능 단위라도 프론트엔드와 백엔드 작업이 모두 포함되고
+     각각의 작업량이 독립 커밋/테스트 단위가 될 만큼 충분하면 → 레이어별 2개 태스크로 분리
+     예: "사용자 프로필 수정" → T01: API + DB, T02: UI 폼 (blockedBy: [T01])
+     단, 프론트만 or 백엔드만 수정하는 경우 분리 불필요
 
    **단일 태스크 유지 기준** (과잉 분해 금지):
-   - 변경이 동일 레이어 내 1~3개 파일로 완결되는 경우
+   - 단일 기능 책임으로 완결 가능한 경우 (파일 수 무관)
    - 순서 의존성 없이 동시 실행 가능한 경우 (이 경우 blockedBy 없이 병렬 tasks/01, 02 생성)
+
+   **책임 겹침 방지 검증** (분해 확정 직전 필수):
+   - 각 태스크의 기능 책임을 한 줄씩 열거한다
+   - 두 태스크 간 동일·유사한 기능 책임이 있으면:
+     - 완전 동일: 하나로 병합
+     - 선행 관계: blockedBy로 직렬화
+   - 겹침 없이 검증 통과 후에만 스텝 0(의존성 및 배정 확정)으로 진행
 
    **plan.md 태스크 분해 섹션 우선**: --plan PLN-NNN이 제공된 경우, plan.md의
    `## 태스크 분해` 섹션이 있으면 반드시 해당 섹션을 따른다.
@@ -114,10 +157,13 @@ Phase 1 runs in two modes:
    다중 태스크 시 병렬화 적용:
    - 의존성 DAG(blockedBy/blocks)와 에이전트 배정을 단일 thinking에서 먼저 완전 확정
    - 독립 태스크(blocks/blockedBy 없는 것) 2개 이상:
-     [Write 동시 호출]: 단일 응답 내 N개 spec.md Write 동시 호출 (의존성 확정된 완성본으로) — 기본값
-     [서브에이전트 병렬]: Task(run_in_background: true)로 N개 서브에이전트 동시 dispatch — PM 재량으로 전환 가능
+     [Write 동시 호출 — MUST]: 단일 응답 내 N개 spec.md Write 동시 호출 (의존성 확정된 완성본으로) — 기본값이자 필수
+     [서브에이전트 병렬]: 아래 사유가 명시된 경우에만 허용
+       - reasoning 복잡도가 높고 태스크별 독립 코드베이스 탐색이 필요한 경우
+       → Task(run_in_background: true)로 N개 서브에이전트 동시 dispatch
        → 각 에이전트에 의존성 테이블 + 에이전트 배정 결과를 읽기 전용으로 주입
        → 에이전트가 독자적으로 의존성/배정 결정하는 것은 금지
+       → PM 재량만으로 Phase A를 미실행하는 것은 금지
    - 독립 태스크 1개 이하: 기존 순차 Write 유지
 8) Save to .gran-maestro/requests/REQ-XXX/tasks/NN/spec.md.
    다중 태스크 병렬 Write 완료 직후 양방향 의존성 검증:

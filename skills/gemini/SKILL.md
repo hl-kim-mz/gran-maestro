@@ -2,7 +2,7 @@
 name: gemini
 description: "Gemini CLI를 호출하여 대용량 컨텍스트 작업을 실행합니다. 사용자가 '제미니 실행', '제미니로', '대용량 분석'을 말하거나 /mst:gemini를 호출할 때 사용. Gran Maestro 워크플로우 내 모든 Gemini 호출은 이 스킬을 경유합니다."
 user-invocable: true
-argument-hint: "{프롬프트} [--prompt-file {경로}] [--files {패턴}] [--sandbox] [--trace {REQ/TASK/label}]"
+argument-hint: "{프롬프트} [--prompt-file {경로}] [--files {패턴}] [--trace {REQ/TASK/label}]"
 ---
 
 # maestro:gemini
@@ -76,7 +76,6 @@ files_pattern: {--files 패턴, 없으면 생략}
 
 - `--prompt-file {path}`: 파일에서 프롬프트 읽기 (셸 치환으로 Claude 컨텍스트 미경유, 토큰 절약)
 - `--files {pattern}`: 컨텍스트에 포함할 파일 패턴 (예: `src/**/*.ts`)
-- `--sandbox`: 샌드박스(Docker) 환경에서 실행
 - `-y`: 자동 승인 모드
 - `--trace {REQ/TASK/label}`: Trace 문서 자동 생성 (stdout 반환 안 함)
 
@@ -92,5 +91,4 @@ files_pattern: {--files 패턴, 없으면 생략}
 - Gemini CLI 필수 (`gemini --version`); 미설치 시 `npm install -g @google/gemini-cli`
 - 컨텍스트 윈도우 최대 1M 토큰; 대용량 파일은 `--files` 패턴을 구체적으로 지정
 - `--trace` 모드에서 전체 결과는 파일에만 저장, 부모 컨텍스트 반환 안 됨
-- "샌드박스 실패" → Docker 설치/실행 상태 확인
 - "trace 디렉토리 생성 실패" → `requests/{REQ-ID}/tasks/{TASK-NUM}/` 경로 확인

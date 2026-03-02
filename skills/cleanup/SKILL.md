@@ -1,13 +1,13 @@
 ---
 name: cleanup
-description: "세션을 일괄 정리합니다. ideation/discussion은 최근 N개만 유지하고, completed requests를 자동 아카이브하며, 오래된 활성 requests는 사용자 선택으로 정리합니다. 사용자가 '정리', '클린업', '청소'를 말하거나 /mst:cleanup을 호출할 때 사용."
+description: "세션을 일괄 정리합니다. ideation/discussion/debug/plans은 최근 N개만 유지하고, completed requests를 최소 유지 갯수 이상 아카이브하며, 오래된 활성 requests는 사용자 선택으로 정리합니다. 사용자가 '정리', '클린업', '청소'를 말하거나 /mst:cleanup을 호출할 때 사용."
 user-invocable: true
 argument-hint: "[--run] [--dry-run]"
 ---
 
 # maestro:cleanup
 
-한 번의 호출로 ideation, discussion, requests를 일괄 정리합니다. Maestro 모드 활성 여부 무관.
+한 번의 호출로 ideation, discussion, debug, plans, requests를 일괄 정리합니다. Maestro 모드 활성 여부 무관.
 
 ## archive 스킬과의 차이
 
@@ -16,7 +16,7 @@ argument-hint: "[--run] [--dry-run]"
 | 목적 | **한 번에 전부** 정리 | 타입별 세밀 관리 |
 | 동작 | 3단계 자동 + 인터랙티브 | 수동 지정 |
 | 복원 | 지원 안 함 (`/mst:archive --restore` 사용) | 지원 |
-| 대상 | ideation + discussion + requests 일괄 | `--type`으로 개별 지정 |
+| 대상 | ideation + discussion + debug + plans + requests 일괄 | `--type`으로 개별 지정 |
 
 ## 설정 참조
 
@@ -27,6 +27,8 @@ argument-hint: "[--run] [--dry-run]"
 | `ideation_keep_count` | 10 | ideation 세션 유지 갯수 |
 | `discussion_keep_count` | 10 | discussion 세션 유지 갯수 |
 | `debug_keep_count` | 10 | debug 세션 유지 갯수 |
+| `plan_keep_count`      | 10 | plans 세션 유지 갯수 |
+| `request_keep_count`   | 10 | requests 최소 유지 갯수 (최신 N개 보존) |
 | `old_request_threshold_hours` | 24 | 오래된 requests 판단 기준 (시간) |
 
 설정 없으면 기본값 사용.
@@ -37,7 +39,8 @@ argument-hint: "[--run] [--dry-run]"
 
 `config.json`에서 `cleanup`/`archive` 설정 로드 → 각 타입 스캔:
 - **Ideation/Discussion/Debug**: 각 타입 디렉토리에서 `session.json`의 `created_at`/`status` 읽기 → 내림차순 정렬 → keep_count 초과 중 `done`/`completed` 세션 수 카운트
-- **Requests (자동)**: `request.json`에서 `done`/`completed`/`cancelled` 요청 수 카운트
+- **Plans**: `plans/PLN-*`의 `plan.json`에서 `status`/`created_at` 읽기 → 내림차순 정렬 → `plan_keep_count` 초과 중 `completed`/`archived` 상태 카운트
+- **Requests (자동)**: `request.json`에서 `done`/`completed`/`cancelled` 선별 → 최신 `request_keep_count`개 제외 후 아카이브 대상 카운트
 - **Requests (인터랙티브)**: 미완료 요청 중 `old_request_threshold_hours` 이상 경과 카운트
 
 미리보기 표시:
@@ -50,7 +53,8 @@ Gran Maestro — Cleanup 미리보기
   ideation    : 3개 세션 아카이브 대상 (유지: 10, 현재: 13, 완료: 3)
   discussion  : 0개 (유지: 10, 현재: 5)
   debug       : 0개 (유지: 10, 현재: 2)
-  requests    : 2개 done/completed/cancelled 아카이브 대상
+  plans       : 2개 아카이브 대상 (유지: 10, 현재: 12, 완료: 2)
+  requests    : 5개 done/completed/cancelled 아카이브 대상 (유지: 10, 현재: 15)
 
 [인터랙티브 정리]
   requests    : 1개 활성 요청이 24시간 이상 경과
@@ -63,7 +67,7 @@ Gran Maestro — Cleanup 미리보기
 
 3단계로 순차 실행.
 
-#### Step 1: Ideation / Discussion / Debug 정리 (자동)
+#### Step 1: Ideation / Discussion / Debug / Plans 정리 (자동)
 
 각 타입별로: 스캔 → `created_at` 내림차순 정렬 → 최근 `{type}_keep_count`개 유지 → 나머지 중 `done`/`completed`만 아카이브 대상 (진행 중 세션 보호) → `{type}/archived/` 생성 후 tar.gz 압축:
 ```bash
@@ -72,9 +76,16 @@ tar -czf .gran-maestro/{type}/archived/{type}-{ID_from}-{ID_to}-{YYYYMMDD}.tar.g
 ```
 원본 삭제 → `[Cleanup] {type} {N}개 아카이브됨`
 
-#### Step 2: Completed Requests 정리 (자동)
+Plans 정리: `plans/PLN-*` 스캔 → `plan.json`의 `created_at` 내림차순 정렬 → 최근 `plan_keep_count`개 유지 → 나머지 중 `status`가 `completed` 또는 `archived`인 것만 아카이브 대상 (`active` 상태 보호) → `plans/archived/` 생성 후 tar.gz 압축:
+```bash
+tar -czf .gran-maestro/plans/archived/plans-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
+  -C .gran-maestro/plans {plan_dirs...}
+```
+원본 삭제 → `[Cleanup] plans {N}개 아카이브됨`
 
-`requests/REQ-*` 스캔 → `done`/`completed`/`cancelled` 선별 → tar.gz 압축 후 원본 삭제 → `[Cleanup] requests {N}개 아카이브됨`
+#### Step 2: Completed Requests 정리 (자동, 최소 유지 적용)
+
+`requests/REQ-*` 스캔 → `request.json`의 `created_at` 내림차순 정렬 → `done`/`completed`/`cancelled` 선별 → 최신 `request_keep_count`개는 보존 (keep count 내 완료 요청 보호) → 나머지 아카이브 대상 → tar.gz 압축 후 원본 삭제 → `[Cleanup] requests {N}개 아카이브됨`
 
 #### Step 3: 오래된 활성 Requests 인터랙티브 정리
 
@@ -94,7 +105,8 @@ Gran Maestro — Cleanup 완료
 ideation    : 3개 아카이브됨 → ideation-IDN001-IDN003-20260218.tar.gz
 discussion  : 0개 (정리 대상 없음)
 debug       : 0개 (정리 대상 없음)
-requests    : 2개 done/completed 아카이브됨 → requests-REQ001-REQ002-20260218.tar.gz
+plans       : 2개 아카이브됨 → plans-PLN001-PLN002-20260218.tar.gz
+requests    : 5개 done/completed 아카이브됨 → requests-REQ001-REQ005-20260218.tar.gz
               1개 사용자 선택 아카이브됨 → requests-REQ013-20260218.tar.gz
 
 총 6개 세션 정리 완료
@@ -115,6 +127,10 @@ Gran Maestro — Cleanup 모의 실행
 
 [DRY-RUN] discussion: 정리 대상 없음
 
+[DRY-RUN] plans: 2개 아카이브 예정
+  PLN-001 (completed, 2026-02-10)
+  PLN-002 (completed, 2026-02-11)
+
 [DRY-RUN] requests (done/completed): 2개 아카이브 예정
   REQ-001 (completed, 2026-02-05)
   REQ-002 (cancelled, 2026-02-08)
@@ -128,6 +144,8 @@ Gran Maestro — Cleanup 모의 실행
 ## 진행 중 세션 보호 규칙
 
 - **자동 정리 (Step 1, 2)**: `done`/`completed`/`cancelled` 세션만 아카이브
+- **Plans**: `plan.json`의 `status`가 `active`인 플랜은 아카이브 제외
+            (`completed`, `archived` 상태만 아카이브 대상)
 - **인터랙티브 정리 (Step 3)**: 사용자 명시 선택 세션만 아카이브 (상태 무관)
 - 진행 중 세션은 keep count 초과여도 자동 삭제 안 함
 

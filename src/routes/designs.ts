@@ -1,0 +1,148 @@
+import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
+import type { DesignSession } from "../types.ts";
+import { dirExists, listDirs, readJsonFile, readTextFile } from "../utils.ts";
+import { resolveBaseDir } from "../config.ts";
+
+const projectDesignsApi = new Hono();
+
+projectDesignsApi.get("/designs", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const designsDir = `${baseDir}/designs`;
+  const plansDir = `${baseDir}/plans`;
+  if (!(await dirExists(designsDir)) && !(await dirExists(plansDir))) {
+    return c.json([]);
+  }
+
+  const desDirs = (await listDirs(designsDir)).filter((d) => /^DES-/.test(d));
+  const results = await Promise.all(
+    desDirs.map(async (dir) => {
+      const json = await readJsonFile<DesignSession>(`${designsDir}/${dir}/design.json`);
+      if (!json) {
+        return null;
+      }
+      return { ...json, id: json.id || dir };
+    }),
+  );
+
+  const sessions = results.filter((s): s is NonNullable<typeof s> => s !== null);
+  const planDirs = (await listDirs(plansDir)).filter((d) => /^PLN-/.test(d));
+  const legacyPlans = await Promise.all(
+    planDirs.map(async (dir) => {
+      const json = await readJsonFile<{ title?: string; created_at?: string; linked_designs?: unknown }>(
+        `${plansDir}/${dir}/plan.json`,
+      );
+      if (!json) return null;
+      if (Array.isArray(json.linked_designs) && json.linked_designs.length > 0) return null;
+
+      try {
+        const stat = await Deno.stat(`${plansDir}/${dir}/design.md`);
+        if (!stat.isFile) return null;
+      } catch (_error) {
+        return null;
+      }
+
+      return {
+        id: dir,
+        title: json.title,
+        status: "plan_design",
+        created_at: json.created_at,
+        linked_plan: dir,
+        source: "plan_design",
+      };
+    }),
+  );
+
+  const planSessions = legacyPlans.filter((s): s is NonNullable<typeof s> => s !== null);
+
+  const merged = [...sessions, ...planSessions];
+  merged.sort((a, b) => {
+    const aTime = a.created_at;
+    const bTime = b.created_at;
+    if (!aTime && !bTime) return 0;
+    if (!aTime) return 1;
+    if (!bTime) return -1;
+    return bTime.localeCompare(aTime);
+  });
+
+  return c.json(merged);
+});
+
+projectDesignsApi.get("/designs/:desId", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const desId = c.req.param("desId");
+  if (/^PLN-/.test(desId)) {
+    const planJson = await readJsonFile<{ title?: string; created_at?: string }>(
+      `${baseDir}/plans/${desId}/plan.json`,
+    );
+    if (!planJson) {
+      return c.json({ error: "Design not found" }, 404);
+    }
+
+    const content = await readTextFile(`${baseDir}/plans/${desId}/design.md`);
+    if (content === null) {
+      return c.json({ error: "Design not found" }, 404);
+    }
+
+    return c.json({
+      id: desId,
+      title: planJson.title,
+      status: "plan_design",
+      plan_design: true,
+      design_content: content,
+      created_at: planJson.created_at,
+    });
+  }
+
+  const desDir = `${baseDir}/designs/${desId}`;
+  if (!(await dirExists(desDir))) {
+    return c.json({ error: "Design not found" }, 404);
+  }
+
+  const json = await readJsonFile<DesignSession>(`${desDir}/design.json`);
+  if (!json) {
+    return c.json({ error: "Design not found" }, 404);
+  }
+
+  const screenFiles: string[] = [];
+  try {
+    for await (const entry of Deno.readDir(desDir)) {
+      if (entry.isFile && /^screen-\d+\.md$/.test(entry.name)) {
+        screenFiles.push(entry.name);
+      }
+    }
+  } catch (_error) {
+    // ignore
+  }
+  screenFiles.sort();
+
+  return c.json({ ...json, id: json.id || desId, screen_files: screenFiles });
+});
+
+projectDesignsApi.get("/designs/:desId/screens/:screenFile", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const desId = c.req.param("desId");
+  const screenFile = c.req.param("screenFile");
+  if (!/^screen-\d+\.md$/.test(screenFile)) {
+    return c.json({ error: "Invalid screen file" }, 400);
+  }
+
+  const content = await readTextFile(`${baseDir}/designs/${desId}/${screenFile}`);
+  if (content === null) {
+    return c.json({ exists: false, content: null });
+  }
+  return c.json({ exists: true, content });
+});
+
+export { projectDesignsApi };

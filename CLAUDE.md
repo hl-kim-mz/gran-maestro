@@ -43,14 +43,14 @@ docs/                # 문서
 5. **버전업 커밋**: `Bump version to X.Y.Z` 메시지로 커밋 (CHANGELOG.md 변경 포함)
 6. **푸시**: `git push origin master`
 
-### 버전 bump만 (커밋/푸시 없이)
+### 버전 bump만 (푸시 없이)
 
-사용자가 "bump만", "버전만 올려", "커밋 없이" 등으로 요청하면:
+사용자가 "bump만", "버전만 올려", "푸시 없이" 등으로 요청하면:
 
 1. **미커밋 변경사항 확인**: 위와 동일
 2. **bump 스크립트 실행**: `python3 scripts/bump.py <patch|minor|major>`
 3. **CHANGELOG.md 업데이트**: 위와 동일
-4. 커밋·푸시 없이 종료 (사용자가 직접 커밋/푸시)
+4. **버전업 커밋**: `Bump version to X.Y.Z` 메시지로 커밋 (CHANGELOG.md 변경 포함)
 
 ## 커밋 & 푸시 체크리스트
 

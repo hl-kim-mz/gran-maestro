@@ -11,6 +11,7 @@ const ALLOWED_STATUS = {
   request: ["completed", "cancelled"],
   plan: ["completed"],
   session: ["completed"],
+  explore: ["completed", "cancelled"],
 } as const;
 
 type ManagedStatus = (typeof ALLOWED_STATUS)[keyof typeof ALLOWED_STATUS][number];
@@ -24,6 +25,7 @@ function getTargetType(id: string): TargetType | null {
   if (id.startsWith("REQ-")) return "request";
   if (id.startsWith("PLN-")) return "plan";
   if (id.startsWith("DBG-") || id.startsWith("IDN-") || id.startsWith("DSC-")) return "session";
+  if (id.startsWith("EXP-")) return "explore";
   return null;
 }
 
@@ -88,6 +90,7 @@ async function resolveItemDir(baseDir: string, id: string): Promise<string | nul
     `debug/${id}`,
     `ideation/${id}`,
     `discussion/${id}`,
+    `explore/${id}`,
   ];
 
   for (const candidate of candidates) {
@@ -235,6 +238,39 @@ projectManageApi.post("/manage/backup", async (c) => {
       // best-effort cleanup
     }
   }
+});
+
+projectManageApi.post("/manage/archive-all", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const command = new Deno.Command("python3", {
+    args: [
+      `${PROJECT_ROOT}/scripts/mst.py`,
+      "archive",
+      "run-all",
+      "--dir",
+      baseDir,
+    ],
+    cwd: PROJECT_ROOT,
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const output = await command.output();
+  const stdout = decoder.decode(output.stdout).trim();
+  const stderr = decoder.decode(output.stderr).trim();
+
+  if (output.code === 0) {
+    return c.json({ success: true, message: stdout || "[Archive] 정리 대상 없음" });
+  }
+
+  return c.json(
+    { success: false, error: stderr || stdout || "archive run-all failed" },
+    500,
+  );
 });
 
 export { projectManageApi };

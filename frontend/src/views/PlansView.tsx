@@ -9,11 +9,25 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { ClipboardList, ExternalLink, FileText, Palette } from 'lucide-react';
+import { ClipboardList, ExternalLink, FileText, GitBranch, Palette, ShieldAlert } from 'lucide-react';
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { parseDesignSections } from '@/shared/designUtils';
+import { PlanDiagramTab } from '@/components/PlanDiagramTab';
+
+interface ReviewIssue {
+  severity: "CRITICAL" | "MAJOR" | "MINOR";
+  title: string;
+  description: string;
+}
+
+interface RoleReviewResult {
+  role: string;
+  no_issues: boolean;
+  issues: ReviewIssue[];
+}
 
 interface PlanMeta {
   id: string;
@@ -21,44 +35,25 @@ interface PlanMeta {
   status?: string;
   created_at?: string;
   linked_requests?: string[];
+  linked_designs?: string[];
   has_design?: boolean;
+  linked_debug?: string | null;
+  linked_ideation?: string | null;
+  linked_discussion?: string | null;
 }
 
 interface PlanDetail {
   content?: string;
 }
 
-interface DesignSection {
-  title: string;
-  imageUrl: string | null;
-  stitchUrl: string | null;
-  stitchLabel: string;
-  description: string;
+interface LinkedDesignDetail {
+  id: string;
+  screen_files?: string[];
 }
 
-function parseDesignSections(content: string): DesignSection[] {
-  return content
-    .split(/\r?\n---\r?\n/)
-    .map(block => block.trim())
-    .filter(Boolean)
-    .map(block => {
-      const titleMatch = block.match(/^##\s+(.+)$/m);
-      const imageMatch = block.match(/!\[[^\]]*\]\(([^)]+)\)/);
-      const linkMatch = block.match(/\[([^\]]+)\]\((https:\/\/stitch\.[^)]+)\)/);
-      const description = block
-        .replace(/^##\s+.+$/m, '')
-        .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
-        .replace(/\[[^\]]+\]\([^)]+\)/g, '')
-        .trim();
-
-      return {
-        title: titleMatch?.[1] ?? '',
-        imageUrl: imageMatch?.[1] ?? null,
-        stitchUrl: linkMatch?.[2] ?? null,
-        stitchLabel: linkMatch?.[1] ?? 'Stitch에서 보기',
-        description,
-      };
-    });
+interface ScreenContent {
+  exists: boolean;
+  content: string | null;
 }
 
 export function PlansView() {
@@ -67,7 +62,12 @@ export function PlansView() {
   const [selectedPlan, setSelectedPlan] = useState<PlanMeta | null>(null);
   const [planContent, setPlanContent] = useState<string | null>(null);
   const [designContent, setDesignContent] = useState<string | null>(null);
-  const [designSections, setDesignSections] = useState<DesignSection[]>([]);
+  const [designSections, setDesignSections] = useState<ReturnType<typeof parseDesignSections>>([]);
+  const [linkedDesignScreenFiles, setLinkedDesignScreenFiles] = useState<string[]>([]);
+  const [linkedDesignId, setLinkedDesignId] = useState<string | null>(null);
+  const [selectedLinkedScreenFile, setSelectedLinkedScreenFile] = useState<string | null>(null);
+  const [linkedScreenContent, setLinkedScreenContent] = useState<string | null>(null);
+  const [reviewRoles, setReviewRoles] = useState<RoleReviewResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -106,8 +106,12 @@ export function PlansView() {
     try {
       await fetchPlans();
       if (selectedPlan && projectId) {
-        const data = await apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, projectId);
-        setPlanContent(data.content || null);
+        const [planData, designData] = await Promise.all([
+          apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, projectId),
+          apiFetch<{ exists: boolean; content: string | null }>(`/api/plans/${selectedPlan.id}/design`, projectId),
+        ]);
+        setPlanContent(planData.content || null);
+        setDesignContent(designData.exists ? designData.content : null);
       }
     } catch (err) {
       console.error('Failed to refresh plans:', err);
@@ -140,6 +144,12 @@ export function PlansView() {
         apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, projectId)
           .then(data => setPlanContent(data.content || null))
           .catch(() => setPlanContent(null));
+        apiFetch<{ exists: boolean; content: string | null }>(`/api/plans/${selectedPlan.id}/design`, projectId)
+          .then(data => setDesignContent(data.exists ? data.content : null))
+          .catch(() => setDesignContent(null));
+        apiFetch<{ roles: RoleReviewResult[] }>(`/api/plans/${selectedPlan.id}/review`, projectId)
+          .then(data => setReviewRoles(data.roles || []))
+          .catch(() => setReviewRoles([]));
       }
     }
   }, [lastSseEvent, projectId, selectedPlan?.id]);
@@ -149,6 +159,11 @@ export function PlansView() {
       setPlanContent(null);
       setDesignContent(null);
       setDesignSections([]);
+      setLinkedDesignScreenFiles([]);
+      setLinkedDesignId(null);
+      setSelectedLinkedScreenFile(null);
+      setLinkedScreenContent(null);
+      setReviewRoles([]);
       return;
     }
     apiFetch<PlanDetail>(`/api/plans/${selectedPlan.id}`, projectId)
@@ -157,11 +172,46 @@ export function PlansView() {
     apiFetch<{ exists: boolean; content: string | null }>(`/api/plans/${selectedPlan.id}/design`, projectId)
       .then(data => setDesignContent(data.exists ? data.content : null))
       .catch(() => setDesignContent(null));
+    apiFetch<{ roles: RoleReviewResult[] }>(`/api/plans/${selectedPlan.id}/review`, projectId)
+      .then(data => setReviewRoles(data.roles || []))
+      .catch(() => setReviewRoles([]));
+
+    // linked_designs의 첫 번째 DES-NNN 로드
+    const firstLinked = selectedPlan.linked_designs?.[0] ?? null;
+    setLinkedDesignId(firstLinked);
+    if (firstLinked) {
+      apiFetch<LinkedDesignDetail>(`/api/designs/${firstLinked}`, projectId)
+        .then(data => {
+          const files = data.screen_files ?? [];
+          setLinkedDesignScreenFiles(files);
+          setSelectedLinkedScreenFile(files[0] ?? null);
+        })
+        .catch(() => {
+          setLinkedDesignScreenFiles([]);
+          setSelectedLinkedScreenFile(null);
+        });
+    } else {
+      setLinkedDesignScreenFiles([]);
+      setSelectedLinkedScreenFile(null);
+    }
   }, [selectedPlan?.id, projectId]);
 
   useEffect(() => {
     setDesignSections(designContent ? parseDesignSections(designContent) : []);
   }, [designContent]);
+
+  useEffect(() => {
+    if (!linkedDesignId || !selectedLinkedScreenFile || !projectId) {
+      setLinkedScreenContent(null);
+      return;
+    }
+    apiFetch<ScreenContent>(
+      `/api/designs/${linkedDesignId}/screens/${selectedLinkedScreenFile}`,
+      projectId
+    )
+      .then(data => setLinkedScreenContent(data.exists ? data.content : null))
+      .catch(() => setLinkedScreenContent(null));
+  }, [linkedDesignId, selectedLinkedScreenFile, projectId]);
 
   useEffect(() => {
     if (pendingNavigation?.tab !== 'plans' || loading) return;
@@ -251,6 +301,36 @@ export function PlansView() {
     );
   }
 
+  const hasDesignContent = designSections.length > 0 || linkedDesignScreenFiles.length > 0;
+  const hasReviewContent = reviewRoles.length > 0;
+  const showDiagram = !!(
+    (selectedPlan?.linked_requests?.length ?? 0) > 0 ||
+    selectedPlan?.linked_debug ||
+    selectedPlan?.linked_ideation ||
+    selectedPlan?.linked_discussion
+  );
+
+  // linked DES 스크린 파싱 (parseScreenContent 인라인)
+  function parseScreenContent(content: string) {
+    const titleMatch = content.match(/^##\s+(.+)$/m);
+    const imageMatch = content.match(/!\[[^\]]*\]\(([^)]+)\)/);
+    const linkMatch = content.match(/\[([^\]]+)\]\((https:\/\/stitch\.[^)]+)\)/);
+    const description = content
+      .replace(/^##\s+.+$/m, '')
+      .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+      .replace(/\[[^\]]+\]\([^)]+\)/g, '')
+      .trim();
+    return {
+      title: titleMatch?.[1] ?? '',
+      imageUrl: imageMatch?.[1] ?? null,
+      stitchUrl: linkMatch?.[2] ?? null,
+      stitchLabel: linkMatch?.[1] ?? 'Stitch에서 보기',
+      description,
+    };
+  }
+
+  const parsedLinkedScreen = linkedScreenContent ? parseScreenContent(linkedScreenContent) : null;
+
   return (
     <div className="flex h-full overflow-hidden">
       <div ref={sidebarRef} style={{ width: sidebarWidth }} className="border-r flex flex-col min-h-0 shrink-0">
@@ -327,7 +407,7 @@ export function PlansView() {
                     <FileText className="h-3 w-3 mr-2" />
                     Overview
                   </TabsTrigger>
-                  {designSections.length > 0 && (
+                  {hasDesignContent && (
                     <TabsTrigger
                       value="design"
                       className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
@@ -336,11 +416,54 @@ export function PlansView() {
                       Design {designSections.length > 0 && `(${designSections.length})`}
                     </TabsTrigger>
                   )}
+                  {hasReviewContent && (
+                    <TabsTrigger value="review" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1">
+                      <ShieldAlert className="h-3 w-3 mr-2" />
+                      Review ({reviewRoles.length})
+                    </TabsTrigger>
+                  )}
+                  {showDiagram && (
+                    <TabsTrigger value="diagram" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1">
+                      <GitBranch className="h-3 w-3 mr-2" />
+                      Diagram
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </div>
               <TabsContent value="overview" className="flex-1 overflow-auto m-0">
                 <ScrollArea className="h-full">
                   <div className="p-8">
+                    {(selectedPlan?.linked_debug || selectedPlan?.linked_ideation || selectedPlan?.linked_discussion) && (
+                      <div className="flex gap-2 flex-wrap mb-4">
+                        {selectedPlan.linked_debug && (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo('debug', selectedPlan.linked_debug!)}
+                            className="text-xs px-2 py-0.5 rounded bg-red-50 text-red-600 hover:bg-red-100 hover:underline font-mono"
+                          >
+                            DBG: {selectedPlan.linked_debug} →
+                          </button>
+                        )}
+                        {selectedPlan.linked_ideation && (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo('ideation', selectedPlan.linked_ideation!)}
+                            className="text-xs px-2 py-0.5 rounded bg-green-50 text-green-600 hover:bg-green-100 hover:underline font-mono"
+                          >
+                            IDN: {selectedPlan.linked_ideation} →
+                          </button>
+                        )}
+                        {selectedPlan.linked_discussion && (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo('discussion', selectedPlan.linked_discussion!)}
+                            className="text-xs px-2 py-0.5 rounded bg-orange-50 text-orange-600 hover:bg-orange-100 hover:underline font-mono"
+                          >
+                            DSC: {selectedPlan.linked_discussion} →
+                          </button>
+                        )}
+                      </div>
+                    )}
                     {planContent ? (
                       <MarkdownRenderer content={planContent} />
                     ) : (
@@ -349,7 +472,7 @@ export function PlansView() {
                   </div>
                 </ScrollArea>
               </TabsContent>
-              {designSections.length > 0 && (
+              {hasDesignContent && (
                 <TabsContent value="design" className="flex-1 overflow-auto m-0">
                   <ScrollArea className="h-full">
                     <div className="p-8 space-y-6">
@@ -364,7 +487,7 @@ export function PlansView() {
                               <img
                                 src={section.imageUrl}
                                 alt={section.title || 'design image'}
-                                className="w-full object-cover max-h-80"
+                                className="max-w-[85%] block mx-auto"
                               />
                             </a>
                           )}
@@ -375,9 +498,7 @@ export function PlansView() {
                               </h3>
                             )}
                             {section.description && (
-                              <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">
-                                {section.description}
-                              </p>
+                              <MarkdownRenderer content={section.description} />
                             )}
                             {section.stitchUrl && (
                               <a
@@ -392,8 +513,121 @@ export function PlansView() {
                           </CardContent>
                         </Card>
                       ))}
+
+                      {linkedDesignScreenFiles.length > 0 && (
+                        <div>
+                          {designSections.length > 0 && (
+                            <div className="border-t pt-6 mb-4">
+                              <p className="text-xs text-muted-foreground mb-3">
+                                연결된 DES 세션 ({linkedDesignId})
+                              </p>
+                            </div>
+                          )}
+                          <Tabs
+                            value={selectedLinkedScreenFile ?? ''}
+                            onValueChange={setSelectedLinkedScreenFile}
+                            className="w-full"
+                          >
+                            <TabsList className="bg-transparent h-10 p-0 gap-4 overflow-x-auto border-b w-full justify-start rounded-none">
+                              {linkedDesignScreenFiles.map((file) => (
+                                <TabsTrigger
+                                  key={file}
+                                  value={file}
+                                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
+                                >
+                                  {file}
+                                </TabsTrigger>
+                              ))}
+                            </TabsList>
+                            {linkedDesignScreenFiles.map((file) => (
+                              <TabsContent key={file} value={file} className="mt-4">
+                                {file === selectedLinkedScreenFile && parsedLinkedScreen ? (
+                                  <Card className="overflow-hidden">
+                                    {parsedLinkedScreen.imageUrl && (
+                                      <a
+                                        href={parsedLinkedScreen.stitchUrl ?? parsedLinkedScreen.imageUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        <img
+                                          src={parsedLinkedScreen.imageUrl}
+                                          alt={parsedLinkedScreen.title}
+                                          className="max-w-[85%] block mx-auto"
+                                        />
+                                      </a>
+                                    )}
+                                    <CardContent className="p-4">
+                                      {parsedLinkedScreen.title && (
+                                        <h3 className="font-semibold text-base mb-2">
+                                          {parsedLinkedScreen.title}
+                                        </h3>
+                                      )}
+                                      {parsedLinkedScreen.description && (
+                                        <MarkdownRenderer content={parsedLinkedScreen.description} />
+                                      )}
+                                      {parsedLinkedScreen.stitchUrl && (
+                                        <a
+                                          href={parsedLinkedScreen.stitchUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                        >
+                                          <ExternalLink className="h-3 w-3" /> {parsedLinkedScreen.stitchLabel}
+                                        </a>
+                                      )}
+                                    </CardContent>
+                                  </Card>
+                                ) : (
+                                  <div className="text-sm text-muted-foreground">화면을 불러오는 중입니다</div>
+                                )}
+                              </TabsContent>
+                            ))}
+                          </Tabs>
+                        </div>
+                      )}
                     </div>
                   </ScrollArea>
+                </TabsContent>
+              )}
+              {hasReviewContent && (
+                <TabsContent value="review" className="flex-1 overflow-auto m-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-8 space-y-4">
+                      {reviewRoles.map((r) => (
+                        <Card key={r.role}>
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="font-semibold capitalize">{r.role.replace(/_/g, ' ')}</h3>
+                              {r.no_issues
+                                ? <span className="text-xs text-green-600 font-medium">NO_ISSUES</span>
+                                : <span className="text-xs text-red-600 font-medium">
+                                    {r.issues.filter(i => i.severity === 'CRITICAL').length} CRITICAL
+                                  </span>
+                              }
+                            </div>
+                            {!r.no_issues && (
+                              <div className="space-y-2">
+                                {r.issues.map((issue, idx) => (
+                                  <div key={idx} className="flex gap-2 text-sm">
+                                    <span className={`shrink-0 text-xs font-bold ${
+                                      issue.severity === 'CRITICAL' ? 'text-red-600' :
+                                      issue.severity === 'MAJOR' ? 'text-orange-500' : 'text-gray-500'
+                                    }`}>{issue.severity}</span>
+                                    <span><strong>{issue.title}</strong> — {issue.description}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              )}
+              {showDiagram && (
+                <TabsContent value="diagram" className="flex-1 overflow-auto m-0">
+                  <PlanDiagramTab planId={selectedPlan.id} projectId={projectId} />
                 </TabsContent>
               )}
             </Tabs>

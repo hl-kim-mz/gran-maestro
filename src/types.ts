@@ -8,6 +8,11 @@ export interface GranMaestroConfig {
   [key: string]: unknown;
 }
 
+export interface ReviewSummary {
+  iteration: number;
+  status: "reviewing" | "gap_fixing" | "passed" | "limit_reached";
+}
+
 export interface RequestMeta {
   id: string;
   title?: string;
@@ -16,6 +21,7 @@ export interface RequestMeta {
   blockedBy?: string[];
   createdAt?: string;
   linked_plan?: string | null;
+  review_summary?: ReviewSummary | null;
   [key: string]: unknown;
 }
 
@@ -73,6 +79,7 @@ export interface SSEEvent {
   sessionId?: string;
   planId?: string;
   projectId?: string;
+  designId?: string;
   data: unknown;
 }
 
@@ -129,4 +136,26 @@ export interface Project {
 
 export interface Registry {
   projects: Project[];
+}
+
+export interface DesignScreen {
+  id: string;
+  stitch_screen_id?: string;
+  title?: string;
+  url?: string;
+  image_url?: string | null;
+  created_at?: string;
+  status?: string;
+  [key: string]: unknown;
+}
+
+export interface DesignSession {
+  id: string;
+  title?: string;
+  status: string;
+  created_at?: string;
+  linked_plan?: string | null;
+  linked_req?: string | null;
+  screens?: DesignScreen[];
+  [key: string]: unknown;
 }

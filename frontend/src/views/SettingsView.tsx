@@ -7,17 +7,13 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
-import { Save, RefreshCcw } from 'lucide-react';
+import { RefreshCcw, Replace, Save } from 'lucide-react';
 import { SETTING_DESCRIPTIONS } from '@/config/settingDescriptions';
+import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
+import { deepSet } from '@/lib/utils';
 
 function isObject(v: any) {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-function deepSet(obj: any, path: string[], value: any): any {
-  if (path.length === 0) return value;
-  const [head, ...rest] = path;
-  return { ...obj, [head]: deepSet(obj?.[head] ?? {}, rest, value) };
 }
 
 export function SettingsView() {
@@ -25,6 +21,7 @@ export function SettingsView() {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   useEffect(() => {
     if (!projectId || activeTab !== 'settings') {
@@ -46,7 +43,11 @@ export function SettingsView() {
     }
   }
 
-  async function handleSave() {
+  async function handleSave(nextConfig?: any) {
+    if (!projectId) return;
+    const payload = nextConfig ?? config;
+    if (!payload) return;
+
     setSaving(true);
     try {
       await apiFetch('/api/config', projectId, {
@@ -54,7 +55,7 @@ export function SettingsView() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(config)
+        body: JSON.stringify(payload),
       });
       alert('Config saved successfully');
     } catch (err) {
@@ -63,6 +64,11 @@ export function SettingsView() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handlePanelReplace(newConfig: any) {
+    setConfig(newConfig);
+    void handleSave(newConfig);
   }
 
   function renderField(path: string[], key: string, value: any, depth = 0) {
@@ -89,9 +95,7 @@ export function SettingsView() {
         <CardContent className="p-4 flex items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="text-sm font-semibold font-mono">{key}</div>
-            {description && (
-              <div className="text-xs text-muted-foreground">{description}</div>
-            )}
+            {description && <div className="text-xs text-muted-foreground">{description}</div>}
           </div>
           <div className="flex-1 max-w-md flex justify-end">
             {value === null ? (
@@ -135,10 +139,12 @@ export function SettingsView() {
   }
 
   if (loading) {
-    return <div className="p-8 max-w-2xl mx-auto space-y-6">
-      <Skeleton className="h-40 w-full" />
-      <Skeleton className="h-40 w-full" />
-    </div>;
+    return (
+      <div className="p-8 max-w-2xl mx-auto space-y-6">
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
   }
 
   if (!config) return <div className="p-8 text-center">Failed to load config.</div>;
@@ -147,58 +153,81 @@ export function SettingsView() {
   const sections = Object.entries(config).filter(([, value]) => isObject(value));
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-8 max-w-4xl mx-auto pb-20">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h2 className="text-2xl font-bold">Settings</h2>
-            <p className="text-muted-foreground text-sm">System configuration and preferences.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={fetchConfig} disabled={saving}>
-              <RefreshCcw className="h-4 w-4 mr-2" /> Reset
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              <Save className="h-4 w-4 mr-2" /> {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </div>
-        </div>
-
-        <div className="space-y-8">
-          {topLevelPrimitives.length > 0 && (
-            <section>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">Plugin Info</h3>
-              <div className="grid grid-cols-1 gap-4">
-                {topLevelPrimitives.map(([key, value]) => {
-                  const topLevelDescription = SETTING_DESCRIPTIONS[key];
-                  return (
-                    <Card key={key}>
-                      <CardContent className="p-4 flex items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="text-sm font-semibold font-mono">{key}</div>
-                          <div className="text-xs text-muted-foreground">{String(value)}</div>
-                          {topLevelDescription && (
-                            <div className="text-xs text-muted-foreground">{topLevelDescription}</div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+    <div className="flex h-full overflow-hidden">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-8 max-w-4xl mx-auto pb-20">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h2 className="text-2xl font-bold">Settings</h2>
+                <p className="text-muted-foreground text-sm">System configuration and preferences.</p>
               </div>
-            </section>
-          )}
-
-          {sections.map(([section, values]: [string, any]) => (
-            <section key={section}>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">{section}</h3>
-              <div className="grid grid-cols-1 gap-4">
-                {Object.entries(values).map(([key, value]: [string, any]) => renderField([section], key, value))}
+              <div className="flex gap-2">
+                <Button
+                  variant={panelOpen ? 'secondary' : 'outline'}
+                  size="icon"
+                  onClick={() => setPanelOpen((open) => !open)}
+                  title="찾아 바꾸기"
+                  disabled={saving}
+                >
+                  <Replace className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" onClick={fetchConfig} disabled={saving}>
+                  <RefreshCcw className="h-4 w-4 mr-2" /> Reset
+                </Button>
+                <Button onClick={() => handleSave()} disabled={saving}>
+                  <Save className="h-4 w-4 mr-2" /> {saving ? 'Saving...' : 'Save Changes'}
+                </Button>
               </div>
-            </section>
-          ))}
+            </div>
+
+            <div className="space-y-8">
+              {topLevelPrimitives.length > 0 && (
+                <section>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">Plugin Info</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {topLevelPrimitives.map(([key, value]) => {
+                      const topLevelDescription = SETTING_DESCRIPTIONS[key];
+                      return (
+                        <Card key={key}>
+                          <CardContent className="p-4 flex items-center justify-between gap-4">
+                            <div className="space-y-1">
+                              <div className="text-sm font-semibold font-mono">{key}</div>
+                              <div className="text-xs text-muted-foreground">{String(value)}</div>
+                              {topLevelDescription && (
+                                <div className="text-xs text-muted-foreground">{topLevelDescription}</div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {sections.map(([section, values]: [string, any]) => (
+                <section key={section}>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">
+                    {section}
+                  </h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {Object.entries(values).map(([key, value]: [string, any]) => renderField([section], key, value))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        </ScrollArea>
+      </div>
+      <div
+        className="transition-all duration-300 ease-in-out border-l bg-background overflow-hidden shrink-0"
+        style={{ width: panelOpen ? '360px' : '0px', pointerEvents: panelOpen ? 'auto' : 'none' }}
+      >
+        <div className="w-[360px] h-full">
+          <SettingsFindReplace config={config} onReplace={handlePanelReplace} onClose={() => setPanelOpen(false)} />
         </div>
       </div>
-    </ScrollArea>
+    </div>
   );
 }

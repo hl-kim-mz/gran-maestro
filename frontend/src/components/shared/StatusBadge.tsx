@@ -40,6 +40,7 @@ export function StatusBadge({ status, className }: { status: StatusType; classNa
     queued: 'text-violet-600 border-violet-400 dark:text-violet-400 dark:border-violet-500',
     pre_check: 'text-yellow-600 border-yellow-400 dark:text-yellow-400 dark:border-yellow-500',
     review: 'text-purple-600 border-purple-400 dark:text-purple-400 dark:border-purple-500',
+    phase3_review: 'text-purple-600 border-purple-400 dark:text-purple-400 dark:border-purple-500',
     feedback: 'text-orange-600 border-orange-400 dark:text-orange-400 dark:border-orange-500',
     cancelled: 'text-muted-foreground border-muted-foreground/40',
   };

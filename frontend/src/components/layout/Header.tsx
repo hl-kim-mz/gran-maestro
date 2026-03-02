@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { SseStatusDot } from '@/components/shared/SseStatusDot';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun, Bell, Terminal, HelpCircle } from 'lucide-react';
+import { Moon, Sun, Bell, Terminal, HelpCircle, Archive } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -21,7 +22,29 @@ import { Badge } from '@/components/ui/badge';
 
 export function Header({ onShowShortcuts }: { onShowShortcuts: () => void }) {
   const { sseStatus, theme, setTheme, notifications, projectId, setProjectId, projects } = useAppContext();
-  const unreadCount = notifications.length; // Simplified, usually you'd track read state
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const [isArchiving, setIsArchiving] = useState(false);
+
+  const handleArchiveAll = async () => {
+    setIsArchiving(true);
+    try {
+      const path = projectId
+        ? `/api/projects/${projectId}/manage/archive-all`
+        : '/api/manage/archive-all';
+      const response = await fetch(path, { method: 'POST' });
+      const result = await response.json() as { success: boolean; message?: string; error?: string };
+      if (result.success) {
+        alert(result.message ?? '[Archive] 정리 완료');
+      } else {
+        alert(`정리 실패: ${result.error ?? '알 수 없는 오류'}`);
+      }
+    } catch (err) {
+      alert(`정리 실패: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsArchiving(false);
+    }
+  };
 
   return (
     <header className="flex items-center justify-between px-6 py-3 border-bottom bg-background sticky top-0 z-40">
@@ -52,6 +75,15 @@ export function Header({ onShowShortcuts }: { onShowShortcuts: () => void }) {
       </div>
 
       <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleArchiveAll}
+          disabled={isArchiving}
+          title="세션 정리"
+        >
+          <Archive className="h-5 w-5" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

@@ -80,6 +80,8 @@ Bearer 토큰 인증으로 보호됩니다. 서버 시작 시 랜덤 UUID 토큰
 
 ## API 엔드포인트
 
+### 기본
+
 | 엔드포인트 | 설명 |
 |-----------|------|
 | `GET /` | SPA 대시보드 렌더링 |
@@ -89,10 +91,81 @@ Bearer 토큰 인증으로 보호됩니다. 서버 시작 시 랜덤 UUID 토큰
 | `GET\|PUT /api/projects/:id/config` | 설정 조회/변경 |
 | `GET /api/projects/:id/config/defaults` | 기본 설정 템플릿 |
 | `GET /api/projects/:id/mode` | 모드 상태 |
+
+### requests
+
+| 엔드포인트 | 설명 |
+|-----------|------|
 | `GET /api/projects/:id/requests` | 요청 목록 |
+| `GET /api/projects/:id/requests/:id` | 단일 요청 상세 조회 |
 | `GET /api/projects/:id/requests/:id/tasks` | 태스크 목록 |
-| `GET /api/projects/:id/ideation` | Ideation 세션 |
-| `GET /api/projects/:id/discussion` | Discussion 세션 |
+| `GET /api/projects/:id/requests/:id/tasks/:taskId` | 단일 태스크 상세 (spec, review, feedback, traces, worktree) |
+| `GET /api/projects/:id/requests/:id/tasks/:taskId/log-stream` | 태스크 실행 로그 SSE 스트림 |
+| `GET /api/projects/:id/requests/:id/tasks/:taskId/traces` | 태스크 trace 파일 목록 |
+| `GET /api/projects/:id/requests/:id/tasks/:taskId/traces/:traceFile` | 특정 trace 파일 내용 |
+
+### debug
+
+| 엔드포인트 | 설명 |
+|-----------|------|
+| `GET /api/projects/:id/debug` | 디버그 세션 목록 |
+| `GET /api/projects/:id/debug/:debugId` | 단일 디버그 세션 상세 (debug-report.md 포함) |
+
+### explore
+
+| 엔드포인트 | 설명 |
+|-----------|------|
+| `GET /api/projects/:id/explore` | 탐색 세션 목록 |
+| `GET /api/projects/:id/explore/:exploreId` | 단일 탐색 세션 상세 (explore-report.md 포함) |
+| `GET /api/projects/:id/explore/:exploreId/files` | 탐색 세션의 개별 explore-*.md 파일 목록 |
+| `DELETE /api/projects/:id/explore/:exploreId` | 탐색 세션 삭제 |
+
+### designs
+
+| 엔드포인트 | 설명 |
+|-----------|------|
+| `GET /api/projects/:id/designs` | 디자인 세션 목록 (DES- + PLN- 레거시 포함) |
+| `GET /api/projects/:id/designs/:desId` | 단일 디자인 세션 상세 (screen 파일 목록 포함) |
+| `GET /api/projects/:id/designs/:desId/screens/:screenFile` | 디자인 스크린 파일 내용 |
+
+### plans
+
+| 엔드포인트 | 설명 |
+|-----------|------|
+| `GET /api/projects/:id/plans` | 플랜 목록 (has_design 필드 포함) |
+| `GET /api/projects/:id/plans/:planId` | 단일 플랜 상세 (plan.md 내용 포함) |
+| `GET /api/projects/:id/plans/:planId/design` | 플랜 관련 design.md 내용 |
+| `GET /api/projects/:id/plans/:planId/review` | 플랜 사전 리뷰 결과 (역할별 이슈 파싱) |
+| `GET /api/projects/:id/plans/:planId/graph` | 플랜 연결 그래프 (plan-request-task-commit 노드/엣지) |
+
+### manage
+
+| 엔드포인트 | 설명 |
+|-----------|------|
+| `PATCH /api/projects/:id/manage/status` | 항목 상태 일괄 변경 (complete/cancel) |
+| `POST /api/projects/:id/manage/backup` | 항목 일괄 백업 (zip 다운로드) |
+| `POST /api/projects/:id/manage/archive-all` | 전체 아카이브 실행 |
+
+### discussion
+
+| 엔드포인트 | 설명 |
+|-----------|------|
+| `GET /api/projects/:id/discussion` | Discussion 세션 목록 |
+| `GET /api/projects/:id/discussion/:id` | 단일 토론 세션 상세 (라운드별 responses/critiques/synthesis, consensus 포함) |
+
+### ideation
+
+| 엔드포인트 | 설명 |
+|-----------|------|
+| `GET /api/projects/:id/ideation` | Ideation 세션 목록 |
+| `GET /api/projects/:id/ideation/:id` | 단일 아이디에이션 세션 상세 (opinions, critiques, synthesis, discussion 포함) |
+
+### tree
+
+| 엔드포인트 | 설명 |
+|-----------|------|
+| `GET /api/projects/:id/tree` | .gran-maestro/ 디렉토리 트리 |
+| `GET /api/projects/:id/file?path=...` | .gran-maestro/ 하위 파일 내용 읽기 |
 
 ## 포트 설정
 

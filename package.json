@@ -1,6 +1,6 @@
 {
   "name": "gran-maestro",
-  "version": "0.39.0",
+  "version": "0.44.0",
   "description": "Gran Maestro — AI orchestration plugin for Claude Code",
   "main": "src/server.ts",
   "repository": {
@@ -16,6 +16,9 @@
   ],
   "author": "myrtlepn",
   "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "sync:local": "bash scripts/sync-local.sh"
+  },
   "devDependencies": {
     "typescript": "^5.0.0"
   }

@@ -22,15 +22,6 @@ argument-hint: "{버그/이슈 설명} [--focus {파일패턴}]"
 
 ## 실행 프로토콜
 
-### Step 0: 아카이브 체크 (자동)
-
-config.json의 `archive.auto_archive_on_create`가 true이면:
-1. `.gran-maestro/debug/` 하위의 DBG-* 디렉토리 수 확인
-2. `archive.max_active_sessions` 초과 시:
-   - 완료된(completed/cancelled) 세션만 아카이브 대상
-   - 오래된 순 정렬 → 초과분 압축 및 삭제
-3. 아카이브 완료 후 정상적으로 Step 1 진행
-
 ### Step 1: 초기화
 
 1. `.gran-maestro/debug/` 디렉토리 존재 확인, 없으면 생성

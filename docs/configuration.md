@@ -28,6 +28,12 @@
 - [collaborative_debug](#collaborative_debug)
 - [debug.agents](#debugagents)
 - [models](#models)
+- [prereview](#prereview)
+- [code_review](#code_review)
+- [stitch](#stitch)
+- [plan_review](#plan_review)
+- [review](#review)
+- [phase1_exploration](#phase1_exploration)
 - [notifications / realtime / debug / cleanup](#notifications--realtime--debug--cleanup)
 - [예시 설정 조합](#예시-설정-조합)
 
@@ -43,6 +49,11 @@
 | `workflow.auto_approve_spec` | `false` | 스펙 자동 승인 여부 |
 | `workflow.auto_accept_result` | `true` | Phase 3 리뷰 PASS 후 자동 수락 |
 | `workflow.default_agent` | `codex-dev` | 기본 실행 에이전트 |
+| `workflow.spec_prereview` | `true` | Spec Pre-review 활성화 여부 |
+| `workflow.spec_prereview_max_iterations` | `3` | Pre-review 최대 반복 횟수 |
+| `workflow.spec_prereview_escalation_trigger` | `"major"` | Pre-review 에스컬레이션 기준 (`critical` / `major` / `minor`) |
+| `workflow.spec_prereview_minor_escalation_threshold` | `3` | MINOR 이슈 임계값 에스컬레이션 (3이면 MINOR 3건 이상 시 에스컬레이션) |
+| `workflow.auto_approve_on_unblock` | `false` | 의존성 해소 시 자동 approve 실행 여부 |
 
 ---
 
@@ -66,6 +77,7 @@
 |----|--------|------|
 | `concurrency.max_parallel_tasks` | `5` | 최대 병렬 태스크 수 |
 | `concurrency.max_parallel_reviews` | `3` | 최대 병렬 리뷰 수 |
+| `concurrency.batch_max_parallel_reqs` | `1` | 배치 approve 시 최대 병렬 REQ 수 |
 | `concurrency.queue_strategy` | `fifo` | 큐 전략 |
 
 ---
@@ -180,10 +192,11 @@ Git worktree 생성 및 관리 설정입니다.
 | `models.claude.ideation` | `sonnet` | Ideation 참여자 |
 | `models.claude.discussion` | `sonnet` | Discussion 참여자 |
 | `models.claude.debug` | `sonnet` | Debug 참여자 |
+| `models.claude.prereview` | `sonnet` | Pre-review 참여자 |
 | `models.developer.primary` | `codex / gpt-5.3-codex` | 주 개발자 (provider/model) |
-| `models.developer.fallback` | `gemini / gemini-3-pro-preview` | 보조 개발자 |
+| `models.developer.fallback` | `gemini / gemini-3.1-pro-preview` | 보조 개발자 |
 | `models.reviewer.primary` | `codex / gpt-5.3-codex` | 주 리뷰어 |
-| `models.reviewer.fallback` | `gemini / gemini-3-pro-preview` | 보조 리뷰어 |
+| `models.reviewer.fallback` | `gemini / gemini-3.1-pro-preview` | 보조 리뷰어 |
 
 설정 예시:
 ```json
@@ -193,18 +206,131 @@ Git worktree 생성 및 관리 설정입니다.
     "architect": "sonnet",
     "ideation": "sonnet",
     "discussion": "sonnet",
-    "debug": "sonnet"
+    "debug": "sonnet",
+    "prereview": "sonnet"
   },
   "developer": {
     "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
-    "fallback": { "provider": "gemini", "model": "gemini-3-pro-preview" }
+    "fallback": { "provider": "gemini", "model": "gemini-3.1-pro-preview" }
   },
   "reviewer": {
     "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
-    "fallback": { "provider": "gemini", "model": "gemini-3-pro-preview" }
+    "fallback": { "provider": "gemini", "model": "gemini-3.1-pro-preview" }
   }
 }
 ```
+
+---
+
+## prereview
+
+Spec Pre-review Pass에서 사용하는 에이전트 인원 수 설정입니다.
+`request` 스킬의 Step h-2에서 Pre-review 에이전트를 dispatch할 때 참조됩니다.
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `prereview.agents.codex` | `1` | Pre-review Codex 에이전트 수 (0=제외) |
+| `prereview.agents.gemini` | `0` | Pre-review Gemini 에이전트 수 (0=제외) |
+| `prereview.agents.claude` | `1` | Pre-review Claude 에이전트 수 (0=제외) |
+
+기본값은 `templates/defaults/config.json` 기준입니다.
+
+---
+
+## code_review
+
+Phase 3에서 추가 독립 리뷰어를 배치하는 설정입니다.
+기존 Review Squad(Phase 3 기본 리뷰)와 별도로, `pm-conductor.md`에서 추가적인 독립 리뷰 에이전트를 dispatch하는 데 사용됩니다.
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `code_review.enabled` | `true` | 추가 독립 리뷰어 활성화 여부 |
+| `code_review.agents` | `1` | 추가 리뷰어 수 (agent_roster에서 순서대로 선택) |
+| `code_review.agent_roster` | `["codex", "gemini"]` | 리뷰어 후보 에이전트 목록 |
+| `code_review.parallel` | `true` | 기존 Phase 3 패스와 동시 실행 여부 |
+
+---
+
+## stitch
+
+Google Stitch MCP 연동 설정입니다. UI 화면 시안 생성·관리에 사용됩니다.
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `stitch.enabled` | `true` | Stitch 연동 전체 활성화 여부 |
+| `stitch.auto_detect` | `true` | UI 관련 요청 자동 감지 여부 |
+| `stitch.auto_trigger` | `false` | 새 화면 추가 감지 시 자동 실행 여부 |
+| `stitch.project_id` | `null` | Stitch 프로젝트 ID (글로벌 fallback) |
+| `stitch.failure_policy` | `"skip"` | Stitch 호출 실패 시 정책 |
+| `stitch.ui_keywords.whitelist` | `["화면", "페이지", ...]` | UI 관련 키워드 화이트리스트 |
+| `stitch.ui_keywords.blacklist` | `["API", "DB", ...]` | 비-UI 키워드 블랙리스트 |
+
+---
+
+## plan_review
+
+Plan Review Pass 설정입니다. `/mst:plan` Step 3.8에서 플랜 사전 리뷰를 수행할 때 참조됩니다.
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `plan_review.enabled` | `true` | Plan Review Pass 활성화 여부 |
+| `plan_review.parallel` | `true` | 리뷰 에이전트 병렬 실행 여부 |
+| `plan_review.max_iterations` | `2` | 리뷰-수정 반복 최대 횟수 |
+| `plan_review.escalation_trigger` | `"major"` | 에스컬레이션 기준 (`critical` / `major` / `minor`) |
+| `plan_review.minor_escalation_threshold` | `3` | MINOR 이슈 임계값 에스컬레이션 |
+| `plan_review.roles.architect.enabled` | `true` | 아키텍트 리뷰어 활성화 |
+| `plan_review.roles.architect.agent` | `"codex"` | 아키텍트 리뷰어 에이전트 |
+| `plan_review.roles.devils_advocate.enabled` | `true` | 악마의 대변인 리뷰어 활성화 |
+| `plan_review.roles.devils_advocate.agent` | `"gemini"` | 악마의 대변인 리뷰어 에이전트 |
+| `plan_review.roles.completeness.enabled` | `true` | 완전성 검토 리뷰어 활성화 |
+| `plan_review.roles.completeness.agent` | `"codex"` | 완전성 검토 리뷰어 에이전트 |
+| `plan_review.roles.ux_reviewer.enabled` | `true` | UX 리뷰어 활성화 |
+| `plan_review.roles.ux_reviewer.agent` | `"gemini"` | UX 리뷰어 에이전트 |
+
+---
+
+## review
+
+구현 리뷰(`/mst:review`) 설정입니다. Phase 3에서 AC 검증 + 병렬 코드/아키텍처/UI 리뷰를 수행합니다.
+
+### 기본 키 (templates/defaults/config.json 기준)
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `review.auto_review` | `true` | Phase 3에서 mst:review 자동 호출 여부 |
+| `review.max_iterations` | `3` | 리뷰-갭수정 반복 최대 횟수 |
+| `review.roles.code_reviewer.agent` | `"codex"` | 코드 리뷰어 에이전트 |
+| `review.roles.arch_reviewer.agent` | `"gemini"` | 아키텍처 리뷰어 에이전트 |
+| `review.roles.ui_reviewer.agent` | `"gemini"` | UI 리뷰어 에이전트 |
+
+### 확장 키 (사용자 커스텀 — defaults에 미존재)
+
+아래 키는 `templates/defaults/config.json`에 포함되어 있지 않으며, 사용자가 직접 `config.json`에 추가하여 커스터마이징하는 확장 설정입니다.
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `review.severity_auto_fix.enabled` | — | 심각도 기반 자동 수정 활성화 |
+| `review.severity_auto_fix.minor_skip_threshold` | — | MINOR 이슈 스킵 임계값 |
+| `review.severity_auto_fix.pm_direct_fix_enabled` | — | PM 직접 수정 활성화 |
+| `review.severity_auto_fix.pm_direct_fix_max_files` | — | PM 직접 수정 최대 파일 수 |
+| `review.severity_auto_fix.pm_direct_fix_max_diff_lines` | — | PM 직접 수정 최대 diff 라인 수 |
+| `review.severity_auto_fix.security_override_keywords` | — | 보안 오버라이드 키워드 목록 |
+
+---
+
+## phase1_exploration
+
+Phase 1 코드베이스 탐색에 참여하는 에이전트 역할 설정입니다.
+`/mst:request` Step 4.c에서 PM이 `config.phase1_exploration.roles`를 읽어 enabled=true인 역할만 background dispatch합니다.
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `phase1_exploration.roles.symbol_tracing.agent` | `"codex"` | 정밀 심볼 추적 에이전트 |
+| `phase1_exploration.roles.symbol_tracing.enabled` | `true` | 심볼 추적 역할 활성화 여부 |
+| `phase1_exploration.roles.symbol_tracing.model` | `"gpt-5.3-codex"` | 심볼 추적에 사용할 모델 |
+| `phase1_exploration.roles.broad_scan.agent` | `"gemini"` | 광역 탐색 에이전트 |
+| `phase1_exploration.roles.broad_scan.enabled` | `true` | 광역 탐색 역할 활성화 여부 |
+| `phase1_exploration.roles.broad_scan.model` | `"gemini-3.1-pro-preview"` | 광역 탐색에 사용할 모델 |
 
 ---
 
@@ -224,6 +350,8 @@ Git worktree 생성 및 관리 설정입니다.
 | `cleanup.ideation_keep_count` | `10` | Ideation 세션 유지 수 |
 | `cleanup.discussion_keep_count` | `10` | Discussion 세션 유지 수 |
 | `cleanup.debug_keep_count` | `10` | Debug 세션 유지 수 |
+| `cleanup.plan_keep_count` | `10` | Plan 세션 유지 수 |
+| `cleanup.request_keep_count` | `10` | Request 세션 유지 수 |
 | `cleanup.old_request_threshold_hours` | `24` | 오래된 요청 판단 기준 (시간) |
 
 ---

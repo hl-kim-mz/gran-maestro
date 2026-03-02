@@ -46,6 +46,17 @@ Maestro 모드 비활성 시 자동 활성화:
 
 상세 아카이브 로직은 `/mst:archive` 스킬의 "자동 아카이브 프로토콜" 참조.
 
+### Step 0.5: 에이전트 기본값 취득 (MANDATORY)
+
+> ⚠️ 이 단계는 건너뛸 수 없음: spec.md Assigned Agent 결정 전 반드시 실행.
+> 이 단계 없이 spec.md 작성 금지.
+
+Read(`.gran-maestro/config.json`) → `workflow.default_agent` 추출 → DEFAULT_AGENT 변수 보관.
+
+이후 모든 spec.md의 Assigned Agent 필드는 반드시
+`[config: {DEFAULT_AGENT}] → ...` 형식으로 DEFAULT_AGENT를 명시해야 한다.
+DEFAULT_AGENT 미확인 상태의 Assigned Agent 결정은 에러로 처리한다.
+
 ### Step 1: 요청 생성
 
 1. 새 요청 ID 채번 (REQ-NNN):
@@ -83,7 +94,17 @@ Maestro 모드 비활성 시 자동 활성화:
 4. PM Conductor 역할로 Phase 1 분석 수행 (`agents/pm-conductor.md`의 `<phase1_protocol>` 준수):
    a. 요청 파싱 및 복잡도 분류 (simple | standard | complex)
    b. Simple → 단독 분석 / Standard·Complex → Analysis Squad 팀 소환
-   c. 코드베이스 탐색 (`/mst:codex` 정밀 심볼 추적, `/mst:gemini` 광역 탐색); 반드시 `Skill(skill: "mst:codex/gemini", ...)` 도구로 호출 — MCP 직접 호출 금지
+   c. 코드베이스 탐색 (`config.phase1_exploration.roles` 기반 병렬):
+      config 읽기: `.gran-maestro/config.json`의 `phase1_exploration.roles` 참조
+      ① `symbol_tracing` role agent [background dispatch] — enabled=true인 경우, 정밀 심볼 추적
+      ② `broad_scan` role agent [background dispatch] — enabled=true인 경우, 광역 탐색 (①과 동일 응답에서 dispatch)
+         enabled=false인 role은 dispatch 생략
+      ③ Claude 직접 탐색 [즉시 시작] — ①② dispatch 직후 Read/Glob/Grep 자율 실행
+         (탐색 범위는 Claude 자율 판단, 중복 허용, 별도 지침 없음)
+      수신된 결과(enabled role들)를 Claude 직접 탐색 컨텍스트와 함께 종합
+      총 소요 = max(enabled_roles_time, claude_direct_time) — 추가 지연 없음
+      반드시 `Skill(skill: "mst:codex/gemini", ...)` 도구로 호출 — MCP 직접 호출 금지
+      role agent 기본값: symbol_tracing=codex, broad_scan=gemini
    d-1. `--from-debug DBG-NNN` 제공 여부 처리:
       - `debug/DBG-NNN/debug-report.md` Read (미존재 시 경고 후 플래그 무시)
       - `debug_context` 메모리 보관: `linked_debug_id`, `root_cause`, `fix_suggestions`, `affected_files`
@@ -94,6 +115,23 @@ Maestro 모드 비활성 시 자동 활성화:
       - `--plan PLN-NNN` 또는 자연어 `PLN-NNN` 감지 시 `plans/PLN-NNN/plan.json` + `plan.md` Read
       - `request.json`에 `source_plan: "PLN-NNN"` 기록; `plan.json`의 `linked_requests`에 REQ-NNN 추가, `status` `active` → `in_progress`
       - plan.md 결정사항·범위·제약을 Phase 1 인풋으로 사용
+      - **linked_designs 감지** (`plan.json`의 `linked_designs` 배열 비어있지 않을 때):
+        - 각 DES-NNN에 대해 `.gran-maestro/designs/DES-NNN/design.json` Read
+          - 파일 미존재 시: 해당 DES skip (silent)
+        - `stitch_project_url` + `screens[]`(`title`, `url`) 추출 → `des_context` 변수 보관
+        - `request.json`에 `"linked_designs": ["DES-NNN", ...]` 필드 추가
+        - spec.md §10 자동 채움 포맷 (아래):
+          ```markdown
+          ## 10. UI 설계 (Stitch)
+
+          - Stitch 프로젝트: {stitch_project_url}
+          - 생성 화면:
+            - {screens[0].title}: {screens[0].url}
+            - {screens[1].title}: {screens[1].url}
+            ...
+          ```
+        - `screens[]`가 비어있으면 "생성 화면" 행 생략, 프로젝트 URL만 기입
+        - `linked_designs` 배열이 비어있으면 전체 블록 skip (silent)
       - **분리 실행 감지**: plan.md의 `## 분리 실행` 섹션에 2개 이상 단계 시 다중 REQ 생성 모드:
         1. REQ-NNN = 1단계(①), 2단계부터 REQ 채번·생성 (`status: "pending_dependency"`, `blockedBy` 설정)
         2. 1단계 `request.json`에 `dependencies.blocks` 설정, `plan.json`에 모든 REQ ID 추가
@@ -122,11 +160,21 @@ Maestro 모드 비활성 시 자동 활성화:
         반드시 `Skill(skill: "mst:stitch", args: "--req REQ-NNN {요청 내용}")` 스킬을 통해서만 호출합니다.
         → Stitch 완료 후 spec.md 작성 계속
       - 그 외(새 화면 추가/약한 신호): approve Phase 2.5에서 제안, 이 단계 skip
+   h-0.5. **Assigned Agent 기본값 보관**: spec.md 작성 직전, `.gran-maestro/config.json`의 `workflow.default_agent` 값을 읽어 Assigned Agent 필드의 기본값으로 설정한다. `templates/spec.md`의 Decision Tree(0~3단계)는 이 기본값의 override 조건으로만 동작한다. config 미참조 시 `claude-dev` 자동 선택은 금지.
    h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용); `--plan` 없으면 `## 가정 사항` 섹션 포함
    h-1. **다중 태스크 분해 처리** (plan 기반 우선, 없으면 PM 자율 판단):
       - [--plan]: `## 태스크 분해` 섹션 파싱 → 2개 이상 시 동일 절차 (아래 스텝 0~2 수행)
       - [--plan 없음]: pm-conductor.md Step 6.6 판단 따름; 2단계 이상 결정 시 동일 절차
-      - **혼재 태스크 분리 기준**: 신규 `.ts` 파일 생성과 `.md` 문서 수정이 동일 태스크에 포함된 경우 → 태스크 2개로 분리 권장 (각 태스크의 agent 배정이 달라지므로: `.ts` 생성은 `codex-dev`, `.md` 수정은 `claude-dev`)
+      - **기능 책임 단위 분리 기준 (1차)**: 동일 태스크에 서로 다른 비즈니스 기능이 혼재하는 경우 → 기능 단위로 분리 (파일 타입·수가 아닌 기능 책임 범위 기준). 파일 타입 혼재(`.ts` + `.md`)는 분리의 필요충분조건이 아님 — 동일 기능 책임 내 보조 파일은 같은 태스크에 포함 가능. agent 배정은 해당 태스크의 주요 파일 유형으로 결정.
+      - **레이어 분리 기준 (2차)**: 동일 기능 단위라도 프론트엔드(.tsx/.jsx/UI 컴포넌트)와 백엔드(API/DB/서버 로직) 작업이 모두 포함되고 각각 독립 커밋/테스트 단위가 될 만큼 충분하면 → 레이어별 2개 태스크로 분리. 백엔드 T: API 및 DB 로직 → codex-dev 또는 default_agent; 프론트엔드 T: UI 컴포넌트·페이지 → gemini-dev (.tsx/.jsx 포함 시). blockedBy 설정: 백엔드 API가 완료되어야 연동 가능하면 `blockedBy: [백엔드T]`, UI 스타일만 독립 개발 가능하면 병렬 허용. 단, 프론트만 or 백엔드만 수정하면 1차 기준만 적용 (레이어 분리 불필요).
+
+      **스텝 0.5 (선행): 책임 겹침 방지 검증**
+      - 분해된 각 태스크의 기능 책임을 한 줄씩 열거한다
+        예: T01 = "JWT 토큰 발급", T02 = "토큰 검증 미들웨어", T03 = "프로필 UI 컴포넌트"
+      - 두 태스크 간 동일·유사한 기능 책임 발견 시:
+        - 완전 동일: 하나로 병합
+        - 선행 관계: blockedBy로 직렬화
+      - 겹침 없이 검증 통과 후에만 스텝 0으로 진행
 
       **스텝 0 (선행): 의존성 및 배정 확정**
       - 모든 태스크 ID, blockedBy/blocks, 에이전트 배정을 단일 thinking에서 확정한다 (이후 Write 또는 서브에이전트 어느 경로든 이 테이블을 불변 입력으로 사용)
@@ -135,12 +183,14 @@ Maestro 모드 비활성 시 자동 활성화:
       **스텝 1 (분기): 독립 태스크 수 판단**
       - 독립 태스크(blocks/blockedBy 없는 것) 수 계산:
         - 독립 태스크 < 2개: 기존 순차 Write 유지
-        - 독립 태스크(blocks/blockedBy 없는 것) 2개 이상: Phase A 또는 Phase B 선택
-          - [Phase A] Write 동시 호출 (기본값): 단일 응답 내 N개 Write 동시 호출 (각 spec.md에 스텝 0 의존성 테이블 그대로 기입)
-          - [Phase B] 서브에이전트 병렬 (reasoning 복잡도 높거나 태스크별 독립 탐색 필요 시 PM 자유 재량):
+        - 독립 태스크(blocks/blockedBy 없는 것) 2개 이상: **Phase A 필수 실행**
+          - [Phase A — MUST] Write 동시 호출: 단일 응답 내 N개 Write 동시 호출 (각 spec.md에 스텝 0 의존성 테이블 그대로 기입)
+          - [Phase B] 서브에이전트 병렬 (아래 사유가 명시된 경우에만 허용):
+            - reasoning 복잡도가 높고 태스크별 독립 코드베이스 탐색이 필요한 경우
             - `Task(subagent_type: "general-purpose", run_in_background: true)` 로 N개 병렬 dispatch
             - 각 서브에이전트에 의존성 테이블 + 에이전트 배정 결과를 읽기 전용으로 주입 (프롬프트에 포함): 서브에이전트는 해당 값을 §7, §8에 그대로 기입, 의존성/배정 결정 금지
             - Phase B로 spec을 작성한 서브에이전트와 별개로 PM이 prereview 에이전트를 dispatch (역할 분리)
+            - PM 재량만으로 Phase A를 미실행하는 것은 금지
 
       **스텝 2 (검증): 양방향 의존성 검증 훅** (모든 spec.md Write 완료 직후 실행)
       - 각 spec의 blocks 목록을 읽어 대상 태스크 spec의 blockedBy 포함 여부 확인; 역방향도 동일하게 검증
@@ -151,17 +201,84 @@ Maestro 모드 비활성 시 자동 활성화:
    j. **spec.md 병렬 Write**: (의존성 고정 후) 단일 응답 내 N개 Write 동시 호출로 저장
    h-2. **Spec Pre-review Pass** (모든 spec.md Write 완료 + 검증 훅 통과 후 실행)
 
-      **실행 조건** (순서대로): `--auto`/`-a` → skip; `--no-prereview` → skip; `workflow.spec_prereview=false` → skip; `--prereview` → 강제 실행; 모두 통과 시 실행
-      **에스컬레이션 모드**: `--plan` 있으면 `"user"`, 없으면 `"pm-self"`
+      **실행 조건** (순서대로, 변경 없음):
+      `--auto`/`-a` → skip; `--no-prereview` → skip; `workflow.spec_prereview=false` → skip;
+      `--prereview` → 강제 실행; 모두 통과 시 실행
 
-      prereview-prompt.md N개 동시 Write (단일 응답): 각 `tasks/NN/prereview-prompt.md`를 `templates/spec-prereview-prompt.md` + 변수 치환으로 한 번에 생성
-      에이전트 병렬 dispatch:
-      a. prereview 에이전트 dispatch: claude-dev 2개+ 태스크 시 `Task(run_in_background: true)` 직접 호출 (Skill() 순차 실행 제약 우회); codex-dev/gemini-dev는 `Skill(skill: "mst:{agent}", run_in_background: true)` 사용
-      b. 결과 처리:
-         - 실패 시: "[Pre-review skip]" 출력 후 다음 task
-         - `NO_QUESTIONS` 시: 수정 없이 계속
-         - 질문 목록 시: `"user"` → `AskUserQuestion`(옵션 최대 4개); `"pm-self"` → PM 합리적 판단으로 자체 답변
-      c. Q&A 존재 시 spec.md 끝에 `## 구현 전 검토 (Pre-review Q&A)` 테이블 추가
+      **에스컬레이션 모드** (변경 없음): `--plan` 있으면 `"user"`, 없으면 `"pm-self"`
+
+      **config 읽기** (신규):
+      - `max_iterations` = `config.workflow.spec_prereview_max_iterations` (미설정 시 기본 3)
+      - `escalation_trigger` = `config.workflow.spec_prereview_escalation_trigger` (미설정 시 기본 `"major"`)
+      - `minor_escalation_threshold` = `config.workflow.spec_prereview_minor_escalation_threshold` (미설정 시 null — 기능 비활성)
+      - `current_iteration` = 1
+
+      **[PREREVIEW LOOP — current_iteration 기준 반복]**
+
+      prereview-prompt.md N개 동시 Write (단일 응답):
+      각 `tasks/NN/prereview-prompt.md`를 `templates/spec-prereview-prompt.md` + 변수 치환으로 생성
+
+      에이전트 병렬 dispatch (변경 없음):
+      a. claude-dev 2개+ 태스크: `Task(run_in_background: true)` 직접 호출
+         codex-dev/gemini-dev: `Skill(skill: "mst:{agent}", run_in_background: true)` 사용
+
+      결과 수집 및 이슈 분류:
+      b. 태스크별 결과를 CRITICAL/MAJOR/MINOR로 분류
+         - `NO_ISSUES` 응답: 해당 태스크 이슈 없음
+         - 실패 응답: "[Pre-review skip]" 출력 후 해당 태스크 건너뜀
+
+      **escalate 판단**:
+      - `escalation_trigger = "critical"`: CRITICAL 이슈 1개 이상 → escalate
+      - `escalation_trigger = "major"`: CRITICAL 또는 MAJOR 이슈 1개 이상 → escalate
+      - `escalation_trigger = "minor"`: CRITICAL/MAJOR/MINOR 이슈 1개 이상 → escalate
+
+      **[escalate = true]**:
+
+      **user 모드** (`escalation_mode = "user"`):
+      - AskUserQuestion: 수집된 이슈 목록 제시 (CRITICAL/MAJOR 우선 표시) + 선택지:
+        - "반영하고 재리뷰": PM이 이슈를 spec.md에 반영 후 루프 재진입
+        - "반영 없이 진행": 루프 즉시 종료
+      - "반영하고 재리뷰" 선택 시:
+        - escalate 이슈를 PM이 해당 spec.md에 Edit으로 반영
+        - `current_iteration < max_iterations` → `current_iteration++` → **LOOP 재진입**
+        - `current_iteration >= max_iterations` → 루프 종료
+
+      **pm-self 모드** (`escalation_mode = "pm-self"`):
+      - PM이 자체 판단으로 escalate 이슈를 spec.md에 Edit으로 반영
+      - `current_iteration < max_iterations` → `current_iteration++` → **LOOP 재진입**
+      - `current_iteration >= max_iterations` → 루프 종료
+
+      **[escalate = false]** (escalation_trigger 미만 이슈만 존재 또는 전체 NO_ISSUES):
+
+      **MINOR 임계값 에스컬레이션 체크** (minor_escalation_threshold != null인 경우):
+      ⚠️ 이 로직은 escalate=false 분기 내부에서 별도로 처리한다
+         (escalate=true 분기로 점프하지 않음 — 구조 복잡도 방지).
+      - threshold 정규화: threshold <= 0이면 threshold = 1로 치환
+      - 전체 MINOR 이슈 갯수 합산 (MINOR_COUNT)
+      - MINOR_COUNT > 0 AND MINOR_COUNT >= minor_escalation_threshold → CRITICAL로 취급:
+        - "[MINOR 임계값 초과] N개 MINOR 이슈가 임계값({threshold})을 초과하여 확인이 필요합니다" 안내 표시
+
+        **user 모드** (`escalation_mode = "user"`):
+        - AskUserQuestion으로 MINOR 이슈 목록 제시 + 선택지:
+          - "반영하고 재리뷰" / "반영 없이 진행"
+          - "반영 없이 진행" 선택 시: 루프 즉시 종료
+          - "반영하고 재리뷰" 선택 시: PM이 이슈를 spec.md에 Edit으로 반영 후 루프 재진입
+            - `current_iteration < max_iterations` → `current_iteration++` → **LOOP 재진입**
+            - `current_iteration >= max_iterations` → 루프 종료
+
+        **pm-self 모드** (`escalation_mode = "pm-self"`):
+        - PM이 자체 판단으로 MINOR 이슈를 spec.md에 Edit으로 반영
+        - `current_iteration < max_iterations` → `current_iteration++` → **LOOP 재진입**
+        - `current_iteration >= max_iterations` → 루프 종료
+
+      - MINOR_COUNT < minor_escalation_threshold 또는 minor_escalation_threshold == null → 기존 동작:
+        - MINOR 이슈만: PM이 자체 반영 후 루프 종료
+      - 전체 NO_ISSUES: 수정 없이 루프 종료
+
+      **[PREREVIEW LOOP 종료]**
+
+      c. 이슈가 1개 이상 존재했던 경우 spec.md 끝에 `## 구현 전 검토 (Pre-review Q&A)` 테이블 추가
+         (최종 iteration의 이슈 및 반영 결과 기준)
 
    k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가 (spec.md 저장 직후, 다중 태스크 시 02, 03... 포함):
       `id`, `title`, `status: "pending"`, `agent`(필수 — 누락 금지), `spec: "tasks/01/spec.md"`

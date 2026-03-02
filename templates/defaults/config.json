@@ -16,6 +16,9 @@
     "auto_accept_result": true,
     "default_agent": "codex-dev",
     "spec_prereview": true,
+    "spec_prereview_max_iterations": 3,
+    "spec_prereview_escalation_trigger": "major",
+    "spec_prereview_minor_escalation_threshold": 3,
     "auto_approve_on_unblock": false
   },
   "concurrency": {
@@ -98,13 +101,21 @@
     "merge_wait_ms": 60000,
     "auto_trigger_from_start": true
   },
+  "prereview": {
+    "agents": {
+      "codex": 1,
+      "gemini": 0,
+      "claude": 1
+    }
+  },
   "models": {
     "claude": {
       "pm_conductor": "sonnet",
       "architect": "sonnet",
       "ideation": "sonnet",
       "discussion": "sonnet",
-      "debug": "sonnet"
+      "debug": "sonnet",
+      "prereview": "sonnet"
     },
     "gemini": {
       "default": "gemini-3.1-pro-preview"
@@ -129,6 +140,8 @@
     "ideation_keep_count": 10,
     "discussion_keep_count": 10,
     "debug_keep_count": 10,
+    "plan_keep_count": 10,
+    "request_keep_count": 10,
     "old_request_threshold_hours": 24
   },
   "stitch": {
@@ -140,6 +153,60 @@
     "ui_keywords": {
       "whitelist": ["화면", "페이지", "UI", "레이아웃", "컴포넌트", "모달", "폼", "버튼", "스크린", "디자인", "목업", "시안", "screen", "layout", "component", "modal"],
       "blacklist": ["API", "DB", "데이터베이스", "테스트", "배포", "알고리즘", "스키마", "백엔드"]
+    }
+  },
+  "plan_review": {
+    "enabled": true,
+    "parallel": true,
+    "max_iterations": 2,
+    "escalation_trigger": "major",
+    "minor_escalation_threshold": 3,
+    "roles": {
+      "architect": {
+        "enabled": true,
+        "agent": "codex"
+      },
+      "devils_advocate": {
+        "enabled": true,
+        "agent": "gemini"
+      },
+      "completeness": {
+        "enabled": true,
+        "agent": "codex"
+      },
+      "ux_reviewer": {
+        "enabled": true,
+        "agent": "gemini"
+      }
+    }
+  },
+  "review": {
+    "auto_review": true,
+    "max_iterations": 3,
+    "roles": {
+      "code_reviewer": {
+        "agent": "codex"
+      },
+      "arch_reviewer": {
+        "agent": "gemini"
+      },
+      "ui_reviewer": {
+        "agent": "gemini"
+      }
+    }
+  },
+  "phase1_exploration": {
+    "roles": {
+      "symbol_tracing": {
+        "agent": "codex",
+        "enabled": true,
+        "model": "gpt-5.3-codex"
+      },
+      "broad_scan": {
+        "agent": "gemini",
+        "enabled": true,
+        "model": "gemini-3.1-pro-preview"
+      }
     }
   }
 }

@@ -75,7 +75,7 @@ Claude Code에서 (v1.0.33 이상):
 
 - [빠른 시작 가이드](docs/quick-start.md) — 사전 요구사항, 설치, Stitch MCP 설정, 인증 방법
 - [설정 관리](docs/configuration.md) — config.json 전체 옵션 레퍼런스
-- [스킬 레퍼런스](docs/skills-reference.md) — 29개 스킬 상세 사용법
+- [스킬 레퍼런스](docs/skills-reference.md) — 30개 스킬 상세 사용법
 - [대시보드](docs/dashboard.md) — 허브 구조, 뷰, API 엔드포인트
 - [베스트 프랙티스](docs/best-practices.md) — 효율적인 워크플로우 패턴
 - [용어 사전](docs/glossary.md) — 공식 용어 및 ID 체계

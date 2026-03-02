@@ -4,13 +4,12 @@ import { Header } from './components/layout/Header';
 import { TabNav } from './components/layout/TabNav';
 import { Tabs, TabsContent } from './components/ui/tabs';
 import { KeyboardShortcutsModal } from './components/shared/KeyboardShortcutsModal';
-
 // Views
 import { PlansView } from './views/PlansView';
 import { WorkflowView } from './views/WorkflowView';
 import { IdeationView } from './views/IdeationView';
 import { DebugView } from './views/DebugView';
-import { ExploreView } from './views/ExploreView';
+import { DesignView } from './views/DesignView';
 import { DocumentsView } from './views/DocumentsView';
 import { SettingsView } from './views/SettingsView';
 
@@ -40,8 +39,8 @@ function AppContent() {
           <TabsContent value="debug" className="absolute inset-0 m-0 overflow-hidden">
             <DebugView />
           </TabsContent>
-          <TabsContent value="explore" className="absolute inset-0 m-0 overflow-hidden">
-            <ExploreView />
+          <TabsContent value="designs" className="absolute inset-0 m-0 overflow-hidden">
+            <DesignView />
           </TabsContent>
           <TabsContent value="documents" className="absolute inset-0 m-0 overflow-hidden">
             <DocumentsView />

@@ -4,26 +4,34 @@
 - Task ID: {TASK_ID}
 - Created: {DATE}
 - Status: pending | queued | executing | pre_check | pre_check_failed | review | feedback | merging | merge_conflict | done | failed | cancelled
-- Assigned Agent: codex | gemini | claude-dev
+- Assigned Agent: [config: {DEFAULT_AGENT}] → [파일유형: {.ts/.tsx/.md 등}] → 최종: {에이전트}
 - Assigned Team: {에이전트 팀 구성 설명}
 
-<!-- Decision Tree — 에이전트 선택 기준
-1단계: 변경 파일 유형
-  .md 스킬/문서, .json config, .env, .yaml    → claude-dev 허용
-  .tsx, .jsx, React hooks/context/page        → gemini-dev 우선
-  .ts 백엔드 로직, API, DB, 신규 .ts 파일 생성 → codex-dev 우선
-  *.config.ts (vite, tailwind 등 설정성 TS)  → claude-dev 허용
+<!-- Decision Tree — 에이전트 선택 플로우
+확정형 IF-THEN: 각 Q에서 YES면 해당 에이전트로 확정(이하 건너뜀), NO면 다음 Q로 진행.
 
-2단계: 혼합 작업 게이트
-  .tsx/.jsx 또는 신규 .ts 파일 생성이 1개라도 포함 → claude-dev 금지
-  변경 파일이 모두 기존 .ts 인라인 수정만      → claude-dev 허용 가능 (3단계 확인)
+Step 0: config 기본값 확인
+  Assigned Agent 필드는 "[config: {DEFAULT_AGENT}]"로 시작한다.
+  config.json `workflow.default_agent`를 Read해 DEFAULT_AGENT를 취득한다.
+  이 단계 없이 에이전트를 결정하는 것은 에러다.
 
-3단계: 예외 — 코어 로직 변경 여부
-  YES (새 SKILL.md, 오케스트레이션 변경 등)   → claude-dev 허용
-  NO + 레이어 기준 금지                       → [EXCEPTION] 태그 + 사유 필수
+Q1: .tsx 또는 .jsx 파일이 1개라도 있는가?
+  YES → gemini-dev ✅ (확정, Q2·Q3 건너뜀)
+  NO  → Q2
+
+Q2: .ts / .py / .js / .go / .sh 등 코드 파일이 있거나,
+     신규 코드 파일 생성이 포함되는가?
+  YES → codex-dev ✅ (확정, Q3 건너뜀)
+  NO  → Q3
+
+Q3: .md / .json / .yaml / .env 등 문서·설정 파일만인가?
+  YES → claude-dev ✅ (확정)
+
+혼재(코드+문서 파일): Q1→Q2 순서의 확정 에이전트 사용.
+문서 파일은 같은 태스크에 포함 가능, 에이전트 변경 없음.
 
 ⚠️  컨텍스트 보유를 이유로 한 claude-dev 선택은 유효하지 않다.
-    외주 에이전트는 worktree를 직접 탐색하므로 컨텍스트 보유는 실질적 이점이 아님.
+    외주 에이전트는 worktree를 직접 탐색하므로 컨텍스트 보유는 이점이 아님.
 -->
 - Worktree: .gran-maestro/worktrees/{TASK_ID}
 
@@ -52,6 +60,20 @@
 ### 접근 방식
 
 {구현 전략 설명}
+
+### 참고 코드 위치
+
+> 에이전트가 구현 시작점으로 삼을 파일·함수·라인을 명시합니다. 없으면 N/A.
+
+- {파일경로:라인번호} — {역할 설명}
+- {파일경로:함수명} — {역할 설명}
+
+### 에지케이스
+
+> 구현 시 주의해야 할 경계 조건, 예외 입력, 비정상 흐름을 열거합니다. 없으면 N/A.
+
+- {에지케이스 1}: {처리 방법}
+- {에지케이스 2}: {처리 방법}
 
 ### AI별 의견 요약
 
@@ -85,6 +107,14 @@
 - {리스크 1}
 - {리스크 2}
 
+## 6.5 가정 사항 (Assumptions)
+
+> `--plan` 없이 생성된 스펙에만 포함합니다. PM이 요구사항의 모호한 부분에 대해 합리적으로 가정한 내용을 기록합니다.
+> 가정이 틀린 경우 구현 방향이 달라질 수 있으므로 에이전트는 이 섹션을 먼저 확인해야 합니다.
+
+- {가정 1}: {근거 또는 확인 방법}
+- {가정 2}: {근거 또는 확인 방법}
+
 ## 7. 의존성 (Dependencies)
 
 - 선행 작업 (blockedBy): []
@@ -114,6 +144,10 @@
 
 ## 10. UI 설계 (Stitch)
 
-> 이 섹션은 UI 화면 설계가 포함된 경우 작성합니다. `/mst:stitch --req {REQ_ID}` 실행 시 자동으로 채워집니다.
+> 이 섹션은 UI 화면 설계가 포함된 경우 작성합니다.
+> `/mst:stitch --req {REQ_ID}` 실행 시, 또는 `--plan PLN-NNN`의 `linked_designs`에 DES가 연결되어 있을 때 자동으로 채워집니다.
+> ⚠️ 이미지 URL은 수 시간 후 만료될 수 있습니다.
 
-- [ ] {화면명}: {Stitch URL — 미기입}
+- Stitch 프로젝트: {stitch_project_url — 미기입}
+- 생성 화면:
+  - {화면명}: {Stitch 화면 URL — 미기입}

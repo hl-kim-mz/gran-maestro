@@ -8,17 +8,19 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageSquare, Lightbulb, Users } from 'lucide-react';
+import { MessageSquare, Lightbulb, Users, Search } from 'lucide-react';
 import { IdeationFlow } from '@/components/ideation/IdeationFlow';
 import { DiscussionFlow } from '@/components/ideation/DiscussionFlow';
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 export function IdeationView() {
   const { projectId, activeTab, lastSseEvent } = useAppContext();
   const [ideations, setIdeations] = useState<any[]>([]);
   const [discussions, setDiscussions] = useState<any[]>([]);
+  const [explores, setExplores] = useState<any[]>([]);
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [sessionData, setSessionData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,14 +36,16 @@ export function IdeationView() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [idns, dscs] = await Promise.all([
+      const [idns, dscs, exps] = await Promise.all([
         apiFetch<any[]>('/api/ideation', projectId),
-        apiFetch<any[]>('/api/discussion', projectId)
+        apiFetch<any[]>('/api/discussion', projectId),
+        apiFetch<any[]>('/api/explore', projectId)
       ]);
       setIdeations(idns);
       setDiscussions(dscs);
+      setExplores(exps);
 
-      const all = [...idns, ...dscs].sort((a, b) => {
+      const all = [...idns, ...dscs, ...exps].sort((a, b) => {
         const aTime = a.created_at ?? '';
         const bTime = b.created_at ?? '';
         return bTime.localeCompare(aTime);
@@ -68,18 +72,20 @@ export function IdeationView() {
   useEffect(() => {
     if (!lastSseEvent || !projectId || activeTab !== 'ideation') return;
 
-    if (lastSseEvent.type !== 'ideation_update' && lastSseEvent.type !== 'discussion_update') return;
+    if (lastSseEvent.type !== 'ideation_update' && lastSseEvent.type !== 'discussion_update' && lastSseEvent.type !== 'explore_update') return;
 
     Promise.all([
       apiFetch<any[]>('/api/ideation', projectId),
-      apiFetch<any[]>('/api/discussion', projectId)
+      apiFetch<any[]>('/api/discussion', projectId),
+      apiFetch<any[]>('/api/explore', projectId)
     ])
-      .then(([idns, dscs]) => {
+      .then(([idns, dscs, exps]) => {
         setIdeations(idns);
         setDiscussions(dscs);
+        setExplores(exps);
 
         if (selectedSession) {
-          const all = [...idns, ...dscs];
+          const all = [...idns, ...dscs, ...exps];
           const updated = all.find((s) => s.id === selectedSession.id);
           if (updated) {
             setSelectedSession(updated);
@@ -87,7 +93,7 @@ export function IdeationView() {
         }
       })
       .catch((err) => {
-        console.error('Failed to refresh ideation/discussion lists:', err);
+        console.error('Failed to refresh ideation/discussion/explore lists:', err);
       });
 
     if (selectedSession) {
@@ -95,7 +101,7 @@ export function IdeationView() {
         ?? (lastSseEvent as { sessionId?: string; session_id?: string }).session_id;
 
       if (!eventSessionId || eventSessionId === selectedSession.id) {
-        const type = selectedSession.id.startsWith('IDN') ? 'ideation' : 'discussion';
+        const type = selectedSession.id.startsWith('IDN') ? 'ideation' : selectedSession.id.startsWith('EXP') ? 'explore' : 'discussion';
         apiFetch<Record<string, unknown>>(`/api/${type}/${selectedSession.id}`, projectId)
           .then((data) => setSessionData(data))
           .catch(() => {
@@ -111,7 +117,7 @@ export function IdeationView() {
       return;
     }
     setSessionData(null);
-    const type = selectedSession.id.startsWith('IDN') ? 'ideation' : 'discussion';
+    const type = selectedSession.id.startsWith('IDN') ? 'ideation' : selectedSession.id.startsWith('EXP') ? 'explore' : 'discussion';
     apiFetch<Record<string, unknown>>(`/api/${type}/${selectedSession.id}`, projectId)
       .then((data) => setSessionData(data))
       .catch(() => setSessionData(null));
@@ -122,7 +128,7 @@ export function IdeationView() {
     try {
       await fetchData();
       if (selectedSession && projectId) {
-        const type = selectedSession.id.startsWith('IDN') ? 'ideation' : 'discussion';
+        const type = selectedSession.id.startsWith('IDN') ? 'ideation' : selectedSession.id.startsWith('EXP') ? 'explore' : 'discussion';
         const data = await apiFetch<Record<string, unknown>>(`/api/${type}/${selectedSession.id}`, projectId);
         setSessionData(data);
       }
@@ -200,7 +206,7 @@ export function IdeationView() {
     return <div className="p-6"><Skeleton className="h-full w-full" /></div>;
   }
 
-  const allSessions = [...ideations, ...discussions].sort((a, b) => {
+  const allSessions = [...ideations, ...discussions, ...explores].sort((a, b) => {
     const aTime = a.created_at ?? '';
     const bTime = b.created_at ?? '';
     return bTime.localeCompare(aTime);
@@ -244,13 +250,16 @@ export function IdeationView() {
                 <div className="flex-1">
                   <SessionCard
                     id={s.id}
-                    title={s.objective || s.topic || 'Ideation Session'}
+                    title={s.objective || s.topic || s.focus || 'Session'}
                     status={s.status}
                     createdAt={s.created_at}
+                    extraBadge={s.id.startsWith('EXP') && s.focus && (s.objective || s.topic) ? s.focus : undefined}
                     icon={
                       s.id.startsWith('IDN')
                         ? <Lightbulb className="h-3 w-3 text-yellow-500" />
-                        : <MessageSquare className="h-3 w-3 text-blue-500" />
+                        : s.id.startsWith('EXP')
+                          ? <Search className="h-3 w-3 text-blue-500" />
+                          : <MessageSquare className="h-3 w-3 text-blue-500" />
                     }
                     isSelected={selectedSession?.id === s.id}
                     onClick={() => setSelectedSession(s)}
@@ -270,7 +279,7 @@ export function IdeationView() {
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
               <div>
                 <h2 className="font-bold text-lg">{selectedSession.id}</h2>
-                <p className="text-xs text-muted-foreground">{selectedSession.objective || selectedSession.topic}</p>
+                <p className="text-xs text-muted-foreground">{selectedSession.objective || selectedSession.topic || selectedSession.focus}</p>
               </div>
               <StatusBadge status={selectedSession.status} />
             </div>
@@ -290,7 +299,11 @@ export function IdeationView() {
               <TabsContent value="flow" className="flex-1 m-0 p-0 overflow-hidden min-h-0">
                 <ScrollArea className="h-full">
                   <div className="p-8">
-                    {selectedSession.id.startsWith('IDN') ? (
+                    {selectedSession.id.startsWith('EXP') ? (
+                      sessionData
+                        ? <MarkdownRenderer content={(sessionData as any).report || (sessionData as any).content || '# No report yet'} />
+                        : <div className="text-sm text-muted-foreground">탐색 중이거나 결과가 없습니다</div>
+                    ) : selectedSession.id.startsWith('IDN') ? (
                       sessionData ? <IdeationFlow sessionData={sessionData} /> : <div className="text-sm text-muted-foreground">아직 결과 없음</div>
                     ) : (
                       sessionData ? <DiscussionFlow sessionData={sessionData} /> : <div className="text-sm text-muted-foreground">아직 결과 없음</div>
@@ -327,7 +340,7 @@ export function IdeationView() {
           <EmptyState
             icon={<Lightbulb className="h-8 w-8" />}
             title="세션을 선택하세요"
-            description="왼쪽 목록에서 아이디에이션 또는 토론 세션을 클릭하세요"
+            description="왼쪽 목록에서 세션을 클릭하세요"
           />
         )}
       </div>

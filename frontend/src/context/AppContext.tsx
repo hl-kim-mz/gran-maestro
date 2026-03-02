@@ -9,13 +9,19 @@ interface Project {
   path: string;
 }
 
+export interface CompletionNotification {
+  id: string;        // REQ-NNN, DBG-NNN 등
+  read: boolean;
+  receivedAt: string; // ISO 8601 타임스탬프
+}
+
 interface AppContextType {
   projectId: string;
   setProjectId: (id: string) => void;
   projects: Project[];
   sseStatus: SSEStatus;
-  notifications: any[];
-  addNotification: (notification: any) => void;
+  notifications: CompletionNotification[];
+  markAsRead: (id: string) => void;
   clearNotifications: () => void;
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
@@ -33,7 +39,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { projectId: initialProjectId } = useAuth();
   const [projectId, setProjectIdState] = useState<string>(initialProjectId);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<CompletionNotification[]>([]);
   const [lastSseEvent, setLastSseEvent] = useState<any | null>(null);
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
@@ -80,11 +86,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const filtered = data.filter(p => !p.path.includes('/gran-maestro/frontend'));
       setProjects(filtered);
       if (projectId && filtered.length > 0 && !filtered.find(p => p.id === projectId)) {
-        addNotification({
-          type: 'warn',
-          message: '프로젝트를 찾을 수 없습니다. 첫 번째 프로젝트로 전환합니다.',
-          timestamp: new Date().toISOString(),
-        });
+        console.warn('프로젝트를 찾을 수 없습니다. 첫 번째 프로젝트로 전환합니다.');
         setProjectId(filtered[0].id);
       }
     }).catch((err) => {
@@ -95,15 +97,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const onSseEvent = useCallback((event: any) => {
     const eventType = event?.type;
     if (eventType === 'heartbeat' || eventType === 'connected') return;
-    setNotifications(prev => [event, ...prev].slice(0, 50));
+
+    if (eventType === 'completion_alert' && event.data?.id) {
+      setNotifications(prev => {
+        const next = [{ id: event.data.id, read: false, receivedAt: new Date().toISOString() }, ...prev];
+        return next.slice(0, 50);
+      });
+    }
+
     setLastSseEvent(event);
     // Trigger re-fetches or other logic based on event type if needed
   }, []);
 
   const { status: sseStatus } = useSse(onSseEvent);
 
-  const addNotification = useCallback((n: any) => {
-    setNotifications(prev => [n, ...prev].slice(0, 50));
+  const markAsRead = useCallback((id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   }, []);
 
   const clearNotifications = useCallback(() => {
@@ -117,7 +126,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       projects,
       sseStatus,
       notifications,
-      addNotification,
+      markAsRead,
       clearNotifications,
       theme,
       setTheme,
@@ -126,7 +135,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActiveTab: setActiveTabState,
       navigateTo,
       pendingNavigation,
-      clearPendingNavigation
+      clearPendingNavigation,
     }}>
       {children}
     </AppContext.Provider>
