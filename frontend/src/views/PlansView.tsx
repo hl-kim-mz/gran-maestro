@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useResizableSidebar } from '@/hooks/useResizableSidebar';
 import { ResizableHandle } from '@/components/shared/ResizableHandle';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -57,7 +58,9 @@ interface ScreenContent {
 }
 
 export function PlansView() {
-  const { projectId, lastSseEvent, navigateTo, pendingNavigation, clearPendingNavigation } = useAppContext();
+  const { projectId, lastSseEvent, navigateTo } = useAppContext();
+  const { planId } = useParams();
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<PlanMeta[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<PlanMeta | null>(null);
   const [planContent, setPlanContent] = useState<string | null>(null);
@@ -84,9 +87,7 @@ export function PlansView() {
     try {
       const data = await apiFetch<PlanMeta[]>('/api/plans', projectId);
       setPlans(data);
-      setSelectedPlan(prev =>
-        prev ? (data.find(plan => plan.id === prev.id) ?? data[0] ?? null) : (data[0] ?? null)
-      );
+      
     } catch (err) {
       console.error('Failed to fetch plans:', err);
     }
@@ -214,16 +215,14 @@ export function PlansView() {
   }, [linkedDesignId, selectedLinkedScreenFile, projectId]);
 
   useEffect(() => {
-    if (pendingNavigation?.tab !== 'plans' || loading) return;
-
-    if (pendingNavigation.selectedId) {
-      const target = plans.find((plan) => plan.id === pendingNavigation.selectedId);
-      if (target) {
-        setSelectedPlan(target);
-      }
+    if (plans.length === 0) return;
+    if (planId) {
+      const target = plans.find((plan) => plan.id === planId);
+      setSelectedPlan(target || plans[0]);
+    } else {
+      setSelectedPlan(plans[0]);
     }
-    clearPendingNavigation();
-  }, [pendingNavigation, loading, clearPendingNavigation, plans]);
+  }, [planId, plans]);
 
   const handleStatusChange = async (targetStatus: string) => {
     try {
@@ -376,7 +375,7 @@ export function PlansView() {
                     extraLinks={plan.linked_requests}
                     onExtraLinkClick={(reqId) => navigateTo('workflow', reqId)}
                     isSelected={selectedPlan?.id === plan.id}
-                    onClick={() => setSelectedPlan(plan)}
+                    onClick={() => navigate('/plans/' + plan.id)}
                   />
                 </div>
               </div>

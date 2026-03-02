@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -65,6 +66,8 @@ function parseScreenContent(content: string) {
 
 export function DesignView() {
   const { projectId, lastSseEvent, navigateTo } = useAppContext();
+  const { designId } = useParams();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<DesignSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<DesignSession | null>(null);
   const [selectedScreenFile, setSelectedScreenFile] = useState<string | null>(null);
@@ -89,6 +92,16 @@ export function DesignView() {
       setIsRefreshing(false);
     }
   }, [projectId]);
+
+  useEffect(() => {
+    if (sessions.length === 0) return;
+    if (designId) {
+      const target = sessions.find((d: any) => d.id === designId);
+      setSelectedSession(target || sessions[0]);
+    } else {
+      setSelectedSession(sessions[0]);
+    }
+  }, [designId, sessions]);
 
   useEffect(() => {
     if (!projectId) {
@@ -220,7 +233,7 @@ export function DesignView() {
                           : undefined
                     }
                     isSelected={selectedSession?.id === session.id}
-                    onClick={() => setSelectedSession(session)}
+                    onClick={() => navigate('/designs/' + session.id)}
                   />
                   {session.linked_req && (
                     <div className="absolute bottom-2 right-2">

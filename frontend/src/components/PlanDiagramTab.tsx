@@ -278,7 +278,7 @@ export function PlanDiagramTab({ planId, projectId }: PlanDiagramTabProps) {
         nodesConnectable={false}
         className="h-full min-h-0 w-full"
       >
-        <Background variant="dots" />
+        <Background variant={"dots" as any} />
         <Controls />
       </ReactFlow>
     </div>

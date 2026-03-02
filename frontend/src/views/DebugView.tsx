@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -28,7 +29,9 @@ interface DebugDetail {
 }
 
 export function DebugView() {
-  const { projectId, activeTab, lastSseEvent } = useAppContext();
+  const { projectId, lastSseEvent } = useAppContext();
+  const { sessionId } = useParams();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<DebugMeta[]>([]);
   const [selectedSession, setSelectedSession] = useState<DebugMeta | null>(null);
   const [reportContent, setReportContent] = useState<string | null>(null);
@@ -57,16 +60,26 @@ export function DebugView() {
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId || activeTab !== 'debug') {
+    if (sessions.length === 0) return;
+    if (sessionId) {
+      const target = sessions.find((s: any) => s.id === sessionId);
+      setSelectedSession(target || sessions[0]);
+    } else {
+      setSelectedSession(sessions[0]);
+    }
+  }, [sessionId, sessions]);
+
+  useEffect(() => {
+    if (!projectId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     fetchData().finally(() => setLoading(false));
-  }, [projectId, activeTab]);
+  }, [projectId]);
 
   useEffect(() => {
-    if (!lastSseEvent || !projectId || activeTab !== 'debug') return;
+    if (!lastSseEvent || !projectId) return;
     if (lastSseEvent.type !== 'debug_update') return;
 
     apiFetch<DebugMeta[]>('/api/debug', projectId)
@@ -91,17 +104,17 @@ export function DebugView() {
           .catch(() => setReportContent(null));
       }
     }
-  }, [lastSseEvent, projectId, activeTab, selectedSession?.id]);
+  }, [lastSseEvent, projectId, selectedSession?.id]);
 
   useEffect(() => {
-    if (!selectedSession || !projectId || activeTab !== 'debug') {
+    if (!selectedSession || !projectId) {
       setReportContent(null);
       return;
     }
     apiFetch<DebugDetail>(`/api/debug/${selectedSession.id}`, projectId)
       .then(data => setReportContent(data.content || null))
       .catch(() => setReportContent(null));
-  }, [selectedSession?.id, projectId, activeTab]);
+  }, [selectedSession?.id, projectId]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -229,7 +242,7 @@ export function DebugView() {
                     icon={<Bug className="h-3 w-3 text-red-500" />}
                     extraBadge={s.focus}
                     isSelected={selectedSession?.id === s.id}
-                    onClick={() => setSelectedSession(s)}
+                    onClick={() => navigate('/debug/' + s.id)}
                   />
                 </div>
               </div>

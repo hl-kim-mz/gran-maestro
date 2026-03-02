@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -34,7 +35,9 @@ function getReviewBadge(summary: ReviewSummary | null | undefined): string | und
 }
 
 export function WorkflowView() {
-  const { projectId, activeTab, lastSseEvent, navigateTo, pendingNavigation, clearPendingNavigation } = useAppContext();
+  const { projectId, lastSseEvent, navigateTo } = useAppContext();
+  const { reqId, taskId: paramTaskId } = useParams();
+  const navigate = useNavigate();
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedReq, setSelectedReq] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -66,22 +69,20 @@ export function WorkflowView() {
     try {
       const data = await apiFetch<any[]>('/api/requests', projectId);
       setRequests(data);
-      setSelectedReq((prev: any) =>
-        prev ? (data.find((req: any) => req.id === prev.id) ?? data[0] ?? null) : (data[0] ?? null)
-      );
+      
     } catch (err) {
       console.error('Failed to fetch requests:', err);
     }
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId || activeTab !== 'workflow') {
+    if (!projectId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     fetchRequests().finally(() => setLoading(false));
-  }, [projectId, activeTab]);
+  }, [projectId]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -111,7 +112,7 @@ export function WorkflowView() {
   };
 
   useEffect(() => {
-    if (!lastSseEvent || !projectId || activeTab !== 'workflow') return;
+    if (!lastSseEvent || !projectId) return;
     if (lastSseEvent.type !== 'request_update' && lastSseEvent.type !== 'task_update') return;
 
     if (lastSseEvent.type === 'request_update') {
@@ -145,10 +146,10 @@ export function WorkflowView() {
         })
         .catch((err) => console.error('SSE re-fetch tasks failed:', err));
     }
-  }, [lastSseEvent, projectId, activeTab, selectedReq?.id, selectedTask?.id]);
+  }, [lastSseEvent, projectId, selectedReq?.id, selectedTask?.id]);
 
   useEffect(() => {
-    if (!selectedReq || !projectId || activeTab !== 'workflow') {
+    if (!selectedReq || !projectId) {
       setTasks([]);
       setSelectedTask(null);
       return;
@@ -157,18 +158,23 @@ export function WorkflowView() {
       .then(data => {
         setTasks(data);
         if (data.length > 0) {
-          setSelectedTask(data[data.length - 1]);
+          if (paramTaskId) {
+            const foundTask = data.find((t: any) => t.id === paramTaskId);
+            setSelectedTask(foundTask || data[data.length - 1]);
+          } else {
+            setSelectedTask(data[data.length - 1]);
+          }
         } else {
           setSelectedTask(null);
         }
       })
       .catch(() => setTasks([]));
-  }, [selectedReq?.id, projectId, activeTab]);
+  }, [selectedReq?.id, projectId]);
 
   const taskKey = selectedTask?.id ?? null;
 
   useEffect(() => {
-    if (activeTab !== 'workflow' || !selectedReq || !selectedTask) {
+    if (!selectedReq || !selectedTask) {
       return;
     }
     if (selectedReq && selectedTask) {
@@ -176,7 +182,7 @@ export function WorkflowView() {
       startLogStream(selectedReq.id, selectedTask.id);
     }
     return () => stopLogStream();
-  }, [selectedReq?.id, selectedTask?.id, activeTab]);
+  }, [selectedReq?.id, selectedTask?.id]);
 
   useEffect(() => {
     if (!isAtBottomRef.current) return;
@@ -197,19 +203,17 @@ export function WorkflowView() {
   }, [selectedTask?.id]);
 
   useEffect(() => {
-    if (pendingNavigation?.tab !== 'workflow' || loading) return;
-
-    if (pendingNavigation.selectedId) {
-      const target = requests.find((req) => req.id === pendingNavigation.selectedId);
-      if (target) {
-        setSelectedReq(target);
-      }
+    if (requests.length === 0) return;
+    if (reqId) {
+      const target = requests.find((req) => req.id === reqId);
+      setSelectedReq(target || requests[0]);
+    } else {
+      setSelectedReq(requests[0]);
     }
-    clearPendingNavigation();
-  }, [pendingNavigation, loading, clearPendingNavigation, requests]);
+  }, [reqId, requests]);
 
   useEffect(() => {
-    if (!selectedReq || !selectedTask || !projectId || activeTab !== 'workflow') {
+    if (!selectedReq || !selectedTask || !projectId) {
       setSelectedTaskDetail(null);
       return;
     }
@@ -217,7 +221,7 @@ export function WorkflowView() {
     apiFetch<any>(`/api/requests/${selectedReq.id}/tasks/${selectedTask.id}`, projectId)
       .then(data => setSelectedTaskDetail(data))
       .catch(() => setSelectedTaskDetail(null));
-  }, [selectedReq?.id, selectedTask?.id, projectId, activeTab]);
+  }, [selectedReq?.id, selectedTask?.id, projectId]);
 
   const handleStatusChange = async (targetStatus: string) => {
     try {
@@ -523,7 +527,7 @@ export function WorkflowView() {
                     extraBadge={req.linked_plan ?? undefined}
                     reviewBadge={getReviewBadge(req.review_summary)}
                     isSelected={selectedReq?.id === req.id}
-                    onClick={() => setSelectedReq(req)}
+                    onClick={() => navigate('/workflow/' + req.id)}
                   />
                 </div>
               </div>
@@ -575,7 +579,7 @@ export function WorkflowView() {
                             {!isLast && <div className="w-px flex-1 bg-border" />}
                           </div>
                           <div
-                            onClick={() => setSelectedTask(task)}
+                            onClick={() => navigate('/workflow/' + selectedReq.id + '/tasks/' + task.id)}
                             className={`flex-1 p-2 rounded-md cursor-pointer text-xs mb-0.5 ${selectedTask?.id === task.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
                           >
                             <div className="flex justify-between items-start gap-1 mb-0.5">

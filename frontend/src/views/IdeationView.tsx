@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useResizableSidebar } from '@/hooks/useResizableSidebar';
 import { ResizableHandle } from '@/components/shared/ResizableHandle';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,7 +18,9 @@ import { EditModeToolbar } from '@/components/EditModeToolbar';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 export function IdeationView() {
-  const { projectId, activeTab, lastSseEvent } = useAppContext();
+  const { projectId, lastSseEvent } = useAppContext();
+  const { sessionId } = useParams();
+  const navigate = useNavigate();
   const [ideations, setIdeations] = useState<any[]>([]);
   const [discussions, setDiscussions] = useState<any[]>([]);
   const [explores, setExplores] = useState<any[]>([]);
@@ -61,16 +64,31 @@ export function IdeationView() {
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId || activeTab !== 'ideation') {
+    const allSessions = [...ideations, ...discussions, ...explores].sort((a, b) => {
+      const aTime = a.created_at ?? '';
+      const bTime = b.created_at ?? '';
+      return bTime.localeCompare(aTime);
+    });
+    if (allSessions.length === 0) return;
+    if (sessionId) {
+      const target = allSessions.find(s => s.id === sessionId);
+      setSelectedSession(target || allSessions[0]);
+    } else {
+      setSelectedSession(allSessions[0]);
+    }
+  }, [sessionId, ideations, discussions, explores]);
+
+  useEffect(() => {
+    if (!projectId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     fetchData().finally(() => setLoading(false));
-  }, [projectId, activeTab]);
+  }, [projectId]);
 
   useEffect(() => {
-    if (!lastSseEvent || !projectId || activeTab !== 'ideation') return;
+    if (!lastSseEvent || !projectId) return;
 
     if (lastSseEvent.type !== 'ideation_update' && lastSseEvent.type !== 'discussion_update' && lastSseEvent.type !== 'explore_update') return;
 
@@ -109,10 +127,10 @@ export function IdeationView() {
           });
       }
     }
-  }, [lastSseEvent, projectId, activeTab, selectedSession?.id]);
+  }, [lastSseEvent, projectId, selectedSession?.id]);
 
   useEffect(() => {
-    if (!selectedSession || !projectId || activeTab !== 'ideation') {
+    if (!selectedSession || !projectId) {
       setSessionData(null);
       return;
     }
@@ -121,7 +139,7 @@ export function IdeationView() {
     apiFetch<Record<string, unknown>>(`/api/${type}/${selectedSession.id}`, projectId)
       .then((data) => setSessionData(data))
       .catch(() => setSessionData(null));
-  }, [selectedSession?.id, projectId, activeTab]);
+  }, [selectedSession?.id, projectId]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -262,7 +280,7 @@ export function IdeationView() {
                           : <MessageSquare className="h-3 w-3 text-blue-500" />
                     }
                     isSelected={selectedSession?.id === s.id}
-                    onClick={() => setSelectedSession(s)}
+                    onClick={() => navigate('/ideation/' + s.id)}
                   />
                 </div>
               </div>

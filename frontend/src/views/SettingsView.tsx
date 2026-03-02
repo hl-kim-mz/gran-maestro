@@ -17,19 +17,19 @@ function isObject(v: any) {
 }
 
 export function SettingsView() {
-  const { projectId, activeTab } = useAppContext();
+  const { projectId } = useAppContext();
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
 
   useEffect(() => {
-    if (!projectId || activeTab !== 'settings') {
+    if (!projectId) {
       setLoading(false);
       return;
     }
     fetchConfig();
-  }, [projectId, activeTab]);
+  }, [projectId]);
 
   async function fetchConfig() {
     setLoading(true);

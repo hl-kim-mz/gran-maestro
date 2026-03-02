@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useSse, SSEStatus } from '../hooks/useSse';
 import { apiFetch } from '../hooks/useApi';
@@ -26,17 +27,14 @@ interface AppContextType {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   lastSseEvent: any | null;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
   navigateTo: (tab: string, selectedId?: string) => void;
-  pendingNavigation: { tab: string; selectedId?: string } | null;
-  clearPendingNavigation: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { projectId: initialProjectId } = useAuth();
+  const navigate = useNavigate();
   const [projectId, setProjectIdState] = useState<string>(initialProjectId);
   const [projects, setProjects] = useState<Project[]>([]);
   const [notifications, setNotifications] = useState<CompletionNotification[]>([]);
@@ -44,8 +42,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
   );
-  const [activeTab, setActiveTab] = useState<string>('plans');
-  const [pendingNavigation, setPendingNavigation] = useState<{ tab: string; selectedId?: string } | null>(null);
 
   const setTheme = useCallback((newTheme: 'light' | 'dark') => {
     setThemeState(newTheme);
@@ -58,22 +54,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sessionStorage.setItem('gm_project', id);
   }, []);
 
-  const setActiveTabState = useCallback((tab: string) => {
-    setActiveTab(tab);
-  }, []);
-
-  const clearPendingNavigation = useCallback(() => {
-    setPendingNavigation(null);
-  }, []);
-
   const navigateTo = useCallback((tab: string, selectedId?: string) => {
-    setActiveTab(tab);
-    if (selectedId) {
-      setPendingNavigation({ tab, selectedId });
-    } else {
-      setPendingNavigation({ tab });
+    if (tab === 'discussion') {
+      if (selectedId) navigate(`/ideation/${selectedId}`);
+      else navigate('/ideation');
+      return;
     }
-  }, [setActiveTabState]);
+    if (selectedId) {
+      navigate(`/${tab}/${selectedId}`);
+    } else {
+      navigate(`/${tab}`);
+    }
+  }, [navigate]);
 
   // Initialize theme on mount
   useEffect(() => {
@@ -131,11 +123,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       theme,
       setTheme,
       lastSseEvent,
-      activeTab,
-      setActiveTab: setActiveTabState,
       navigateTo,
-      pendingNavigation,
-      clearPendingNavigation,
     }}>
       {children}
     </AppContext.Provider>

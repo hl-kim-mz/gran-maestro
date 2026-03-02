@@ -1,4 +1,4 @@
-import { TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   GitBranch,
@@ -12,25 +12,22 @@ import { useEffect } from 'react';
 import { useAppContext } from '@/context/AppContext';
 
 export const TABS = [
-  { id: 'plans', label: 'Plans', icon: LayoutDashboard, key: '1' },
-  { id: 'workflow', label: 'Workflow', icon: GitBranch, key: '2' },
-  { id: 'ideation', label: 'Ideation', icon: Lightbulb, key: '3' },
-  { id: 'debug', label: 'Debug', icon: Bug, key: '4' },
-  { id: 'designs', label: 'Designs', icon: Palette, key: '5' },
-  { id: 'documents', label: 'Documents', icon: Files, key: '6' },
-  { id: 'settings', label: 'Settings', icon: Settings, key: '7' },
+  { id: 'plans', label: 'Plans', icon: LayoutDashboard, key: '1', path: '/plans' },
+  { id: 'workflow', label: 'Workflow', icon: GitBranch, key: '2', path: '/workflow' },
+  { id: 'ideation', label: 'Ideation', icon: Lightbulb, key: '3', path: '/ideation' },
+  { id: 'debug', label: 'Debug', icon: Bug, key: '4', path: '/debug' },
+  { id: 'designs', label: 'Designs', icon: Palette, key: '5', path: '/designs' },
+  { id: 'documents', label: 'Documents', icon: Files, key: '6', path: '/documents' },
+  { id: 'settings', label: 'Settings', icon: Settings, key: '7', path: '/settings' },
 ];
 
 export function TabNav({
-  activeTab,
-  onTabChange,
   onToggleShortcuts,
 }: {
-  activeTab: string;
-  onTabChange: (id: string) => void;
   onToggleShortcuts: () => void;
 }) {
   const { theme, setTheme } = useAppContext();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -47,29 +44,35 @@ export function TabNav({
 
       const tab = TABS.find(t => t.key === e.key);
       if (tab) {
-        onTabChange(tab.id);
+        navigate(tab.path);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onTabChange, onToggleShortcuts, setTheme, theme]);
+  }, [navigate, onToggleShortcuts, setTheme, theme]);
 
   return (
     <div className="bg-background border-b px-6">
-      <TabsList className="bg-transparent h-12 gap-6 p-0">
+      <nav className="bg-transparent h-12 flex gap-6 p-0 items-center">
         {TABS.map((tab) => (
-          <TabsTrigger
+          <NavLink
             key={tab.id}
-            value={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-2 gap-2 text-muted-foreground data-[state=active]:text-foreground"
+            to={tab.path}
+            end={tab.id === 'plans'}
+            className={({ isActive }) =>
+              `flex items-center h-full px-2 gap-2 rounded-none transition-colors border-b-2 ${
+                isActive
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`
+            }
           >
             <tab.icon className="h-4 w-4" />
             <span>{tab.label}</span>
             <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded opacity-50">{tab.key}</span>
-          </TabsTrigger>
+          </NavLink>
         ))}
-      </TabsList>
+      </nav>
     </div>
   );
 }
