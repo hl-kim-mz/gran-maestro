@@ -64,7 +64,7 @@ function parseScreenContent(content: string) {
 }
 
 export function DesignView() {
-  const { projectId, lastSseEvent } = useAppContext();
+  const { projectId, lastSseEvent, navigateTo } = useAppContext();
   const [sessions, setSessions] = useState<DesignSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<DesignSession | null>(null);
   const [selectedScreenFile, setSelectedScreenFile] = useState<string | null>(null);
@@ -206,24 +206,34 @@ export function DesignView() {
               />
             ) : (
               sessions.map((session) => (
-                <SessionCard
-                  key={session.id}
-                  id={session.id}
-                  title={session.title || session.id}
-                  status={session.status}
-                  createdAt={session.created_at}
-                  extraBadge={
-                    session.source === 'plan_design'
-                      ? `PLN ${session.linked_plan ?? session.id.replace('PLN-', '')}`
-                      : session.linked_plan
-                        ? `PLN ${session.linked_plan}`
-                        : session.linked_req
-                          ? `REQ ${session.linked_req}`
+                <div key={session.id} className="relative">
+                  <SessionCard
+                    id={session.id}
+                    title={session.title || session.id}
+                    status={session.status}
+                    createdAt={session.created_at}
+                    extraBadge={
+                      session.source === 'plan_design'
+                        ? `PLN ${session.linked_plan ?? session.id.replace('PLN-', '')}`
+                        : session.linked_plan
+                          ? `PLN ${session.linked_plan}`
                           : undefined
-                  }
-                  isSelected={selectedSession?.id === session.id}
-                  onClick={() => setSelectedSession(session)}
-                />
+                    }
+                    isSelected={selectedSession?.id === session.id}
+                    onClick={() => setSelectedSession(session)}
+                  />
+                  {session.linked_req && (
+                    <div className="absolute bottom-2 right-2">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); navigateTo('workflow', session.linked_req!); }}
+                        className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 hover:underline font-mono"
+                      >
+                        {session.linked_req} →
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))
             )}
           </div>

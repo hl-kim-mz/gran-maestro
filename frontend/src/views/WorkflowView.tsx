@@ -44,6 +44,7 @@ export function WorkflowView() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [traceContent, setTraceContent] = useState<string | null>(null);
   const logScrollAreaRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -203,6 +204,7 @@ export function WorkflowView() {
       setSelectedTaskDetail(null);
       return;
     }
+    setTraceContent(null);
     apiFetch<any>(`/api/requests/${selectedReq.id}/tasks/${selectedTask.id}`, projectId)
       .then(data => setSelectedTaskDetail(data))
       .catch(() => setSelectedTaskDetail(null));
@@ -403,6 +405,28 @@ export function WorkflowView() {
     startLogStream(selectedReq.id, selectedTask.id);
   };
 
+  function worktreeStateColor(state: string): string {
+    if (state === 'active') return 'bg-green-100 text-green-700';
+    if (state === 'merged') return 'bg-blue-100 text-blue-700';
+    if (state === 'stale' || state === 'conflict' || state === 'error') return 'bg-red-100 text-red-700';
+    return 'bg-gray-100 text-gray-600';
+  }
+
+  async function loadTrace(filename: string) {
+    if (!selectedReq || !selectedTask || !projectId) return;
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/requests/${selectedReq.id}/tasks/${selectedTask.id}/traces/${filename}`
+      );
+      if (!response.ok) throw new Error('Failed to load trace');
+      const text = await response.text();
+      setTraceContent(text);
+    } catch (err) {
+      console.error('Failed to load trace:', err);
+      setTraceContent('트레이스 파일을 불러오지 못했습니다.');
+    }
+  }
+
   const streamStatusMeta = (() => {
     if (streamStatus === 'idle') return null;
     if (streamStatus === 'connecting') {
@@ -573,6 +597,9 @@ export function WorkflowView() {
                         <TabsTrigger value="logs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
                           <Terminal className="h-3 w-3 mr-2" /> Logs
                         </TabsTrigger>
+                        <TabsTrigger value="traces" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
+                          <Activity className="h-3 w-3 mr-2" /> Traces
+                        </TabsTrigger>
                       </TabsList>
                     </div>
                     <TabsContent value="info" className="flex-1 m-0 p-6 overflow-auto min-h-0">
@@ -630,6 +657,44 @@ export function WorkflowView() {
                             </div>
                           </div>
                         )}
+                        {selectedTaskDetail?.worktree && (
+                          <div className="mt-4">
+                            <h3 className="text-sm font-medium text-gray-600 mb-1">Worktree</h3>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${worktreeStateColor(selectedTaskDetail.worktree.state)}`}>
+                                {selectedTaskDetail.worktree.state}
+                              </span>
+                              {selectedTaskDetail.worktree.branch && (
+                                <span className="text-xs font-mono text-gray-600">{selectedTaskDetail.worktree.branch}</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {(() => {
+                          const retryCount =
+                            selectedReq?.tasks?.find((t: any) => t.id === selectedTask?.id)?.retry_count ??
+                            selectedTaskDetail?.status?.retry_count ??
+                            0;
+                          return retryCount > 0 ? (
+                            <div className="mt-4">
+                              <span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-700">
+                                재시도 {retryCount}회
+                              </span>
+                            </div>
+                          ) : null;
+                        })()}
+                        {selectedReq?.linked_design && (
+                          <div className="mt-4">
+                            <h3 className="text-sm font-medium text-gray-600 mb-1">연결된 Design</h3>
+                            <button
+                              type="button"
+                              onClick={() => navigateTo('designs', selectedReq.linked_design)}
+                              className="text-blue-600 hover:underline text-sm"
+                            >
+                              {selectedReq.linked_design} →
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </TabsContent>
                     <TabsContent value="logs" className="flex-1 m-0 p-0 overflow-hidden min-h-0">
@@ -652,6 +717,28 @@ export function WorkflowView() {
                             <pre className="whitespace-pre-wrap p-4">{logs}</pre>
                           )}
                         </ScrollArea>
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="traces" className="flex-1 m-0 p-4 overflow-auto min-h-0">
+                      <div>
+                        {!selectedTaskDetail?.traces || selectedTaskDetail.traces.length === 0 ? (
+                          <p className="text-gray-500 text-sm">트레이스 없음</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {selectedTaskDetail.traces.map((filename: string) => (
+                              <div
+                                key={filename}
+                                className="cursor-pointer hover:bg-gray-100 p-2 rounded text-xs font-mono"
+                                onClick={() => loadTrace(filename)}
+                              >
+                                {filename}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {traceContent && (
+                          <pre className="mt-4 text-xs bg-gray-50 p-3 rounded overflow-auto whitespace-pre-wrap">{traceContent}</pre>
+                        )}
                       </div>
                     </TabsContent>
                   </Tabs>

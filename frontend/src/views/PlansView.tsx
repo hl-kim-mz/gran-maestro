@@ -7,12 +7,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { ClipboardList, ExternalLink, FileText, Palette, ShieldAlert } from 'lucide-react';
+import { ClipboardList, ExternalLink, FileText, GitBranch, Palette, ShieldAlert } from 'lucide-react';
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseDesignSections } from '@/shared/designUtils';
+import { PlanDiagramTab } from '@/components/PlanDiagramTab';
 
 interface ReviewIssue {
   severity: "CRITICAL" | "MAJOR" | "MINOR";
@@ -34,6 +35,9 @@ interface PlanMeta {
   linked_requests?: string[];
   linked_designs?: string[];
   has_design?: boolean;
+  linked_debug?: string | null;
+  linked_ideation?: string | null;
+  linked_discussion?: string | null;
 }
 
 interface PlanDetail {
@@ -290,6 +294,12 @@ export function PlansView() {
 
   const hasDesignContent = designSections.length > 0 || linkedDesignScreenFiles.length > 0;
   const hasReviewContent = reviewRoles.length > 0;
+  const showDiagram = !!(
+    (selectedPlan?.linked_requests?.length ?? 0) > 0 ||
+    selectedPlan?.linked_debug ||
+    selectedPlan?.linked_ideation ||
+    selectedPlan?.linked_discussion
+  );
 
   // linked DES 스크린 파싱 (parseScreenContent 인라인)
   function parseScreenContent(content: string) {
@@ -403,11 +413,48 @@ export function PlansView() {
                       Review ({reviewRoles.length})
                     </TabsTrigger>
                   )}
+                  {showDiagram && (
+                    <TabsTrigger value="diagram" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1">
+                      <GitBranch className="h-3 w-3 mr-2" />
+                      Diagram
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </div>
               <TabsContent value="overview" className="flex-1 overflow-auto m-0">
                 <ScrollArea className="h-full">
                   <div className="p-8">
+                    {(selectedPlan?.linked_debug || selectedPlan?.linked_ideation || selectedPlan?.linked_discussion) && (
+                      <div className="flex gap-2 flex-wrap mb-4">
+                        {selectedPlan.linked_debug && (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo('debug', selectedPlan.linked_debug!)}
+                            className="text-xs px-2 py-0.5 rounded bg-red-50 text-red-600 hover:bg-red-100 hover:underline font-mono"
+                          >
+                            DBG: {selectedPlan.linked_debug} →
+                          </button>
+                        )}
+                        {selectedPlan.linked_ideation && (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo('ideation', selectedPlan.linked_ideation!)}
+                            className="text-xs px-2 py-0.5 rounded bg-green-50 text-green-600 hover:bg-green-100 hover:underline font-mono"
+                          >
+                            IDN: {selectedPlan.linked_ideation} →
+                          </button>
+                        )}
+                        {selectedPlan.linked_discussion && (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo('discussion', selectedPlan.linked_discussion!)}
+                            className="text-xs px-2 py-0.5 rounded bg-orange-50 text-orange-600 hover:bg-orange-100 hover:underline font-mono"
+                          >
+                            DSC: {selectedPlan.linked_discussion} →
+                          </button>
+                        )}
+                      </div>
+                    )}
                     {planContent ? (
                       <MarkdownRenderer content={planContent} />
                     ) : (
@@ -567,6 +614,11 @@ export function PlansView() {
                       ))}
                     </div>
                   </ScrollArea>
+                </TabsContent>
+              )}
+              {showDiagram && (
+                <TabsContent value="diagram" className="flex-1 overflow-auto m-0">
+                  <PlanDiagramTab planId={selectedPlan.id} projectId={projectId} />
                 </TabsContent>
               )}
             </Tabs>
