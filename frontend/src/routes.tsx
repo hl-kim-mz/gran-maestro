@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { OverviewView } from './views/OverviewView';
 import { PlansView } from './views/PlansView';
 import { WorkflowView } from './views/WorkflowView';
 import { IdeationView } from './views/IdeationView';
@@ -6,11 +7,13 @@ import { DebugView } from './views/DebugView';
 import { DesignView } from './views/DesignView';
 import { DocumentsView } from './views/DocumentsView';
 import { SettingsView } from './views/SettingsView';
+import { ArchivesView } from './views/ArchivesView';
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/plans" replace />} />
+      <Route path="/" element={<Navigate to="/overview" replace />} />
+      <Route path="/overview" element={<OverviewView />} />
       <Route path="/plans" element={<PlansView />} />
       <Route path="/plans/:planId" element={<PlansView />} />
       <Route path="/plans/:planId/tasks" element={<PlansView />} />
@@ -25,8 +28,9 @@ export function AppRoutes() {
       <Route path="/designs" element={<DesignView />} />
       <Route path="/designs/:designId" element={<DesignView />} />
       <Route path="/documents" element={<DocumentsView />} />
+      <Route path="/archives" element={<ArchivesView />} />
       <Route path="/settings" element={<SettingsView />} />
-      <Route path="*" element={<Navigate to="/plans" replace />} />
+      <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>
   );
 }
