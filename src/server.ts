@@ -24,6 +24,7 @@ import { projectExploreApi } from "./routes/explore.ts";
 import { projectDesignsApi } from "./routes/designs.ts";
 import { projectPlansApi } from "./routes/plans.ts";
 import { projectRequestsApi } from "./routes/requests.ts";
+import { projectStatsApi } from "./routes/stats.ts";
 import { projectTreeApi } from "./routes/tree.ts";
 import { projectWorktreesApi } from "./routes/worktrees.ts";
 import { projectRegistryApi } from "./routes/projects.ts";
@@ -47,6 +48,7 @@ const DIST_DIR = new URL("../dist", import.meta.url).pathname;
 
 projectApi.route("/", projectConfigApi);
 projectApi.route("/", projectRequestsApi);
+projectApi.route("/", projectStatsApi);
 projectApi.route("/", projectDebugApi);
 projectApi.route("/", projectExploreApi);
 projectApi.route("/", projectDesignsApi);
