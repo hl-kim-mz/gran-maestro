@@ -4,6 +4,27 @@
 
 ---
 
+## [0.43.1] — 2026-03-02
+
+### 새 기능
+
+- **Stitch 디자인 HTML 코드 자동 저장**: `output_components`에 포함된 HTML/CSS/React 코드를 `screen-NNN.html` 파일로 자동 저장
+  - plan 디자인 시안 섹션에 구현 코드 경로 표시
+  - `design.json` screens에 `html_file` 필드 추가
+
+### 개선
+
+- **prereview 반복 루프**: request 스킬에서 스펙 사전 검토를 반복 실행하여 CRITICAL/MAJOR 이슈 자동 수정
+- **plan escalation_trigger 기반 변경**: plan 스킬 Step 3.8.5에서 escalation 조건을 config 기반으로 처리
+- **Gemini --sandbox 옵션 제거**: gemini/discussion/plan/approve 스킬에서 불필요한 --sandbox 플래그 정리
+- **대시보드 설정 찾아 바꾸기**: JSON value bulk replace 기능 추가
+- **대시보드 Plan/Traces 탭 연동**: PlanDiagramTab 교차 링크 + Phase 2 실행 정보 표시
+- **approve retry_count 기록**: approve 스킬에서 재시도 횟수를 메타데이터에 기록
+- **discussion/ideation combined+split 패턴**: 병렬 Write 대신 combined+split 패턴으로 세션 파일 생성 안정화
+- **아카이브 자동화**: accept 스킬 완료 시 `mst.py archive run-all` 자동 호출 + 대시보드 정리 버튼 추가
+
+---
+
 ## [0.43.0] — 2026-03-02
 
 ### 새 기능
