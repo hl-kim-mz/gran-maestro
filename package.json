@@ -1,6 +1,6 @@
 {
   "name": "gran-maestro",
-  "version": "0.44.0",
+  "version": "0.44.1",
   "description": "Gran Maestro — AI orchestration plugin for Claude Code",
   "main": "src/server.ts",
   "repository": {
