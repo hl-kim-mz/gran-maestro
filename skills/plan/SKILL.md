@@ -203,7 +203,7 @@ stdout에 생성된 파일 경로 목록이 출력된다.
 
 에이전트 선택 (`config.plan_review.roles.{role}.agent` 기반):
 - `"codex"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: "Skill(skill: 'mst:codex', args: '--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --output .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log') 실행 후 완료 보고")`
-- `"gemini"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --sandbox > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log') 실행 후 완료 보고")`
+- `"gemini"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log') 실행 후 완료 보고")`
 - `"claude"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: {사전 단계에서 보관한 파일 내용})`
 
 각 Task 호출의 반환값에서 task_id를 추출하여 역할명과 함께 메모리에 보관 (결과 추적용).
@@ -211,7 +211,7 @@ stdout에 생성된 파일 경로 목록이 출력된다.
 
 `config.plan_review.parallel == false`이면 역할 순서대로 순차 실행:
 - codex 역할: `Skill(skill: "mst:codex", args: "--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --output .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")` → 완료 후 Read(.log) → 다음 역할 진행
-- gemini 역할: `Skill(skill: "mst:gemini", args: "--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --sandbox > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")` → 완료 후 Read(.log) → 다음 역할 진행
+- gemini 역할: `Skill(skill: "mst:gemini", args: "--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")` → 완료 후 Read(.log) → 다음 역할 진행
 - claude 역할: `Read(.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)` 후 → `Task(subagent_type: "general-purpose", prompt: {파일 내용})` (블로킹) → 반환값 직접 사용 → 다음 역할 진행
 (순차 실행 시 task_id 불필요, TaskOutput 호출 없음)
 

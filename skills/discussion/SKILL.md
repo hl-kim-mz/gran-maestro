@@ -176,7 +176,7 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
      Task(
        subagent_type: "general-purpose",
        run_in_background: true,
-       prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md --sandbox > {absolute_path}/rounds/00/{participant.key}.md') 실행 후 완료 보고"
+       prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md > {absolute_path}/rounds/00/{participant.key}.md') 실행 후 완료 보고"
      )
      ```
    - `provider: "claude"`:
