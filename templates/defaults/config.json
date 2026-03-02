@@ -16,6 +16,8 @@
     "auto_accept_result": true,
     "default_agent": "codex-dev",
     "spec_prereview": true,
+    "spec_prereview_max_iterations": 2,
+    "spec_prereview_escalation_trigger": "major",
     "auto_approve_on_unblock": false
   },
   "concurrency": {
@@ -156,6 +158,7 @@
     "enabled": true,
     "parallel": true,
     "max_iterations": 2,
+    "escalation_trigger": "major",
     "roles": {
       "architect": {
         "enabled": true,
