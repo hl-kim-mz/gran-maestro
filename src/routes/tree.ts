@@ -68,13 +68,33 @@ projectTreeApi.get("/file", async (c) => {
     return c.json({ error: "Missing path query parameter" }, 400);
   }
 
-  // Prevent directory traversal
-  const fullPath = `${baseDir}/${filePath}`;
-  if (fullPath.includes("..")) {
+  // Prevent directory traversal via path normalization.
+  // Resolve the candidate path to its real absolute path (follows symlinks,
+  // collapses ".." segments, and decodes any percent-encoding done by the
+  // HTTP layer before the query string reaches us).  Then confirm it is
+  // still inside baseDir before reading.
+  const candidatePath = `${baseDir}/${filePath}`;
+  let resolvedPath: string;
+  try {
+    resolvedPath = await Deno.realPath(candidatePath);
+  } catch {
+    return c.json({ error: "File not found" }, 404);
+  }
+
+  // Normalise baseDir itself so the prefix comparison is reliable.
+  let resolvedBase: string;
+  try {
+    resolvedBase = await Deno.realPath(baseDir);
+  } catch {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const safePrefix = resolvedBase.endsWith("/") ? resolvedBase : `${resolvedBase}/`;
+  if (!resolvedPath.startsWith(safePrefix) && resolvedPath !== resolvedBase) {
     return c.json({ error: "Invalid path" }, 400);
   }
 
-  const content = await readTextFile(fullPath);
+  const content = await readTextFile(resolvedPath);
   if (content === null) {
     return c.json({ error: "File not found" }, 404);
   }
