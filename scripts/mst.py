@@ -428,6 +428,51 @@ def cmd_plan_render_review(args):
     return 0 if generated else 1
 
 
+def cmd_session_split_prompts(args):
+    if not args.prompts_dir:
+        print("Error: directory not found", file=sys.stderr)
+        return 1
+
+    prompts_dir = Path(args.prompts_dir)
+    if not prompts_dir.exists():
+        print("Error: directory not found", file=sys.stderr)
+        return 1
+
+    combined_path = prompts_dir / "combined-prompts.txt"
+    if not combined_path.exists():
+        print("Error: combined-prompts.txt not found", file=sys.stderr)
+        return 1
+
+    content = combined_path.read_text(encoding="utf-8")
+    marker_re = re.compile(r"^===SPLIT: (.+)===$")
+    generated = []
+    target_name = None
+    target_lines = []
+
+    for raw_line in content.splitlines(keepends=True):
+        m = marker_re.match(raw_line.strip())
+        if m:
+            if target_name is not None:
+                out_path = prompts_dir / target_name
+                out_path.write_text("".join(target_lines).strip("\n\r"), encoding="utf-8")
+                generated.append(str(out_path))
+                print(str(out_path))
+            target_name = m.group(1)
+            target_lines = []
+            continue
+
+        if target_name is not None:
+            target_lines.append(raw_line)
+
+    if target_name is not None:
+        out_path = prompts_dir / target_name
+        out_path.write_text("".join(target_lines).strip("\n\r"), encoding="utf-8")
+        generated.append(str(out_path))
+        print(str(out_path))
+
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # counter subcommands
 # ---------------------------------------------------------------------------
@@ -1358,6 +1403,9 @@ def build_parser():
     sess_complete = sess_sub.add_parser("complete")
     sess_complete.add_argument("session_id")
 
+    sess_split = sess_sub.add_parser("split-prompts", help="combined-prompts.txt를 개별 프롬프트 파일로 분리")
+    sess_split.add_argument("--dir", dest="prompts_dir", required=False, help="prompts 디렉토리 경로")
+
     # --- priority ---
     pri = sub.add_parser("priority")
     pri.add_argument("task_id")
@@ -1439,6 +1487,7 @@ def main():
         ("session", "list"): cmd_session_list,
         ("session", "inspect"): cmd_session_inspect,
         ("session", "complete"): cmd_session_complete,
+        ("session", "split-prompts"): cmd_session_split_prompts,
         ("priority", None): cmd_priority,
         ("task", "set-commit"): cmd_task_set_commit,
         ("notify", None): cmd_notify,
