@@ -14,6 +14,21 @@ export interface CompletionNotification {
   id: string;        // REQ-NNN, DBG-NNN 등
   read: boolean;
   receivedAt: string; // ISO 8601 타임스탬프
+  route: string;     // 클릭 시 이동할 라우트 (e.g., /workflow/REQ-251)
+}
+
+/** notification ID prefix → route path */
+function inferRoute(id: string): string {
+  const prefix = id.split('-')[0];
+  switch (prefix) {
+    case 'REQ': return `/workflow/${id}`;
+    case 'IDN': return `/ideation/${id}`;
+    case 'DBG': return `/debug/${id}`;
+    case 'DES': return `/designs/${id}`;
+    case 'PLN': return `/plans/${id}`;
+    case 'EXP': return `/ideation/${id}`;
+    default:    return `/workflow/${id}`;
+  }
 }
 
 export interface ModeStatus {
@@ -115,8 +130,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (eventType === 'heartbeat' || eventType === 'connected') return;
 
     if (eventType === 'completion_alert' && event.data?.id) {
+      const nid: string = event.data.id;
       setNotifications(prev => {
-        const next = [{ id: event.data.id, read: false, receivedAt: new Date().toISOString() }, ...prev];
+        const next = [{ id: nid, read: false, receivedAt: new Date().toISOString(), route: inferRoute(nid) }, ...prev];
         return next.slice(0, 50);
       });
     }

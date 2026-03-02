@@ -1,8 +1,10 @@
+import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 
 export function NotificationPanel() {
+  const navigate = useNavigate();
   const { notifications, clearNotifications, markAsRead } = useAppContext();
 
   const formatTime = (isoString: string) => {
@@ -27,7 +29,7 @@ export function NotificationPanel() {
               <div
                 key={n.id}
                 className="flex items-center gap-2 border rounded-lg p-3 bg-card hover:bg-accent/50 transition-colors cursor-pointer"
-                onClick={() => markAsRead(n.id)}
+                onClick={() => { navigate(n.route || '/'); markAsRead(n.id); }}
               >
                 <div className={`h-2 w-2 rounded-full shrink-0 ${n.read ? 'bg-transparent' : 'bg-blue-500'}`} />
                 <span className="flex-1 text-sm font-medium">{n.id} 종료</span>
