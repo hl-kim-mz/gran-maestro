@@ -98,21 +98,28 @@ PM이 주제/포커스를 분석해 `participants` 수만큼 관점을 배정하
 > - 최종 사용자 보고는 Step 6에서만
 > - ⚠️ Step 4c 건너뜀 금지: critic_count > 0이면 opinions 수집 후 반드시 Critic 평가 수행
 
-### 병렬 Write 원칙 (CRITICAL)
+### 프롬프트 파일 생성 원칙 (CRITICAL)
 
-독립 파일 Write는 하나의 응답에서 동시에 수행:
-- `session.json`, `shared-context.md`(공유 배경 컨텍스트), 프롬프트 여러 개를 함께 생성
-- 순차 쓰기를 피해 병렬성 보장
+`shared-context.md`는 단독 Write, 프롬프트 파일은 **단일 combined 파일 Write → 스크립트 split** 패턴을 사용합니다:
+- `session.json`, `shared-context.md` 작성은 기존대로 단일 응답 내 Write 처리
+- 프롬프트 파일(N+M개)은 `prompts/combined-prompts.txt` **1개**에 `===SPLIT: {filename}===` 구분기호로 모두 포함
+- combined-prompts.txt Write 직후 `python3 {PLUGIN_ROOT}/scripts/mst.py session split-prompts --dir {absolute_path}/rounds/NN/prompts` 실행
 
 ### Step 2: 초기 의견 수집
 
 **IDN-NNN 입력 시**: ideation 의견 파일들을 `rounds/00/{participant.key}.md`로 복사 → Step 4 진입
 
 **새 주제인 경우**:
-1. **단일 응답에서 동시 Write**:
+1. **단일 응답에서 동시 Write 후 split 실행**:
    - `rounds/00/shared-context.md` — 주제 배경 + 핵심 논점
-   - `rounds/00/prompts/{participant.key}-prompt.md` × N — 경량 프롬프트
-   - `rounds/00/prompts/critique-{criticKey}-prompt.md` × M — critic 프롬프트 (critics 동적 순회, 아래 템플릿 적용)
+   - `rounds/00/prompts/combined-prompts.txt` — N+M개 프롬프트를 `===SPLIT: {filename}===` 구분기호로 구분하여 1개 파일에 모두 포함
+     (participant N개 + critic M개, 아래 포맷 그대로 적용)
+
+   combined-prompts.txt Write 완료 직후:
+   ```bash
+   python3 {PLUGIN_ROOT}/scripts/mst.py session split-prompts --dir {absolute_path}/rounds/00/prompts
+   ```
+   → `rounds/00/prompts/{participant.key}-prompt.md` × N, `rounds/00/prompts/critique-{criticKey}-prompt.md` × M 자동 생성
 
 개별 프롬프트 포맷 (Round 0):
 ```markdown
@@ -247,9 +254,17 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
 
 #### 4a. PM이 맞춤 프롬프트 작성
 
-이전 라운드 발산점 기반으로 **단일 응답에서 동시 Write**:
+이전 라운드 발산점 기반으로 **단일 응답에서 Write 후 split 실행**:
 - `rounds/NN/shared-context.md` — 이전 라운드 입장 요약 테이블 + 발산점 목록
-- `rounds/NN/prompts/{participant.key}-prompt.md` × N — 경량 프롬프트
+- `rounds/NN/prompts/combined-prompts.txt` — N개 프롬프트를 `===SPLIT: {filename}===` 구분기호로 구분하여 1개 파일에 모두 포함
+
+combined-prompts.txt Write 완료 직후:
+```bash
+python3 {PLUGIN_ROOT}/scripts/mst.py session split-prompts --dir {absolute_path}/rounds/NN/prompts
+```
+→ `rounds/NN/prompts/{participant.key}-prompt.md` × N 자동 생성
+
+> Round N의 critic 프롬프트가 있는 경우 같은 combined 파일에 포함하여 함께 split
 
 `shared-context.md` 구조 (Round N):
 ```markdown
