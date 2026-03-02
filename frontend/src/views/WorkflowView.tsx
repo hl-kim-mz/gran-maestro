@@ -217,6 +217,15 @@ export function WorkflowView() {
       .catch(() => setTasks([]));
   }, [selectedReq?.id, projectId]);
 
+  // URL의 paramTaskId 변경 시 이미 로드된 tasks에서 선택
+  useEffect(() => {
+    if (!paramTaskId || tasks.length === 0) return;
+    const foundTask = tasks.find((t: any) => t.id === paramTaskId);
+    if (foundTask) {
+      setSelectedTask(foundTask);
+    }
+  }, [paramTaskId, tasks]);
+
   const taskKey = selectedTask?.id ?? null;
 
   useEffect(() => {
