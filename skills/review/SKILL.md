@@ -124,11 +124,60 @@ AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 4개 분기로 
 
 #### (b) 갭 없음 + 코드리뷰 이슈만 있음 (AC는 통과, 설계/품질 이슈)
 
-- `review-report.md`에 이슈 목록 기록 후:
-  - **`--auto` 모드**: 이슈를 report에만 기록하고 Phase 5 자동 진행. `review.json.status = "passed"`.
-  - **일반 모드**: `AskUserQuestion` → 선택지:
-    - `[이슈 무시하고 수락]`: Phase 5 진행. `review.json.status = "passed"`.
-    - `[이슈를 태스크로 추가]`: **(c)와 동일 경로** (iteration 소진, `max_iterations` 동일 적용).
+코드리뷰 이슈를 등급별로 분류한 뒤 자동 처리 분기를 수행합니다.
+
+##### (b) 사전 처리: 이슈 파싱 및 등급 분류
+
+1. **리뷰어 태깅 파싱**: `review-report.md`의 코드/아키텍처/UI 리뷰 발견 사항에서 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 접두사를 파싱하여 등급별 배열로 분리합니다.
+   - 태깅 형식 예시: `[CRITICAL] SQL injection 취약점 발견`, `[MAJOR] 에러 핸들링 누락`, `[MINOR] 변수명 컨벤션 불일치`
+   - **태깅 없는 이슈**: 리뷰어가 등급 접두사를 붙이지 않은 이슈는 **MAJOR로 기본 분류**합니다.
+
+2. **PM 재조정 (보안 오버라이드)**: `config.review.severity_auto_fix.security_override_keywords` 배열의 키워드와 각 이슈 내용을 매칭합니다.
+   - 키워드가 이슈 텍스트에 포함되면 해당 이슈의 등급을 **무조건 CRITICAL로 승격**합니다 (원래 MAJOR/MINOR였더라도).
+   - 키워드 매칭은 대소문자 무시(case-insensitive).
+   - 예시 키워드: `인증`, `인가`, `인젝션`, `XSS`, `CSRF`, `SQL injection`, `권한 우회`, `authentication`, `authorization`, `injection`, `secret`, `token`
+
+3. **등급별 카운트 산출**: 재조정 완료 후 `critical_count`, `major_count`, `minor_count`를 산출합니다.
+
+4. **`review_issues_summary` 기록**: `review.json`과 `request.json`의 해당 review iteration에 등급별 카운트 및 자동 처리 내역을 기록합니다 (스키마는 하단 "review_issues_summary 스키마" 섹션 참조).
+
+##### (b-1) CRITICAL 또는 MAJOR가 1건 이상 존재
+
+- `critical_count + major_count > 0` 인 경우.
+- **`--auto` 모드**:
+  - CRITICAL/MAJOR 이슈에 대해 **(c)와 동일 경로** (갭별 새 태스크 spec.md 자동 작성 + 재외주). `gap_source: "code_review_issues"` 메타 기록.
+  - MINOR 이슈는 `review_issues_summary.skipped` 배열에 기록하고 **무조건 스킵** (threshold 무시). `review-report.md`에만 기록.
+- **일반 모드**:
+  - CRITICAL/MAJOR + MINOR 혼재 시: CRITICAL/MAJOR에 대해 **(c)와 동일 경로**, MINOR는 `config.review.severity_auto_fix.minor_skip_threshold` 검사 적용 (b-2/b-3 규칙 동일).
+  - `review.json.status = "gap_found"`. `gap_source: "code_review_issues"` 메타 기록.
+
+##### (b-2) MINOR만 존재 + 개수 <= threshold (스킵+리포트)
+
+- `critical_count == 0 AND major_count == 0 AND minor_count > 0 AND minor_count <= config.review.severity_auto_fix.minor_skip_threshold` 인 경우.
+- MINOR 이슈를 `review-report.md`에 기록하고 `review_issues_summary.skipped` 배열에 기록.
+- `review.json.status = "passed"`.
+- `request.json.review_summary = { "iteration": N, "status": "passed" }` 업데이트.
+- Phase 3 PASS 반환 → approve 루프에서 Phase 5(accept) 진행.
+
+##### (b-3) MINOR만 존재 + 개수 > threshold (자동 태스크 생성)
+
+- `critical_count == 0 AND major_count == 0 AND minor_count > 0 AND minor_count > config.review.severity_auto_fix.minor_skip_threshold` 인 경우.
+- **(c)와 동일 경로** (갭별 새 태스크 spec.md 자동 작성 + 재외주). `gap_source: "code_review_issues"` 메타 기록.
+- `review.json.status = "gap_found"`.
+- **참고**: `minor_skip_threshold`가 `0`이면 모든 MINOR도 자동 처리 대상.
+
+##### (b) `--auto` 모드 동작 요약
+
+`--auto` 플래그 실행 시 코드리뷰 이슈 등급별 동작:
+
+| 등급 | 동작 |
+|------|------|
+| CRITICAL | 자동 태스크 생성 + 재외주 (c 경로) |
+| MAJOR | 자동 태스크 생성 + 재외주 (c 경로) |
+| MINOR | `minor_skip_threshold` **무시**, 무조건 스킵+리포트. `review.json.status`는 CRITICAL/MAJOR 유무에 따라 결정. |
+
+- CRITICAL/MAJOR 없이 MINOR만 있는 경우: `review.json.status = "passed"`. Phase 5 자동 진행.
+- CRITICAL/MAJOR와 MINOR 혼재: CRITICAL/MAJOR만 태스크 생성, MINOR 스킵. `review.json.status = "gap_found"`.
 
 #### (c) 갭 있음 + iteration ≤ max_iterations
 
@@ -227,6 +276,43 @@ approve 루프 밖에서 직접 호출 시 Step 1~4 동일 실행 후 Step 5 결
   "status": "passed | gap_found | reviewing",
   "created_at": "<ISO8601>",
   "gaps_found": 0,
-  "tasks_created": []
+  "tasks_created": [],
+  "review_issues_summary": {
+    "critical": 0,
+    "major": 0,
+    "minor": 0,
+    "auto_fixed": [],
+    "skipped": []
+  }
 }
 ```
+
+### review_issues_summary 스키마
+
+Step 5(b) 등급별 분류 결과를 기록합니다. `review.json`과 `request.json`의 해당 `review_iterations` 항목 양쪽에 동일 구조로 기록됩니다.
+
+```json
+{
+  "review_issues_summary": {
+    "critical": 2,
+    "major": 1,
+    "minor": 3,
+    "auto_fixed": [
+      { "severity": "CRITICAL", "description": "SQL injection 취약점", "task_id": "05" },
+      { "severity": "MAJOR", "description": "에러 핸들링 누락", "task_id": "06" }
+    ],
+    "skipped": [
+      { "severity": "MINOR", "description": "변수명 컨벤션 불일치" },
+      { "severity": "MINOR", "description": "주석 누락" }
+    ]
+  }
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `critical` | number | CRITICAL 등급 이슈 수 (보안 오버라이드 승격 반영 후). |
+| `major` | number | MAJOR 등급 이슈 수. |
+| `minor` | number | MINOR 등급 이슈 수. |
+| `auto_fixed` | array | 자동 태스크 생성되어 재외주된 이슈 목록. 각 항목: `{ "severity": string, "description": string, "task_id": string }`. |
+| `skipped` | array | 스킵 처리된 이슈 목록 (threshold 이하 MINOR 또는 `--auto` 모드 MINOR). 각 항목: `{ "severity": string, "description": string }`. |
