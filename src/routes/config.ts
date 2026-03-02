@@ -1,19 +1,25 @@
 import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
-import { fromFileUrl, dirname, join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { readJsonFile, writeJsonFile } from "../utils.ts";
-import { loadConfig, resolveBaseDir } from "../config.ts";
+import { readJsonFile, writeJsonFile, diffFromBase, deepMerge } from "../utils.ts";
+import { DEFAULTS_PATH, resolveBaseDir } from "../config.ts";
+import type { ConfigResponse, GranMaestroConfig } from "../types.ts";
 
 const projectConfigApi = new Hono();
-const PLUGIN_ROOT = join(dirname(fromFileUrl(import.meta.url)), "..", "..");
-const DEFAULTS_PATH = join(PLUGIN_ROOT, "templates", "defaults", "config.json");
 
 projectConfigApi.get("/config", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
   if (!baseDir) {
     return c.json({ error: "Project not found" }, 404);
   }
-  const config = await loadConfig(baseDir);
-  return c.json(config);
+
+  const defaults = await readJsonFile<GranMaestroConfig>(DEFAULTS_PATH) ?? {};
+  const overrides = await readJsonFile<GranMaestroConfig>(`${baseDir}/config.json`) ?? {};
+  const merged = deepMerge(defaults, overrides) as GranMaestroConfig;
+  const response: ConfigResponse = {
+    merged,
+    overrides,
+    defaults,
+  };
+  return c.json(response);
 });
 
 projectConfigApi.put("/config", async (c) => {
@@ -24,10 +30,22 @@ projectConfigApi.put("/config", async (c) => {
 
   try {
     const body = await c.req.json();
-    const success = await writeJsonFile(`${baseDir}/config.json`, body);
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return c.json({ error: "Config body must be a JSON object" }, 400);
+    }
+    const defaults = await readJsonFile<GranMaestroConfig>(DEFAULTS_PATH) ?? {};
+    const overrides = diffFromBase(defaults, body);
+    const success = await writeJsonFile(`${baseDir}/config.json`, overrides);
     if (!success) {
       return c.json({ error: "Failed to write config" }, 500);
     }
+
+    const resolved = deepMerge(defaults, overrides) as GranMaestroConfig;
+    const resolvedOk = await writeJsonFile(`${baseDir}/config.resolved.json`, resolved);
+    if (!resolvedOk) {
+      console.warn("Warning: Failed to update config.resolved.json");
+    }
+
     return c.json({ ok: true });
   } catch {
     return c.json({ error: "Invalid JSON body" }, 400);

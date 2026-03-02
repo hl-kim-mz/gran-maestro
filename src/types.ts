@@ -8,6 +8,12 @@ export interface GranMaestroConfig {
   [key: string]: unknown;
 }
 
+export interface ConfigResponse {
+  merged: GranMaestroConfig;
+  overrides: GranMaestroConfig;
+  defaults: GranMaestroConfig;
+}
+
 export interface ReviewSummary {
   iteration: number;
   status: "reviewing" | "gap_fixing" | "passed" | "limit_reached";

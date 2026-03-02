@@ -2,7 +2,8 @@
  * Gran Maestro Dashboard Configuration and mutable server state.
  */
 
-import { readJsonFile, writeJsonFile } from "./utils.ts";
+import { fromFileUrl, dirname, join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { deepMerge, readJsonFile, writeJsonFile } from "./utils.ts";
 import type { GranMaestroConfig, Project, Registry } from "./types.ts";
 
 export const BASE_DIR = ".gran-maestro";
@@ -10,6 +11,8 @@ export const DEFAULT_PORT = 3847;
 export const HOST = "127.0.0.1";
 export const SSE_DEBOUNCE_MS = 300;
 export const HUB_MODE = true; // Always hub mode — multi-project by default
+export const PLUGIN_ROOT = join(dirname(fromFileUrl(import.meta.url)), "..");
+export const DEFAULTS_PATH = join(PLUGIN_ROOT, "templates", "defaults", "config.json");
 const _homeDir =
   Deno.env.get("HOME") ??
   Deno.env.get("USERPROFILE") ??
@@ -22,8 +25,15 @@ export function setRegistry(nextRegistry: Registry): void {
   registry = nextRegistry;
 }
 
+/**
+ * Returns the effective runtime config: deepMerge(defaults, userConfig).
+ * This includes all default values filled in. To check if a user explicitly
+ * configured a key, read config.json directly instead.
+ */
 export async function loadConfig(baseDir = BASE_DIR): Promise<GranMaestroConfig> {
-  return (await readJsonFile<GranMaestroConfig>(`${baseDir}/config.json`)) ?? {};
+  const defaults = await readJsonFile<GranMaestroConfig>(DEFAULTS_PATH) ?? {};
+  const userConfig = await readJsonFile<GranMaestroConfig>(`${baseDir}/config.json`) ?? {};
+  return deepMerge(defaults, userConfig) as GranMaestroConfig;
 }
 
 export function stripBasePath(path: string, baseDir: string): string {
