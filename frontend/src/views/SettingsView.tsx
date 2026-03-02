@@ -104,7 +104,7 @@ function isObject(v: any) {
 }
 
 export function SettingsView() {
-  const { projectId } = useAppContext();
+  const { projectId, lastSseEvent } = useAppContext();
   const [merged, setMerged] = useState<any>(null);
   const [overrides, setOverrides] = useState<any>(null);
   const [defaults, setDefaults] = useState<any>(null);

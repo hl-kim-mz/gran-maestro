@@ -332,18 +332,6 @@ export function IdeationView() {
     }
   };
 
-  if (!projectId) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
-        프로젝트를 선택하세요
-      </div>
-    );
-  }
-
-  if (loading) {
-    return <div className="p-6"><Skeleton className="h-full w-full" /></div>;
-  }
-
   const allSessions = useMemo(() =>
     [...ideations, ...discussions, ...explores].sort((a, b) => {
       const aTime = a.created_at ?? '';
@@ -385,6 +373,18 @@ export function IdeationView() {
 
     return result;
   }, [allSessions, searchValue, filterValue, sortValue]);
+
+  if (!projectId) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        프로젝트를 선택하세요
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <div className="p-6"><Skeleton className="h-full w-full" /></div>;
+  }
 
   return (
     <div className="flex h-full overflow-hidden">
