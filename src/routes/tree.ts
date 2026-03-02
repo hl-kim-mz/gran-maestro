@@ -2,7 +2,7 @@ import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 import { stripBasePath, resolveBaseDir } from "../config.ts";
 import { dirExists, readTextFile } from "../utils.ts";
 
-const EXCLUDE_DIRS = new Set(['debug', 'ideation', 'discussion', 'archive', '.omc', 'worktrees']);
+const EXCLUDE_DIRS = new Set(['node_modules', '.git', 'dist']);
 
 const projectTreeApi = new Hono();
 projectTreeApi.get("/tree", async (c) => {
@@ -25,7 +25,7 @@ projectTreeApi.get("/tree", async (c) => {
       for await (const entry of Deno.readDir(dir)) {
         const fullPath = `${dir}/${entry.name}`;
         const relativePath = stripBasePath(fullPath, baseDir!);
-        if (depth === 0 && entry.isDirectory && EXCLUDE_DIRS.has(entry.name)) {
+        if (entry.isDirectory && EXCLUDE_DIRS.has(entry.name)) {
           continue;
         }
         if (entry.isDirectory) {

@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useResizableSidebar } from '@/hooks/useResizableSidebar';
 import { ResizableHandle } from '@/components/shared/ResizableHandle';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { JsonViewer } from '@/components/shared/JsonViewer';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -16,7 +17,9 @@ import {
   FileText,
   FileJson,
   FileCode,
-  FolderOpen
+  FolderOpen,
+  Search,
+  X,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -39,6 +42,7 @@ export function DocumentsView() {
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const { sidebarWidth, isResizing, startResizing, sidebarRef } = useResizableSidebar({
     defaultWidth: 300,
     minWidth: 250,
@@ -103,13 +107,38 @@ export function DocumentsView() {
     }
   };
 
+  const filteredTree = useMemo(() => {
+    if (!searchQuery.trim()) return tree;
+    const query = searchQuery.toLowerCase();
+
+    function filterNodes(nodes: FileNode[]): FileNode[] {
+      const result: FileNode[] = [];
+      for (const node of nodes) {
+        if (node.type === 'file') {
+          if (node.name.toLowerCase().includes(query)) {
+            result.push(node);
+          }
+        } else {
+          // Directory: include if any descendant matches
+          const filteredChildren = filterNodes(node.children || []);
+          if (filteredChildren.length > 0) {
+            result.push({ ...node, children: filteredChildren });
+          }
+        }
+      }
+      return result;
+    }
+
+    return filterNodes(tree);
+  }, [tree, searchQuery]);
+
   const renderTree = (nodes: FileNode[], depth = 0) => {
     return nodes.map((node) => {
       const isSelected = selectedFile === node.path;
 
       if (node.type === 'directory') {
         return (
-          <Collapsible key={node.path} defaultOpen={depth < 1}>
+          <Collapsible key={node.path} defaultOpen={depth < 1} open={searchQuery.trim() ? true : undefined}>
             <CollapsibleTrigger className="flex items-center gap-1 w-full py-1 hover:bg-accent rounded px-2 group">
               <ChevronRight className="h-3 w-3 group-data-[state=open]:rotate-90 transition-transform" />
               <Folder className="h-4 w-4 text-blue-500 fill-blue-500/20" />
@@ -161,9 +190,34 @@ export function DocumentsView() {
           <h2 className="font-semibold text-sm">Workspace</h2>
           <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
         </div>
+        <div className="p-2 border-b">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="파일 검색..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 pl-7 pr-7 text-xs"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
         <ScrollArea className="flex-1">
           <div className="p-2">
-            {renderTree(tree)}
+            {filteredTree.length > 0 ? renderTree(filteredTree) : (
+              searchQuery.trim() ? (
+                <p className="text-xs text-muted-foreground text-center py-4">
+                  검색 결과가 없습니다
+                </p>
+              ) : null
+            )}
           </div>
         </ScrollArea>
       </div>
