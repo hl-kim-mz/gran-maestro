@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
@@ -15,6 +15,7 @@ import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
 import { useResizableSidebar } from '@/hooks/useResizableSidebar';
 import { ResizableHandle } from '@/components/shared/ResizableHandle';
+import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 
 type LogStreamStatus = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
 
@@ -64,6 +65,51 @@ export function WorkflowView() {
     maxWidth: 500,
     storageKey: 'workflow-sidebar-width',
   });
+
+  const [searchValue, setSearchValue] = useState('');
+  const [filterValue, setFilterValue] = useState('all');
+  const [sortValue, setSortValue] = useState('newest');
+
+  const statusFilterOptions: FilterOption[] = [
+    { value: 'all', label: 'All Status' },
+    { value: 'open', label: 'Open' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'done', label: 'Done' },
+    { value: 'failed', label: 'Failed' },
+  ];
+
+  const sortOptions: FilterOption[] = [
+    { value: 'newest', label: 'Newest First' },
+    { value: 'oldest', label: 'Oldest First' },
+  ];
+
+  const filteredRequests = useMemo(() => {
+    let result = [...requests];
+
+    // text search by title or ID
+    if (searchValue.trim()) {
+      const query = searchValue.trim().toLowerCase();
+      result = result.filter(
+        (req) =>
+          req.id?.toLowerCase().includes(query) ||
+          req.title?.toLowerCase().includes(query)
+      );
+    }
+
+    // status filter
+    if (filterValue && filterValue !== 'all') {
+      result = result.filter((req) => req.status === filterValue);
+    }
+
+    // sort
+    if (sortValue === 'oldest') {
+      result.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+    } else {
+      result.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+    }
+
+    return result;
+  }, [requests, searchValue, filterValue, sortValue]);
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -501,9 +547,22 @@ export function WorkflowView() {
             <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
           </div>
         </div>
+        <ListFilter
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="Search by title or ID..."
+          filterOptions={statusFilterOptions}
+          filterValue={filterValue}
+          onFilterChange={setFilterValue}
+          filterPlaceholder="Status"
+          sortOptions={sortOptions}
+          sortValue={sortValue}
+          onSortChange={setSortValue}
+          sortPlaceholder="Sort"
+        />
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-1.5">
-            {requests.map((req) => (
+            {filteredRequests.map((req) => (
               <div key={req.id} className="flex items-center">
                 {isEditMode && (
                   <input

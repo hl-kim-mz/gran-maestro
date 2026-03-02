@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useResizableSidebar } from '@/hooks/useResizableSidebar';
 import { ResizableHandle } from '@/components/shared/ResizableHandle';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -14,6 +14,7 @@ import { ClipboardList, ExternalLink, FileText, GitBranch, Palette, ShieldAlert 
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
+import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseDesignSections } from '@/shared/designUtils';
 import { PlanDiagramTab } from '@/components/PlanDiagramTab';
@@ -82,6 +83,51 @@ export function PlansView() {
     maxWidth: 600,
     storageKey: 'plans-sidebar-width',
   });
+
+  const [searchValue, setSearchValue] = useState('');
+  const [filterValue, setFilterValue] = useState('all');
+  const [sortValue, setSortValue] = useState('newest');
+
+  const statusFilterOptions: FilterOption[] = [
+    { value: 'all', label: 'All Status' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'done', label: 'Done' },
+  ];
+
+  const sortOptions: FilterOption[] = [
+    { value: 'newest', label: 'Newest First' },
+    { value: 'oldest', label: 'Oldest First' },
+  ];
+
+  const filteredPlans = useMemo(() => {
+    let result = [...plans];
+
+    // text search
+    if (searchValue.trim()) {
+      const query = searchValue.trim().toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.id?.toLowerCase().includes(query) ||
+          p.title?.toLowerCase().includes(query)
+      );
+    }
+
+    // status filter
+    if (filterValue && filterValue !== 'all') {
+      result = result.filter((p) => p.status === filterValue);
+    }
+
+    // sort
+    if (sortValue === 'oldest') {
+      result.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+    } else {
+      result.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+    }
+
+    return result;
+  }, [plans, searchValue, filterValue, sortValue]);
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -348,9 +394,22 @@ export function PlansView() {
             <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
           </div>
         </div>
+        <ListFilter
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="Search by title or ID..."
+          filterOptions={statusFilterOptions}
+          filterValue={filterValue}
+          onFilterChange={setFilterValue}
+          filterPlaceholder="Status"
+          sortOptions={sortOptions}
+          sortValue={sortValue}
+          onSortChange={setSortValue}
+          sortPlaceholder="Sort"
+        />
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-1.5">
-            {plans.map((plan) => (
+            {filteredPlans.map((plan) => (
               <div key={plan.id} className="flex items-center">
                 {isEditMode && (
                   <input

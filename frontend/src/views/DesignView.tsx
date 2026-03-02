@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
@@ -10,6 +10,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
+import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 import { ExternalLink, Palette } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseDesignSections } from '@/shared/designUtils';
@@ -76,6 +77,50 @@ export function DesignView() {
   const [selectedPlanSection, setSelectedPlanSection] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const [searchValue, setSearchValue] = useState('');
+  const [filterValue, setFilterValue] = useState('all');
+  const [sortValue, setSortValue] = useState('newest');
+
+  const statusFilterOptions: FilterOption[] = [
+    { value: 'all', label: 'All Status' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'done', label: 'Done' },
+    { value: 'in_progress', label: 'In Progress' },
+  ];
+
+  const sortOptions: FilterOption[] = [
+    { value: 'newest', label: 'Newest First' },
+    { value: 'oldest', label: 'Oldest First' },
+  ];
+
+  const filteredSessions = useMemo(() => {
+    let result = [...sessions];
+
+    // text search
+    if (searchValue.trim()) {
+      const query = searchValue.trim().toLowerCase();
+      result = result.filter(
+        (s) =>
+          s.id?.toLowerCase().includes(query) ||
+          s.title?.toLowerCase().includes(query)
+      );
+    }
+
+    // status filter
+    if (filterValue && filterValue !== 'all') {
+      result = result.filter((s) => s.status === filterValue);
+    }
+
+    // sort
+    if (sortValue === 'oldest') {
+      result.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+    } else {
+      result.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+    }
+
+    return result;
+  }, [sessions, searchValue, filterValue, sortValue]);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -209,16 +254,29 @@ export function DesignView() {
           <h2 className="font-semibold">Designs ({sessions.length})</h2>
           <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
         </div>
+        <ListFilter
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="Search designs..."
+          filterOptions={statusFilterOptions}
+          filterValue={filterValue}
+          onFilterChange={setFilterValue}
+          filterPlaceholder="Status"
+          sortOptions={sortOptions}
+          sortValue={sortValue}
+          onSortChange={setSortValue}
+          sortPlaceholder="Sort"
+        />
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-1.5">
-            {sessions.length === 0 ? (
+            {filteredSessions.length === 0 ? (
               <EmptyState
                 icon={<Palette className="h-8 w-8" />}
                 title="시안 없음"
                 description="/mst:stitch로 Stitch 화면을 생성하면 여기에 표시됩니다"
               />
             ) : (
-              sessions.map((session) => (
+              filteredSessions.map((session) => (
                 <div key={session.id} className="relative">
                   <SessionCard
                     id={session.id}

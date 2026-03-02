@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
@@ -13,6 +13,7 @@ import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
 import { useResizableSidebar } from '@/hooks/useResizableSidebar';
 import { ResizableHandle } from '@/components/shared/ResizableHandle';
+import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 
 interface DebugMeta {
   id: string;
@@ -47,6 +48,51 @@ export function DebugView() {
     maxWidth: 600,
     storageKey: 'debug-sidebar-width',
   });
+
+  const [searchValue, setSearchValue] = useState('');
+  const [filterValue, setFilterValue] = useState('all');
+  const [sortValue, setSortValue] = useState('newest');
+
+  const statusFilterOptions: FilterOption[] = [
+    { value: 'all', label: 'All Status' },
+    { value: 'open', label: 'Open' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'done', label: 'Done' },
+  ];
+
+  const sortOptions: FilterOption[] = [
+    { value: 'newest', label: 'Newest First' },
+    { value: 'oldest', label: 'Oldest First' },
+  ];
+
+  const filteredSessions = useMemo(() => {
+    let result = [...sessions];
+
+    // text search
+    if (searchValue.trim()) {
+      const query = searchValue.trim().toLowerCase();
+      result = result.filter(
+        (s) =>
+          s.id?.toLowerCase().includes(query) ||
+          s.issue?.toLowerCase().includes(query) ||
+          s.focus?.toLowerCase().includes(query)
+      );
+    }
+
+    // status filter
+    if (filterValue && filterValue !== 'all') {
+      result = result.filter((s) => s.status === filterValue);
+    }
+
+    // sort
+    if (sortValue === 'oldest') {
+      result.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+    } else {
+      result.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+    }
+
+    return result;
+  }, [sessions, searchValue, filterValue, sortValue]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -217,9 +263,22 @@ export function DebugView() {
             <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
           </div>
         </div>
+        <ListFilter
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="Search by issue or ID..."
+          filterOptions={statusFilterOptions}
+          filterValue={filterValue}
+          onFilterChange={setFilterValue}
+          filterPlaceholder="Status"
+          sortOptions={sortOptions}
+          sortValue={sortValue}
+          onSortChange={setSortValue}
+          sortPlaceholder="Sort"
+        />
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-1.5">
-            {sessions.map((s) => (
+            {filteredSessions.map((s) => (
               <div key={s.id} className="flex items-center">
                 {isEditMode && (
                   <input

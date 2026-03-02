@@ -16,6 +16,7 @@ import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 
 // ---------------------------------------------------------------------------
 // ExploreAgentTabs: renders agent-specific result tabs for Explore sessions
@@ -139,6 +140,22 @@ export function IdeationView() {
     maxWidth: 600,
     storageKey: 'ideation-sidebar-width',
   });
+
+  const [searchValue, setSearchValue] = useState('');
+  const [filterValue, setFilterValue] = useState('all');
+  const [sortValue, setSortValue] = useState('newest');
+
+  const typeFilterOptions: FilterOption[] = [
+    { value: 'all', label: 'All Types' },
+    { value: 'ideation', label: 'Ideation' },
+    { value: 'discussion', label: 'Discussion' },
+    { value: 'explore', label: 'Explore' },
+  ];
+
+  const sortOptions: FilterOption[] = [
+    { value: 'newest', label: 'Newest First' },
+    { value: 'oldest', label: 'Oldest First' },
+  ];
 
   const fetchData = useCallback(async () => {
     try {
@@ -327,11 +344,47 @@ export function IdeationView() {
     return <div className="p-6"><Skeleton className="h-full w-full" /></div>;
   }
 
-  const allSessions = [...ideations, ...discussions, ...explores].sort((a, b) => {
-    const aTime = a.created_at ?? '';
-    const bTime = b.created_at ?? '';
-    return bTime.localeCompare(aTime);
-  });
+  const allSessions = useMemo(() =>
+    [...ideations, ...discussions, ...explores].sort((a, b) => {
+      const aTime = a.created_at ?? '';
+      const bTime = b.created_at ?? '';
+      return bTime.localeCompare(aTime);
+    }), [ideations, discussions, explores]);
+
+  const filteredSessions = useMemo(() => {
+    let result = [...allSessions];
+
+    // text search
+    if (searchValue.trim()) {
+      const query = searchValue.trim().toLowerCase();
+      result = result.filter(
+        (s) =>
+          s.id?.toLowerCase().includes(query) ||
+          s.objective?.toLowerCase().includes(query) ||
+          s.topic?.toLowerCase().includes(query) ||
+          s.focus?.toLowerCase().includes(query)
+      );
+    }
+
+    // type filter
+    if (filterValue && filterValue !== 'all') {
+      result = result.filter((s) => {
+        if (filterValue === 'ideation') return s.id.startsWith('IDN');
+        if (filterValue === 'discussion') return s.id.startsWith('DSC');
+        if (filterValue === 'explore') return s.id.startsWith('EXP');
+        return true;
+      });
+    }
+
+    // sort
+    if (sortValue === 'oldest') {
+      result.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+    } else {
+      result.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+    }
+
+    return result;
+  }, [allSessions, searchValue, filterValue, sortValue]);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -351,9 +404,22 @@ export function IdeationView() {
             <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
           </div>
         </div>
+        <ListFilter
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="Search sessions..."
+          filterOptions={typeFilterOptions}
+          filterValue={filterValue}
+          onFilterChange={setFilterValue}
+          filterPlaceholder="Type"
+          sortOptions={sortOptions}
+          sortValue={sortValue}
+          onSortChange={setSortValue}
+          sortPlaceholder="Sort"
+        />
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-1.5">
-            {allSessions.map((s) => (
+            {filteredSessions.map((s) => (
               <div key={s.id} className="flex items-center">
                 {isEditMode && (
                   <input
