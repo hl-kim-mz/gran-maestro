@@ -33,7 +33,8 @@
     "pre_check_ms": 120000,
     "merge_ms": 60000,
     "user_approval_ms": null,
-    "dashboard_health_check_ms": 10000
+    "dashboard_health_check_ms": 10000,
+    "wait_files_ms": 600000
   },
   "worktree": {
     "root_directory": ".gran-maestro/worktrees",
@@ -70,6 +71,13 @@
     "enabled": false,
     "log_level": "info",
     "log_prompts": false,
+    "agents": {
+      "codex": 1,
+      "gemini": 1,
+      "claude": 0
+    }
+  },
+  "explore": {
     "agents": {
       "codex": 1,
       "gemini": 1,
@@ -183,6 +191,19 @@
   "review": {
     "auto_review": true,
     "max_iterations": 3,
+    "severity_auto_fix": {
+      "enabled": true,
+      "minor_skip_threshold": 3,
+      "pm_direct_fix_enabled": true,
+      "pm_direct_fix_max_files": 1,
+      "pm_direct_fix_max_diff_lines": 20,
+      "security_override_keywords": [
+        "인증", "인가", "인젝션", "시크릿", "XSS", "CSRF",
+        "SQL injection", "권한 우회", "authentication", "authorization",
+        "injection", "secret", "token", "경로 탐색", "path traversal",
+        "코드 인젝션", "code injection", "자격 증명", "API 키"
+      ]
+    },
     "roles": {
       "code_reviewer": {
         "agent": "codex"
