@@ -631,6 +631,39 @@ export function WorkflowView() {
                             </button>
                           </div>
                         )}
+                        {selectedReq?.dependencies && (
+                          (selectedReq.dependencies.blockedBy?.length > 0 || selectedReq.dependencies.blocks?.length > 0) && (
+                            <div className="mb-4 p-3 bg-muted/30 border rounded-md">
+                              <h3 className="text-xs font-bold mb-2 text-muted-foreground uppercase">Dependencies</h3>
+                              <div className="space-y-1">
+                                {selectedReq.dependencies.blockedBy?.map((depId: string) => (
+                                  <div key={`blocked-by-${depId}`} className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground">선행:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate('/workflow/' + depId)}
+                                      className="text-xs font-mono text-primary hover:underline"
+                                    >
+                                      {depId}
+                                    </button>
+                                  </div>
+                                ))}
+                                {selectedReq.dependencies.blocks?.map((depId: string) => (
+                                  <div key={`blocks-${depId}`} className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground">후행:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate('/workflow/' + depId)}
+                                      className="text-xs font-mono text-primary hover:underline"
+                                    >
+                                      {depId}
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        )}
                         <div>
                           <h3 className="text-sm font-bold mb-1">Task Info</h3>
                           <div className="grid grid-cols-2 gap-2 text-xs">
@@ -640,6 +673,12 @@ export function WorkflowView() {
                             <div>{selectedTask.status}</div>
                             <div className="text-muted-foreground">Started:</div>
                             <div>{selectedTask.startedAt || 'N/A'}</div>
+                            {selectedTask.duration != null && (
+                              <>
+                                <div className="text-muted-foreground">Duration:</div>
+                                <div>{Math.floor(selectedTask.duration / 60000)}m {Math.floor((selectedTask.duration % 60000) / 1000)}s</div>
+                              </>
+                            )}
                           </div>
                         </div>
                         {selectedTask.error && (

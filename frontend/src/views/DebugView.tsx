@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Bug } from 'lucide-react';
+import { Bug, ClipboardList, ArrowRight } from 'lucide-react';
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
@@ -21,6 +21,7 @@ interface DebugMeta {
   status?: string;
   created_at?: string;
   logs?: string;
+  linked_plan?: string;
 }
 
 interface DebugDetail {
@@ -29,7 +30,7 @@ interface DebugDetail {
 }
 
 export function DebugView() {
-  const { projectId, lastSseEvent } = useAppContext();
+  const { projectId, lastSseEvent, navigateTo } = useAppContext();
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<DebugMeta[]>([]);
@@ -257,9 +258,22 @@ export function DebugView() {
         {selectedSession ? (
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
-              <div>
-                <h2 className="font-bold text-lg">{selectedSession.issue || selectedSession.id}</h2>
-                <p className="text-xs text-muted-foreground">{selectedSession.created_at?.slice(0, 10)}</p>
+              <div className="flex items-center gap-3">
+                <div>
+                  <h2 className="font-bold text-lg">{selectedSession.issue || selectedSession.id}</h2>
+                  <p className="text-xs text-muted-foreground">{selectedSession.created_at?.slice(0, 10)}</p>
+                </div>
+                {selectedSession.linked_plan && (
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('plans', selectedSession.linked_plan)}
+                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-muted hover:bg-accent transition-colors font-mono"
+                  >
+                    <ClipboardList className="h-3 w-3" />
+                    {selectedSession.linked_plan}
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
+                )}
               </div>
               <StatusBadge status={selectedSession.status ?? ''} />
             </div>
