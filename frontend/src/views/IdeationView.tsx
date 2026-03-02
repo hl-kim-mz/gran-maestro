@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useResizableSidebar } from '@/hooks/useResizableSidebar';
 import { ResizableHandle } from '@/components/shared/ResizableHandle';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -16,6 +16,109 @@ import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+
+// ---------------------------------------------------------------------------
+// ExploreAgentTabs: renders agent-specific result tabs for Explore sessions
+// ---------------------------------------------------------------------------
+function ExploreAgentTabs({
+  sessionData,
+  exploreId,
+  projectId,
+}: {
+  sessionData: Record<string, unknown>;
+  exploreId: string;
+  projectId: string;
+}) {
+  const [agentFiles, setAgentFiles] = useState<string[]>([]);
+  const [agentContents, setAgentContents] = useState<Record<string, string>>({});
+  const [loadingFiles, setLoadingFiles] = useState(false);
+
+  // Fetch the list of agent-specific explore files
+  useEffect(() => {
+    setAgentFiles([]);
+    setAgentContents({});
+    setLoadingFiles(true);
+    apiFetch<string[]>(`/api/explore/${exploreId}/files`, projectId)
+      .then((files) => setAgentFiles(files))
+      .catch(() => setAgentFiles([]))
+      .finally(() => setLoadingFiles(false));
+  }, [exploreId, projectId]);
+
+  // Fetch content for each agent file
+  useEffect(() => {
+    if (agentFiles.length === 0) return;
+    const fetchContents = async () => {
+      const contents: Record<string, string> = {};
+      await Promise.all(
+        agentFiles.map(async (filename) => {
+          try {
+            const data = await apiFetch<{ path: string; content: string }>(
+              `/api/file?path=${encodeURIComponent(`explore/${exploreId}/${filename}`)}`,
+              projectId,
+            );
+            contents[filename] = data.content;
+          } catch {
+            // skip files that fail to load
+          }
+        }),
+      );
+      setAgentContents(contents);
+    };
+    fetchContents();
+  }, [agentFiles, exploreId, projectId]);
+
+  // Derive agent key from filename: explore-{key}.md -> {key}
+  const agentTabs = useMemo(() => {
+    return agentFiles.map((f) => {
+      const match = f.match(/^explore-(.+)\.md$/);
+      return { filename: f, key: match ? match[1] : f };
+    });
+  }, [agentFiles]);
+
+  const synthesisContent =
+    (sessionData as any).report || (sessionData as any).content || '';
+
+  // If no agent files and still loading, show skeleton
+  if (loadingFiles) {
+    return <Skeleton className="h-40 w-full" />;
+  }
+
+  // If no agent result files, just show the synthesis report directly
+  if (agentTabs.length === 0) {
+    return (
+      <MarkdownRenderer content={synthesisContent || '# No report yet'} />
+    );
+  }
+
+  return (
+    <Tabs defaultValue="explore-report" className="w-full">
+      <TabsList className="bg-muted/50 flex-wrap h-auto p-1 gap-1">
+        <TabsTrigger value="explore-report" className="text-xs">
+          Synthesis Report
+        </TabsTrigger>
+        {agentTabs.map((tab) => (
+          <TabsTrigger key={tab.filename} value={tab.filename} className="text-xs">
+            {tab.key}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+
+      <TabsContent value="explore-report" className="mt-4">
+        <MarkdownRenderer content={synthesisContent || '# No report yet'} />
+      </TabsContent>
+
+      {agentTabs.map((tab) => (
+        <TabsContent key={tab.filename} value={tab.filename} className="mt-4">
+          {agentContents[tab.filename] ? (
+            <MarkdownRenderer content={agentContents[tab.filename]} />
+          ) : (
+            <div className="text-sm text-muted-foreground">Loading...</div>
+          )}
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
 
 export function IdeationView() {
   const { projectId, lastSseEvent } = useAppContext();
@@ -318,8 +421,8 @@ export function IdeationView() {
                 <ScrollArea className="h-full">
                   <div className="p-8">
                     {selectedSession.id.startsWith('EXP') ? (
-                      sessionData
-                        ? <MarkdownRenderer content={(sessionData as any).report || (sessionData as any).content || '# No report yet'} />
+                      sessionData && projectId
+                        ? <ExploreAgentTabs sessionData={sessionData} exploreId={selectedSession.id} projectId={projectId} />
                         : <div className="text-sm text-muted-foreground">탐색 중이거나 결과가 없습니다</div>
                     ) : selectedSession.id.startsWith('IDN') ? (
                       sessionData ? <IdeationFlow sessionData={sessionData} /> : <div className="text-sm text-muted-foreground">아직 결과 없음</div>
