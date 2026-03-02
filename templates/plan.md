@@ -37,6 +37,7 @@
 - Stitch 프로젝트: {프로젝트 URL 또는 N/A}
 - 생성 화면:
   - {화면명}: {화면 URL 또는 ID}
+    - 구현 코드: `.gran-maestro/designs/DES-NNN/screen-NNN.html` (또는 N/A)
 
 ## 분리 실행 (해당 시에만)
 
