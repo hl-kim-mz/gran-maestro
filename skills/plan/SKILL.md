@@ -155,6 +155,7 @@ ASCII 도식 작성 규칙:
 
 Read(.gran-maestro/config.json) → plan_review 섹션 취득
 enabled, parallel, max_iterations, roles 값을 메모리에 보관
+escalation_trigger = config.plan_review.escalation_trigger (미설정 시 기본 "major")
 iteration 카운터를 1로 초기화 (current_iteration = 1)
 
 - **enabled == false**: 이 단계 전체 skip → Step 4로 진행
@@ -233,19 +234,26 @@ stdout에 생성된 파일 경로 목록이 출력된다.
 
 #### 3.8.5: 조건부 사용자 추가 질문 & 반복 루프
 
-**CRITICAL 이슈가 1개 이상 존재 시:**
-- 중복·유사 이슈 병합 후 우선순위 정렬
-- **모든** CRITICAL 이슈를 빠짐없이 `AskUserQuestion`으로 질문:
-  - 각 선택지: CRITICAL 이슈를 해소할 수 있는 구체적 옵션 제시
-  - 또는 직접 입력 유도
+**escalate 판단** (escalation_trigger 기반):
+- `escalation_trigger = "critical"`: CRITICAL 이슈 1개 이상 → escalate
+- `escalation_trigger = "major"`: CRITICAL 또는 MAJOR 이슈 1개 이상 → escalate  ← 기본값
+- `escalation_trigger = "minor"`: CRITICAL/MAJOR/MINOR 이슈 1개 이상 → escalate
+
+**escalate 조건 충족 시:**
+- 중복·유사 이슈 병합 후 우선순위 정렬 (CRITICAL 우선)
+- 모든 escalate 이슈를 `AskUserQuestion`으로 질문:
+  - 각 선택지: 이슈를 해소할 수 있는 구체적 옵션 또는 직접 입력 유도
+  - **"반영 없이 진행"** 옵션 추가: 이슈를 무시하고 Step 4로 바로 이동
   - **보조 선택지를 PM 판단으로 상황에 맞게 포함** (ideation / discussion / explore 중 적합한 것 — Step 3 참조)
 - 사용자 답변 반영하여 PM 초안 재정제
 - **반복 판단**:
+  - **"반영 없이 진행" 선택 시**: 즉시 Step 4로 진행 (반복 없음)
   - `current_iteration < max_iterations` → `current_iteration++` → **3.8.2로 돌아가 재리뷰** (정제된 초안 기준으로 프롬프트 재생성 후 에이전트 재dispatch)
   - `current_iteration >= max_iterations` → Step 4로 진행
 
-**CRITICAL 이슈 없음 시:**
-- MAJOR/MINOR 이슈만 PM이 자체 반영 → 초안 재정제 → **반복 없이** 바로 Step 4 진행
+**escalate 조건 미충족 시** (escalation_trigger 미만 이슈만 또는 전체 NO_ISSUES):
+- escalation_trigger 미만 이슈(예: "major" 기준 시 MINOR만): PM이 자체 반영 → 초안 재정제 → **반복 없이** Step 4 진행
+- 전체 NO_ISSUES: PM이 자체 반영 없이 바로 Step 4 진행
 
 Step 4 진입 시 초안은 에이전트 피드백이 반영된 정제 버전이다.
 
