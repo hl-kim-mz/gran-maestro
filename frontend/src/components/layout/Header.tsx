@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { SseStatusDot } from '@/components/shared/SseStatusDot';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun, Bell, Terminal, HelpCircle, Archive } from 'lucide-react';
+import { Moon, Sun, Bell, Terminal, HelpCircle, Archive, Zap } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -21,7 +21,7 @@ import { NotificationPanel } from './NotificationPanel';
 import { Badge } from '@/components/ui/badge';
 
 export function Header({ onShowShortcuts }: { onShowShortcuts: () => void }) {
-  const { sseStatus, theme, setTheme, notifications, projectId, setProjectId, projects } = useAppContext();
+  const { sseStatus, theme, setTheme, notifications, projectId, setProjectId, projects, modeStatus } = useAppContext();
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const [isArchiving, setIsArchiving] = useState(false);
@@ -70,6 +70,25 @@ export function Header({ onShowShortcuts }: { onShowShortcuts: () => void }) {
                 ))}
               </SelectContent>
             </Select>
+          </>
+        )}
+        {modeStatus && (
+          <>
+            <div className="h-4 w-[1px] bg-border mx-2" />
+            <Badge
+              variant={modeStatus.active ? 'default' : 'secondary'}
+              className="flex items-center gap-1 text-xs"
+            >
+              <Zap className="h-3 w-3" />
+              {modeStatus.active ? 'Maestro ON' : 'Maestro OFF'}
+            </Badge>
+            {modeStatus.active && modeStatus.current_phase != null && (
+              <Badge variant="outline" className="text-xs">
+                {modeStatus.current_req
+                  ? `${modeStatus.current_req} — Phase ${modeStatus.current_phase}`
+                  : `Phase ${modeStatus.current_phase}`}
+              </Badge>
+            )}
           </>
         )}
       </div>

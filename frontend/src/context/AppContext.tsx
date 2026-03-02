@@ -16,6 +16,16 @@ export interface CompletionNotification {
   receivedAt: string; // ISO 8601 타임스탬프
 }
 
+export interface ModeStatus {
+  active: boolean;
+  activated_at?: string;
+  deactivated_at?: string;
+  auto_deactivate?: boolean;
+  previous_mode?: string;
+  current_req?: string;
+  current_phase?: number;
+}
+
 interface AppContextType {
   projectId: string;
   setProjectId: (id: string) => void;
@@ -28,6 +38,7 @@ interface AppContextType {
   setTheme: (theme: 'light' | 'dark') => void;
   lastSseEvent: any | null;
   navigateTo: (tab: string, selectedId?: string) => void;
+  modeStatus: ModeStatus | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -39,6 +50,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [notifications, setNotifications] = useState<CompletionNotification[]>([]);
   const [lastSseEvent, setLastSseEvent] = useState<any | null>(null);
+  const [modeStatus, setModeStatus] = useState<ModeStatus | null>(null);
   const [theme, setThemeState] = useState<'light' | 'dark'>(
     () => (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
   );
@@ -86,6 +98,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Fetch mode status
+  const fetchModeStatus = useCallback(() => {
+    apiFetch<ModeStatus>('/api/mode', projectId || undefined)
+      .then((data) => setModeStatus(data))
+      .catch(() => setModeStatus(null)); // AC-4: graceful fallback
+  }, [projectId]);
+
+  // Load mode status on mount and when projectId changes
+  useEffect(() => {
+    fetchModeStatus();
+  }, [fetchModeStatus]);
+
   const onSseEvent = useCallback((event: any) => {
     const eventType = event?.type;
     if (eventType === 'heartbeat' || eventType === 'connected') return;
@@ -97,9 +121,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     }
 
+    // AC-3: Re-fetch mode status on phase_change SSE event
+    if (eventType === 'phase_change') {
+      fetchModeStatus();
+    }
+
     setLastSseEvent(event);
     // Trigger re-fetches or other logic based on event type if needed
-  }, []);
+  }, [fetchModeStatus]);
 
   const { status: sseStatus } = useSse(onSseEvent);
 
@@ -124,6 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTheme,
       lastSseEvent,
       navigateTo,
+      modeStatus,
     }}>
       {children}
     </AppContext.Provider>
