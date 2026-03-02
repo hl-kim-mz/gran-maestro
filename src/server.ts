@@ -25,6 +25,7 @@ import { projectDesignsApi } from "./routes/designs.ts";
 import { projectPlansApi } from "./routes/plans.ts";
 import { projectRequestsApi } from "./routes/requests.ts";
 import { projectTreeApi } from "./routes/tree.ts";
+import { projectWorktreesApi } from "./routes/worktrees.ts";
 import { projectRegistryApi } from "./routes/projects.ts";
 import { projectManageApi } from "./routes/manage.ts";
 
@@ -54,6 +55,7 @@ projectApi.route("/", projectManageApi);
 projectApi.route("/", projectIdeationApi);
 projectApi.route("/", projectDiscussionApi);
 projectApi.route("/", projectTreeApi);
+projectApi.route("/", projectWorktreesApi);
 
 app.route("/api/projects", projectRegistryApi);
 app.route("/api/projects/:projectId", projectApi);
