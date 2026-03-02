@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { RefreshCcw, Replace, Save } from 'lucide-react';
 import { SETTING_DESCRIPTIONS } from '@/config/settingDescriptions';
 import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
+import { TagInput } from '@/components/shared/TagInput';
 import { deepSet, getNestedValue, deepRemove } from '@/lib/utils';
 
 type FieldCardProps = {
@@ -64,7 +65,12 @@ const FieldCard = React.memo(function FieldCard({
               Delete
             </Button>
           )}
-          {value === null ? (
+          {Array.isArray(value) ? (
+            <TagInput
+              tags={value.map(String)}
+              onChange={(tags) => onValueChange(fullPath, tags)}
+            />
+          ) : value === null ? (
             <Input
               value=""
               placeholder="null"
@@ -114,6 +120,14 @@ export function SettingsView() {
     }
     fetchConfig();
   }, [projectId]);
+
+  // SSE config_change auto-refresh
+  useEffect(() => {
+    if (!lastSseEvent || !projectId) return;
+    if (lastSseEvent.type === 'config_change') {
+      fetchConfig();
+    }
+  }, [lastSseEvent]);
 
   async function fetchConfig() {
     setLoading(true);
