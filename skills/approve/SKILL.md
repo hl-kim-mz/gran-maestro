@@ -417,6 +417,8 @@ Write -> .gran-maestro/requests/{REQ-ID}/tasks/{NN}/prompts/phase2-impl.md
 
 브리프는 `templates/impl-request.md` 템플릿 사용.
 - `{{IMPL_CONTEXT}}`: PM 작성 — 3~5줄 자유 형식 (무엇을, 왜, 어떻게 + 주의사항)
+  - `request.json`에 `linked_designs`가 존재하고 비어있지 않으면, `{{IMPL_CONTEXT}}` 끝에 다음 문구를 자동 추가:
+    `"spec.md §10의 Stitch HTML 파일을 참조하되 기술 스택에 맞게 구현하세요."`
 - `{{SPEC_PATH}}`, `{{WORKTREE_PATH}}`, `{{REQ_ID}}`, `{{TASK_ID}}`: 자동 주입
 - `{{PREV_FEEDBACK_PATH}}`: 첫 실행 시 "N/A", 재실행 시 feedback 파일 경로
 
