@@ -74,6 +74,48 @@ async function findLinkedPlan(baseDir: string, reqId: string): Promise<string | 
   return null;
 }
 
+async function buildReqToDesMap(baseDir: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const designsDir = `${baseDir}/designs`;
+  if (!(await dirExists(designsDir))) return map;
+
+  const desDirs = (await listDirs(designsDir)).filter((dir) => /^DES-/.test(dir));
+  await Promise.all(
+    desDirs.map(async (dir) => {
+      const desJson = await readJsonFile<{ id?: string; linked_req?: string }>(
+        `${designsDir}/${dir}/design.json`
+      );
+      if (!desJson?.linked_req) return;
+      const desId = desJson.id || dir;
+      if (!map.has(desJson.linked_req)) {
+        map.set(desJson.linked_req, desId);
+      }
+    })
+  );
+  return map;
+}
+
+async function findLinkedDesign(baseDir: string, reqId: string): Promise<string | null> {
+  const designsDir = `${baseDir}/designs`;
+  if (!(await dirExists(designsDir))) return null;
+
+  const desDirs = (await listDirs(designsDir)).filter((dir) => /^DES-/.test(dir));
+  const desJsons = await Promise.all(
+    desDirs.map((dir) =>
+      readJsonFile<{ id?: string; linked_req?: string }>(
+        `${designsDir}/${dir}/design.json`
+      )
+    )
+  );
+  for (let i = 0; i < desDirs.length; i++) {
+    const desJson = desJsons[i];
+    if (desJson?.linked_req === reqId) {
+      return desJson.id || desDirs[i];
+    }
+  }
+  return null;
+}
+
 projectRequestsApi.get("/requests", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
   if (!baseDir) {
@@ -85,7 +127,10 @@ projectRequestsApi.get("/requests", async (c) => {
     return c.json([]);
   }
 
-  const reqToPlanMap = await buildReqToPlanMap(baseDir);
+  const [reqToPlanMap, reqToDesMap] = await Promise.all([
+    buildReqToPlanMap(baseDir),
+    buildReqToDesMap(baseDir),
+  ]);
 
   const requests: RequestMeta[] = [];
   const requestDirs = (await listDirs(requestsDir)).filter((dir) => /^REQ-/.test(dir));
@@ -112,6 +157,7 @@ projectRequestsApi.get("/requests", async (c) => {
         id: requestId,
         created_at: createdAt,
         linked_plan: reqToPlanMap.get(requestId) ?? null,
+        linked_design: reqToDesMap.get(requestId) ?? null,
         review_summary: reqJson.review_summary ?? null,
       });
     }
@@ -141,6 +187,7 @@ projectRequestsApi.get("/requests", async (c) => {
         created_at: createdAt,
         _location: "completed",
         linked_plan: reqToPlanMap.get(requestId) ?? null,
+        linked_design: reqToDesMap.get(requestId) ?? null,
         review_summary: reqJson.review_summary ?? null,
       });
     }
@@ -174,7 +221,10 @@ projectRequestsApi.get("/requests/:id", async (c) => {
     return c.json({ error: "Request not found" }, 404);
   }
   const requestId = reqJson.id || id;
-  const linkedPlan = await findLinkedPlan(baseDir, requestId);
+  const [linkedPlan, linkedDesign] = await Promise.all([
+    findLinkedPlan(baseDir, requestId),
+    findLinkedDesign(baseDir, requestId),
+  ]);
   let createdAt = reqJson.created_at as string | undefined;
   if (!createdAt || createdAt.includes("T00:00:00")) {
     try {
@@ -192,6 +242,7 @@ projectRequestsApi.get("/requests/:id", async (c) => {
     id: requestId,
     created_at: createdAt,
     linked_plan: linkedPlan ?? null,
+    linked_design: linkedDesign ?? null,
     review_summary: reqJson.review_summary ?? null,
   });
 });
@@ -306,6 +357,14 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
     // Task directory exists but files not ready yet — return partial data
   }
 
+  const worktreeMetaPath = `${baseDir}/worktrees/${id}-${taskId}.meta.json`;
+  const worktreeMeta = await readJsonFile<{
+    path?: string;
+    branch?: string;
+    state?: string;
+    last_activity_at?: string;
+  }>(worktreeMetaPath);
+
   return c.json({
     id: taskId,
     requestId: id,
@@ -314,6 +373,14 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
     review: review ?? null,
     feedback: feedback ?? null,
     traces: traceFiles,
+    worktree: worktreeMeta
+      ? {
+          path: worktreeMeta.path ?? null,
+          branch: worktreeMeta.branch ?? null,
+          state: worktreeMeta.state ?? null,
+          last_activity_at: worktreeMeta.last_activity_at ?? null,
+        }
+      : null,
   });
 });
 
