@@ -154,9 +154,10 @@ ASCII 도식 작성 규칙:
 #### 3.8.0: config 읽기 및 enabled 확인
 
 Read(.gran-maestro/config.json) → plan_review 섹션 취득
+plan_review 섹션이 없으면 → Read(templates/defaults/config.json) → plan_review 섹션으로 fallback
 enabled, parallel, max_iterations, roles 값을 메모리에 보관
 escalation_trigger = config.plan_review.escalation_trigger (미설정 시 기본 "major")
-minor_escalation_threshold = config.plan_review.minor_escalation_threshold (미설정 시 null — 기능 비활성)
+minor_escalation_threshold = config.plan_review.minor_escalation_threshold (미설정 시 defaults fallback, defaults에도 없으면 null — 기능 비활성)
 iteration 카운터를 1로 초기화 (current_iteration = 1)
 
 - **enabled == false**: 이 단계 전체 skip → Step 4로 진행
