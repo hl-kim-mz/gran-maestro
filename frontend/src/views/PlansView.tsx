@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useResizableSidebar } from '@/hooks/useResizableSidebar';
+import { ResizableHandle } from '@/components/shared/ResizableHandle';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -70,6 +72,13 @@ export function PlansView() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const { sidebarWidth, isResizing, startResizing, sidebarRef } = useResizableSidebar({
+    defaultWidth: 300,
+    minWidth: 250,
+    maxWidth: 600,
+    storageKey: 'plans-sidebar-width',
+  });
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -323,8 +332,8 @@ export function PlansView() {
   const parsedLinkedScreen = linkedScreenContent ? parseScreenContent(linkedScreenContent) : null;
 
   return (
-    <div className="grid grid-cols-12 gap-0 h-full overflow-hidden">
-      <div className="col-span-4 border-r flex flex-col min-h-0">
+    <div className="flex h-full overflow-hidden">
+      <div ref={sidebarRef} style={{ width: sidebarWidth }} className="border-r flex flex-col min-h-0 shrink-0">
         <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
           <h2 className="font-semibold">Plans ({plans.length})</h2>
           <div className="flex items-center gap-2">
@@ -375,8 +384,8 @@ export function PlansView() {
           </div>
         </ScrollArea>
       </div>
-
-      <div className="col-span-8 flex flex-col bg-card min-h-0">
+      <ResizableHandle isResizing={isResizing} onMouseDown={startResizing} />
+      <div className="flex-1 flex flex-col bg-card min-h-0 overflow-hidden">
         {selectedPlan ? (
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">

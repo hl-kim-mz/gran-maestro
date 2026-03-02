@@ -179,14 +179,27 @@ function Cards({ items, fallbackText }: { items: FlowItem[]; fallbackText: strin
 
   if (items.length >= 3) {
     return (
-      <Tabs defaultValue={`${items[0].title}-${0}`}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+      <Tabs defaultValue="__all__">
+        <TabsList className="flex flex-wrap justify-start h-auto gap-1 bg-muted/50 p-1">
+          <TabsTrigger value="__all__" className="text-xs">
+            전체
+          </TabsTrigger>
           {items.map((item, index) => (
             <TabsTrigger key={`${item.title}-${index}`} value={`${item.title}-${index}`} className="text-xs">
               {item.title}
             </TabsTrigger>
           ))}
         </TabsList>
+        <TabsContent value="__all__" className="mt-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {items.map((item, index) => (
+              <div key={`${item.title}-${index}`} className="rounded-lg border bg-card p-3 overflow-auto">
+                <div className="text-xs font-semibold text-muted-foreground mb-2">{item.title}</div>
+                <MarkdownRenderer content={item.content} className="text-sm text-foreground" />
+              </div>
+            ))}
+          </div>
+        </TabsContent>
         {items.map((item, index) => (
           <TabsContent key={`${item.title}-${index}`} value={`${item.title}-${index}`} className="mt-3">
             <div className="rounded-lg border bg-card p-3">

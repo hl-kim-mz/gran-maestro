@@ -12,6 +12,8 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EditModeToolbar } from '@/components/EditModeToolbar';
+import { useResizableSidebar } from '@/hooks/useResizableSidebar';
+import { ResizableHandle } from '@/components/shared/ResizableHandle';
 
 type LogStreamStatus = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
 
@@ -52,6 +54,13 @@ export function WorkflowView() {
   const retryCountRef = useRef(0);
   const lastEventIdRef = useRef<string | null>(null);
   const isAtBottomRef = useRef(true);
+
+  const { sidebarWidth, isResizing, startResizing, sidebarRef } = useResizableSidebar({
+    defaultWidth: 300,
+    minWidth: 250,
+    maxWidth: 500,
+    storageKey: 'workflow-sidebar-width',
+  });
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -470,9 +479,9 @@ export function WorkflowView() {
   }
 
   return (
-    <div className="grid grid-cols-12 h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* REQ List */}
-      <div className="col-span-3 border-r flex flex-col min-h-0">
+      <div ref={sidebarRef} style={{ width: sidebarWidth }} className="border-r flex flex-col min-h-0 shrink-0">
         <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
           <h2 className="font-semibold">Requests</h2>
           <div className="flex items-center gap-2">
@@ -523,8 +532,10 @@ export function WorkflowView() {
         </ScrollArea>
       </div>
 
+      <ResizableHandle isResizing={isResizing} onMouseDown={startResizing} />
+
       {/* REQ Detail & Tasks */}
-      <div className="col-span-9 flex flex-col bg-card overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col bg-card overflow-hidden min-h-0">
         {selectedReq ? (
           <>
             <div className="p-4 border-b flex justify-between items-center bg-muted/10">
