@@ -183,7 +183,7 @@ description: "기존 설정을 유지합니다"
 
 #### 3.8.0: config 읽기 및 enabled 확인
 
-Read(.gran-maestro/config.json) → plan_review 섹션 취득
+Read(.gran-maestro/config.resolved.json) → plan_review 섹션 취득
 plan_review 섹션이 없으면 → Read(templates/defaults/config.json) → plan_review 섹션으로 fallback
 enabled, parallel, max_iterations, roles 값을 메모리에 보관
 escalation_trigger = config.plan_review.escalation_trigger (미설정 시 기본 "major")

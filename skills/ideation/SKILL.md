@@ -189,7 +189,7 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
 > - 각 응답은 파일로 직접 쓰기, 프롬프트도 파일로 저장 후 `--prompt-file` 사용
 > - agent는 프롬프트 파일 실행 전 반드시 공유 컨텍스트 파일을 Read해야 합니다
 
-> **모델 결정**: `config.json`의 `models.claude.ideation` 참조 (opus / sonnet)
+> **모델 결정**: `config.resolved.json`의 `models.claude.ideation` 참조 (opus / sonnet)
 
 2. **participant Task() 발송** (`participants` 동적 순회):
 
@@ -316,7 +316,7 @@ Synthesis prompt는 템플릿 `templates/ideation-synthesis.md` 사용.
 
 ### Step 5: 아카이브 체크 (완료 시, 자동)
 
-config.json의 `archive.auto_archive_on_complete`가 true이면 `archive` 절차 수행(상세는 `/mst:archive`).
+config.resolved.json의 `archive.auto_archive_on_complete`가 true이면 `archive` 절차 수행(상세는 `/mst:archive`).
 
 ## 에러 처리
 

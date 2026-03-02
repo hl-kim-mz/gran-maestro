@@ -2,6 +2,7 @@
 .omc/
 /node_modules/
 /.gran-maestro/
+config.resolved.json
 
 frontend/node_modules/
 /frontend/.gran-maestro/

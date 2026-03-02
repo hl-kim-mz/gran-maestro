@@ -43,7 +43,7 @@ argument-hint: "[REQ-ID] [--auto]"
 1. **AC 목록 수집**: 모든 `tasks/NN/spec.md` Read → `## 3. 수락 조건` 섹션에서 AC 항목 추출.
 2. **변경 파일 목록 수집**: `git log --name-only` 또는 `git diff <base>..HEAD --name-only` 기반으로 REQ 관련 변경 파일 목록 작성.
 3. **AC별 파일 매핑 준비**: 각 AC 항목과 관련 변경 파일 연결.
-4. **config 로드**: `config.json`에서 `review.roles.*` 에이전트 키, `review.max_iterations` 값 확인.
+4. **config 로드**: `config.resolved.json`에서 `review.roles.*` 에이전트 키, `review.max_iterations` 값 확인.
    - `review.max_iterations` 키 경로: `config.review.max_iterations` (T02에서 config에 추가됨. 미정의 시 기본값 3 사용).
 
 ### Step 3: 병렬 실행 시작

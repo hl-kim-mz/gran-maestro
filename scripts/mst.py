@@ -103,6 +103,25 @@ def save_json(path: Path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def deep_merge(base, override, depth=0):
+    if depth > 20:
+        return override
+
+    if not isinstance(base, dict) or not isinstance(override, dict):
+        return override
+
+    result = dict(base)
+    for key, override_value in override.items():
+        base_value = base.get(key)
+        if isinstance(base_value, dict) and isinstance(override_value, dict):
+            result[key] = deep_merge(base_value, override_value, depth + 1)
+        elif isinstance(override_value, list):
+            result[key] = override_value
+        else:
+            result[key] = override_value
+    return result
+
+
 def requests_dir() -> Path:
     return BASE_DIR / "requests"
 
@@ -1239,6 +1258,17 @@ def cmd_task_set_commit(args):
     return 0
 
 
+def cmd_config_resolve(args):
+    plugin_root = Path(__file__).resolve().parent.parent
+    defaults_path = plugin_root / "templates" / "defaults" / "config.json"
+    defaults = load_json(defaults_path) or {}
+    overrides = load_json(BASE_DIR / "config.json") or {}
+    resolved = deep_merge(defaults, overrides)
+    save_json(BASE_DIR / "config.resolved.json", resolved)
+    print(f"config.resolved.json updated ({len(resolved)} top-level keys)")
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
@@ -1441,6 +1471,12 @@ def build_parser():
     notify_parser.add_argument("event_type")
     notify_parser.add_argument("data", nargs="?", default=None)
 
+    # --- config ---
+    cfg = sub.add_parser("config")
+    cfg_sub = cfg.add_subparsers(dest="subcommand")
+    cfg_resolve = cfg_sub.add_parser("resolve", help="defaults + overrides → config.resolved.json")
+    cfg_resolve.set_defaults(func=cmd_config_resolve)
+
     return parser
 
 
@@ -1493,6 +1529,7 @@ def main():
         ("notify", None): cmd_notify,
         ("stitch", "sleep"): cmd_stitch_sleep,
         ("wait-files", None): cmd_wait_files,
+        ("config", "resolve"): cmd_config_resolve,
     }
 
     key = (args.command, getattr(args, "subcommand", None))
