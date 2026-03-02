@@ -25,6 +25,7 @@ export function Header({ onShowShortcuts }: { onShowShortcuts: () => void }) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const [isArchiving, setIsArchiving] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const handleArchiveAll = async () => {
     setIsArchiving(true);
@@ -114,7 +115,7 @@ export function Header({ onShowShortcuts }: { onShowShortcuts: () => void }) {
           <HelpCircle className="h-5 w-5" />
         </Button>
 
-        <Sheet>
+        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
@@ -129,7 +130,7 @@ export function Header({ onShowShortcuts }: { onShowShortcuts: () => void }) {
             <SheetHeader>
               <SheetTitle>Notifications</SheetTitle>
             </SheetHeader>
-            <NotificationPanel />
+            <NotificationPanel onNavigate={() => setSheetOpen(false)} />
           </SheetContent>
         </Sheet>
       </div>
