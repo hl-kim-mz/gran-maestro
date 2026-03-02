@@ -647,6 +647,44 @@ Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_pat
    - **`status: "passed"`**: `review_summary.status → "passed"` → "최종 수락 (Phase 3 → Phase 5)" 섹션으로 진행
      (`workflow.auto_accept_result` 설정 동일 적용)
    - **`status: "gap_found"`**:
+     `review_issues_summary`(T02 스키마: critical/major/minor 카운트 + auto_fixed/skipped 배열)를 참조하여 이슈 등급별 분기:
+
+     **a. CRITICAL 이슈 존재 시**: CRITICAL은 PM 직접 수정 불가, 항상 재외주. 아래 기존 재외주 경로로 진행.
+
+     **b. MAJOR 이슈 — PM 직접 수정 분기**:
+
+     > **CRITICAL은 PM 직접 수정 불가, 항상 재외주**
+
+     MAJOR 이슈 중 아래 **모든 조건**을 충족하면 PM이 worktree에서 직접 수정:
+
+     1. **등급 조건**: MAJOR만 (CRITICAL 이슈가 동시에 존재하면 해당 CRITICAL은 반드시 재외주)
+     2. **설정 조건**: `config.review.severity_auto_fix.pm_direct_fix_enabled == true`
+     3. **파일 수 조건**: 변경 대상 파일 수 <= `config.review.severity_auto_fix.pm_direct_fix_max_files`
+     4. **diff 크기 조건**: 예상 diff 줄 수 <= `config.review.severity_auto_fix.pm_direct_fix_max_diff_lines`
+     5. **고위험 패턴 배제**: 변경 대상이 아래에 해당하지 않아야 함:
+        - API 스펙 (OpenAPI/Swagger 정의)
+        - DB 스키마 / 마이그레이션 파일
+        - 권한(auth) 로직 / 보안 코드
+        - 공통 유틸 (shared/common 모듈)
+
+     **PM 직접 수정 조건 미충족 시** → 기존 재외주 경로(아래 c.)로 전환.
+
+     **PM 직접 수정 절차**:
+
+     MAJOR 이슈가 여러 개인 경우, 조건을 충족하는 이슈만 PM이 직접 수정하고 나머지는 재외주.
+
+     1. PM이 review에서 지적된 MAJOR 이슈를 분석하고 해당 worktree에서 직접 코드 수정
+     2. **검증 게이트** (PASS 필수):
+        - spec §5 테스트 명령어 실행 → PASS 필수
+        - spec §5 타입 체크 명령어 실행 → PASS 필수
+        - **게이트 PASS**: Step 5.5와 동일한 커밋 절차 적용 (add → commit → hash 저장)
+        - **게이트 FAIL**: 수정 롤백 (`git -C {worktree_path} checkout -- .`) 후 재외주 경로(아래 c.)로 전환
+     3. **메타데이터 기록**: `review-report.md`에 아래 항목 기록:
+        - `pm_direct_fix: true`
+        - 수정된 파일 목록
+        - 수정 내용 요약 (어떤 MAJOR 이슈를 어떻게 수정했는지)
+
+     **c. MAJOR 조건 미충족 또는 재외주 경로**:
      1. `request.json.tasks`에서 `generated_by: "review"` + `status: "pending"` 태스크만 선별
      2. **Step 4a 포함** 재실행: 신규 태스크 worktree 생성 후 4b~4e 실행
      3. 재실행 완료 후 `current_phase → 3` 재전환 → 이 루프 반복
