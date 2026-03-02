@@ -263,6 +263,30 @@ export function classifyFsEvent(
     };
   }
 
+  // Pattern: .gran-maestro/designs/DES-XXX/...
+  const designMatch = normPath.match(/\.gran-maestro\/designs\/(DES-[^/]+)/);
+  if (designMatch) {
+    return {
+      type: "design_update",
+      projectId,
+      designId: designMatch[1],
+      data: { path, kind, timestamp: new Date().toISOString() },
+    };
+  }
+
+  // Pattern: .gran-maestro/explore/EXP-XXX/...
+  const exploreMatch = normPath.match(
+    /\.gran-maestro\/explore\/(EXP-\d+)\/[^/]+/
+  );
+  if (exploreMatch) {
+    return {
+      type: "explore_update",
+      projectId,
+      sessionId: exploreMatch[1],
+      data: { path, kind, timestamp: new Date().toISOString() },
+    };
+  }
+
   // Generic agent activity for log files
   if (normPath.includes("exec-log") || normPath.includes("activity")) {
     return {

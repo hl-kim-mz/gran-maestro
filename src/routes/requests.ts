@@ -315,9 +315,42 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
 
   const taskDir = `${requestDir}/tasks/${taskId}`;
 
-  const status = await readJsonFile<TaskMeta>(`${taskDir}/status.json`);
+  const statusPath = `${taskDir}/status.json`;
+  const status = await readJsonFile<TaskMeta>(statusPath);
   const spec = await readTextFile(`${taskDir}/spec.md`);
   const feedback = await readTextFile(`${taskDir}/feedback.md`);
+
+  const parseTimestamp = (value: unknown): number | null => {
+    if (typeof value !== "string") return null;
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const isTerminalStatus = (value?: string): boolean =>
+    value === "done" || value === "completed";
+
+  let duration: number | null = null;
+  if (status) {
+    const startedAtMs = parseTimestamp(status.started_at);
+    if (startedAtMs !== null) {
+      let completedAtMs = parseTimestamp(status.completed_at);
+
+      if (completedAtMs === null && isTerminalStatus(status.status)) {
+        try {
+          const statusStat = await Deno.stat(statusPath);
+          if (statusStat.mtime) {
+            completedAtMs = statusStat.mtime.getTime();
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (completedAtMs !== null) {
+        duration = completedAtMs - startedAtMs;
+      }
+    }
+  }
 
   // Find review: try review.md first, then latest review-*.md
   let review = await readTextFile(`${taskDir}/review.md`);
@@ -368,6 +401,7 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
   return c.json({
     id: taskId,
     requestId: id,
+    duration,
     status: status ?? { id: taskId, status: "unknown" },
     spec: spec ?? null,
     review: review ?? null,

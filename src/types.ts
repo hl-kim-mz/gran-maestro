@@ -68,6 +68,9 @@ export interface TaskMeta {
   id: string;
   requestId: string;
   status?: string;
+  duration?: number | null;
+  started_at?: string;
+  completed_at?: string;
   agent?: string;
   [key: string]: unknown;
 }
