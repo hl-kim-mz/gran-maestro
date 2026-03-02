@@ -4,6 +4,37 @@
 
 ---
 
+## [0.45.0] — 2026-03-02
+
+### 새 기능
+
+- **대시보드 SPA 라우팅**: React Router 기반 클라이언트 사이드 라우팅 도입으로 페이지 새로고침 없이 뷰 전환 가능
+- **대시보드 신규 뷰 3종**: Overview(전체 현황), Archives(아카이브 관리), AgentPerformance(에이전트 성과 분석) 뷰 추가
+- **아카이브 API**: GET /archives, POST /archives/:id/restore 엔드포인트로 아카이브 조회 및 복원 지원
+- **통합 통계 API**: GET /stats, /stats/agents 엔드포인트로 전체 통계 및 에이전트별 성과 데이터 제공
+- **워크트리 현황 API**: GET /worktrees 엔드포인트로 활성 워크트리 현황 조회 지원
+- **SSE 이벤트 확장**: design_update/explore_update 패턴 추가 및 태스크 duration 필드 지원
+- **Explore 에이전트 설정**: config에 explore 에이전트 구성 섹션 추가
+- **리뷰 자동 수정 설정**: severity_auto_fix 설정으로 MINOR 이슈 자동 수정 정책 및 보안 키워드 오버라이드 지원
+
+### 개선
+
+- **공통 ListFilter 컴포넌트**: 5개 목록 뷰에 일관된 필터링 UI 적용
+- **IdeationView 개선**: Explore 에이전트별 결과 탭 분리 및 React #310 적용
+- **SettingsView 개선**: 배열 편집 UI, SETTING_DESCRIPTIONS 18키 보완, Modified/Custom 배지, Reset/Delete 버튼
+- **DocumentsView 개선**: 트리 확장 및 파일 검색 기능 추가
+- **NotificationPanel 개선**: 알림→세션 네비게이션, Sheet 자동 닫기
+- **Header 상태 인디케이터**: mode.json 상태를 헤더에 실시간 표시
+- **DebugView 개선**: Plan 링크, dependencies 표시, duration 정보 추가
+- **백엔드 deepMerge**: 설정 API에 deepMerge 유틸 적용으로 부분 업데이트 지원
+
+### 버그 수정
+
+- **Path Traversal 취약점 수정**: Deno.realPath + baseDir 접두사 검증으로 경로 탐색 공격 방어
+- **SettingsView lastSseEvent 버그 수정**: SSE 이벤트 상태 관리 오류 해결
+
+---
+
 ## [0.44.1] — 2026-03-02
 
 ### 개선
