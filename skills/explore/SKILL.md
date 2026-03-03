@@ -11,13 +11,19 @@ argument-hint: "{탐색 목표 설명} [--focus {파일패턴}]"
 
 ## 3. 실행 프로토콜(요약)
 
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
+
 ### Step 0: 아카이브 체크 (자동)
 
 `archive.auto_archive_on_create=true` 시 `EXP-*` 세션 수 확인 → `max_active_sessions` 초과 시 완료 세션 아카이브 후 진행
 
 ### Step 1: 초기화
 
-1. `.gran-maestro/explore/` 확인/생성 →
+1. `{PROJECT_ROOT}/.gran-maestro/explore/` 확인/생성 →
    **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type exp` → EXP-NNN ID 사용
    **Fallback**: `counter.json` 직접 Read/Write로 채번 → `session.json` 작성
 2. `session.json` 구조: `id`, `goal`, `focus`, `status:"exploring"`, `created_at`, `explorers:{codex,gemini}`, `claude_synthesis`, `participant_config`
@@ -54,7 +60,7 @@ Claude가 탐색 목표 분석 → Codex: 코드 구조/구현 패턴 추적; Ge
 
 ### Step 3: Claude PM 종합
 
-`explore-{key}.md` 읽어 `explore-report.md` 작성. 완료 안내: `plan에서 참조하려면: .gran-maestro/explore/EXP-NNN/explore-report.md`
+`explore-{key}.md` 읽어 `explore-report.md` 작성. 완료 안내: `plan에서 참조하려면: {PROJECT_ROOT}/.gran-maestro/explore/EXP-NNN/explore-report.md`
 
 ### Step 4: 사용자 표시
 

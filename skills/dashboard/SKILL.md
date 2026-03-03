@@ -15,8 +15,14 @@ argument-hint: "[--port {포트}] [--stop] [--restart]"
 
 ## 실행 프로토콜
 
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
+
 1. 플러그인 루트 확인 (스킬 베이스 디렉토리에서 2단계 상위)
-2. `.gran-maestro/` 디렉토리 확인: `mkdir -p .gran-maestro`
+2. `{PROJECT_ROOT}/.gran-maestro/` 디렉토리 확인: `mkdir -p {PROJECT_ROOT}/.gran-maestro`
 3. Deno 설치 확인: `deno --version` (실패 시 https://deno.land 안내 후 종료)
 4. 인자 파싱: `--stop` / `--restart` / `--port <N>` (기본: 3847)
 5. `--stop`: `kill $(cat ~/.gran-maestro-hub/hub.pid)` 후 종료

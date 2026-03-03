@@ -22,6 +22,12 @@ argument-hint: "[--run [--type {ideation|discussion|requests}]] [--restore {ID}]
 
 ## 실행 프로토콜
 
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
+
 ### 인자 없음: 아카이브 현황 표시
 
 `archive` 설정 로드 → 각 타입 디렉토리 스캔(IDN-*/DSC-*/REQ-* 수) + `archived/`의 tar.gz 파일 수/디스크 사용량 확인 → 현황 표시:
@@ -50,8 +56,8 @@ requests     23      0         초과 (3개 아카이브 대상)
 3. 완료 세션을 `created_at` 오래된 순 정렬 → `max_active_sessions` 초과분 선별
 4. `{type_dir}/archived/` 생성 후 tar.gz 압축 (원본 삭제):
    ```bash
-   tar -czf .gran-maestro/{type_dir}/archived/{type}-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
-     -C .gran-maestro/{type_dir} {session_dirs...}
+   tar -czf {PROJECT_ROOT}/.gran-maestro/{type_dir}/archived/{type}-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
+     -C {PROJECT_ROOT}/.gran-maestro/{type_dir} {session_dirs...}
    ```
 5. `archive_retention_days` 설정 시 만료된 tar.gz 자동 삭제 (mtime 기준)
 6. 결과 요약 표시:
@@ -70,7 +76,7 @@ requests: 3개 세션 아카이브됨
 
 1. ID 접두사(REQ/IDN/DSC/DBG)로 타입 결정 → `archived/`에서 해당 ID 포함 tar.gz 탐색
 2. 목록 확인: `tar -tzf {archive_file} | grep {ID}`
-3. 세션 디렉토리만 추출: `tar -xzf {archive_file} -C .gran-maestro/{type_dir} {session_dir}`
+3. 세션 디렉토리만 추출: `tar -xzf {archive_file} -C {PROJECT_ROOT}/.gran-maestro/{type_dir} {session_dir}`
 4. 복원 결과 표시; 아카이브 파일 자체는 삭제 안 함
 
 ### `--purge [--before {YYYY-MM-DD}]`: 오래된 아카이브 삭제

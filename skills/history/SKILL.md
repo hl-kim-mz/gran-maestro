@@ -11,10 +11,16 @@ argument-hint: "[{REQ-ID}] [--limit {N}]"
 
 ## 실행 프로토콜
 
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
+
 **스크립트 우선 실행**: `python3 {PLUGIN_ROOT}/scripts/mst.py request history` 실행. 성공 시 출력 그대로 사용. 실패 시 fallback.
 
 **Fallback:**
-1. `.gran-maestro/requests/` 스캔
+1. `{PROJECT_ROOT}/.gran-maestro/requests/` 스캔
 2. `status: completed` 또는 `status: cancelled`인 요청 필터링
 3. 특정 REQ ID 지정 시 상세 이력, 미지정 시 요약 목록
 
@@ -74,7 +80,7 @@ Phase 5: 수락 완료
 
 ### `--archive` (목록)
 
-1. 각 `.gran-maestro/{ideation,discussion,requests,debug}/archived/` 디렉토리의 .tar.gz 파일 스캔
+1. 각 `{PROJECT_ROOT}/.gran-maestro/{ideation,discussion,requests,debug}/archived/` 디렉토리의 .tar.gz 파일 스캔
 2. 각 파일의 내용 목록을 확인하여 세션 ID 추출
 3. 타입별로 그룹화하여 표시:
 

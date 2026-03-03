@@ -11,21 +11,27 @@ argument-hint: "{주제} [--focus {architecture|ux|performance|security|cost}]"
 
 ## 실행 프로토콜
 
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
+
 ### Step 1: 초기화
 
-1. `.gran-maestro/ideation/` 디렉토리 존재 확인, 없으면 생성
+1. `{PROJECT_ROOT}/.gran-maestro/ideation/` 디렉토리 존재 확인, 없으면 생성
 2. 새 세션 ID 채번 (IDN-NNN):
    - **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type idn` → 출력 ID 사용
    - **Fallback (counter.json 기반)**:
-     - `.gran-maestro/ideation/counter.json` 파일 Read
+     - `{PROJECT_ROOT}/.gran-maestro/ideation/counter.json` 파일 Read
      - **파일 존재 시**: `next_id = last_id + 1`
      - **파일 미존재 시** (최초 또는 복구):
-       a. `.gran-maestro/ideation/` 하위의 기존 IDN-* 디렉토리 스캔
-       b. `.gran-maestro/archive/` 내 `ideation-*` tar.gz 파일명에서 ID 범위 추출 (예: `ideation-IDN001-IDN005-*.tar.gz` → max 5)
+       a. `{PROJECT_ROOT}/.gran-maestro/ideation/` 하위의 기존 IDN-* 디렉토리 스캔
+       b. `{PROJECT_ROOT}/.gran-maestro/archive/` 내 `ideation-*` tar.gz 파일명에서 ID 범위 추출 (예: `ideation-IDN001-IDN005-*.tar.gz` → max 5)
        c. 모든 소스에서 최대 번호 결정 → `counter.json` 생성: `{ "last_id": {max_number} }`
        d. `next_id = last_id + 1`
      - `counter.json` 업데이트: `{ "last_id": {next_id} }`
-3. `.gran-maestro/ideation/IDN-NNN/` 디렉토리 생성 (NNN은 3자리 zero-padded)
+3. `{PROJECT_ROOT}/.gran-maestro/ideation/IDN-NNN/` 디렉토리 생성 (NNN은 3자리 zero-padded)
 4. `session.json` 작성:
 
 > ⏱️ **타임스탬프 취득 (MANDATORY)**:

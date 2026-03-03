@@ -7,9 +7,15 @@ argument-hint: "[{key} [{value}]]"
 
 # maestro:config
 
-`.gran-maestro/config.json`의 설정을 조회하거나 변경합니다.
+`{PROJECT_ROOT}/.gran-maestro/config.json`의 설정을 조회하거나 변경합니다.
 
 ## 실행 프로토콜
+
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
 
 1. 인자 없이 호출 시: 전체 설정 표시
 2. key만 지정 시: 해당 설정값 표시

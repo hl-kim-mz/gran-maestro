@@ -35,6 +35,12 @@ argument-hint: "[--run] [--dry-run]"
 
 ## 실행 프로토콜
 
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
+
 ### 인자 없음: 정리 대상 미리보기
 
 `config.resolved.json`에서 `cleanup`/`archive` 설정 로드 → 각 타입 스캔:
@@ -71,15 +77,15 @@ Gran Maestro — Cleanup 미리보기
 
 각 타입별로: 스캔 → `created_at` 내림차순 정렬 → 최근 `{type}_keep_count`개 유지 → 나머지 중 `done`/`completed`만 아카이브 대상 (진행 중 세션 보호) → `{type}/archived/` 생성 후 tar.gz 압축:
 ```bash
-tar -czf .gran-maestro/{type}/archived/{type}-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
-  -C .gran-maestro/{type} {session_dirs...}
+tar -czf {PROJECT_ROOT}/.gran-maestro/{type}/archived/{type}-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
+  -C {PROJECT_ROOT}/.gran-maestro/{type} {session_dirs...}
 ```
 원본 삭제 → `[Cleanup] {type} {N}개 아카이브됨`
 
 Plans 정리: `plans/PLN-*` 스캔 → `plan.json`의 `created_at` 내림차순 정렬 → 최근 `plan_keep_count`개 유지 → 나머지 중 `status`가 `completed` 또는 `archived`인 것만 아카이브 대상 (`active` 상태 보호) → `plans/archived/` 생성 후 tar.gz 압축:
 ```bash
-tar -czf .gran-maestro/plans/archived/plans-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
-  -C .gran-maestro/plans {plan_dirs...}
+tar -czf {PROJECT_ROOT}/.gran-maestro/plans/archived/plans-{ID_from}-{ID_to}-{YYYYMMDD}.tar.gz \
+  -C {PROJECT_ROOT}/.gran-maestro/plans {plan_dirs...}
 ```
 원본 삭제 → `[Cleanup] plans {N}개 아카이브됨`
 
