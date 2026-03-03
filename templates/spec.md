@@ -151,3 +151,12 @@ Q3: .md / .json / .yaml / .env 등 문서·설정 파일만인가?
 - Stitch 프로젝트: {stitch_project_url — 미기입}
 - 생성 화면:
   - {화면명}: {Stitch 화면 URL — 미기입}
+
+## 11. 캡처 컨텍스트
+
+> 이 섹션은 plan에서 캡처 참조가 인계된 경우에만 작성합니다.
+> 에이전트는 이 정보를 구현 시 참고하여 대상 요소의 정확한 위치를 파악합니다.
+
+| CAP ID | 요소 | CSS Path | Memo | Screenshot |
+|--------|------|----------|------|------------|
+| {CAP-NNN} | {selector} | {css_path} | {memo} | {screenshot_path} |

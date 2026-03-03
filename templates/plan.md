@@ -39,6 +39,16 @@
   - {화면명}: {화면 URL 또는 ID}
     - 구현 코드: `.gran-maestro/designs/DES-NNN/screen-NNN.html` (또는 N/A)
 
+## 캡처 참조 (해당 시에만)
+
+> 이 섹션은 캡처 데이터가 포함된 경우에만 작성합니다.
+
+| CAP ID | 페이지 | 요소 | 메모 |
+|--------|--------|------|------|
+| {CAP-NNN} | {URL 발췌} | {selector} | {memo} |
+
+스크린샷: `.gran-maestro/captures/{CAP-NNN}/screenshot.webp`
+
 ## 분리 실행 (해당 시에만)
 
 > 이 plan은 독립적인 복수 REQ로 실행하는 것을 권장합니다.
