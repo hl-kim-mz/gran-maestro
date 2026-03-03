@@ -10,6 +10,8 @@
 
 import { runWithTimeout } from './cli-adapter.ts';
 import { atomicWriteJSON } from './concurrency.ts';
+// @ts-ignore: Node resolution may be unavailable in non-Node type-check envs; shimmed for runtime usage.
+import { isAbsolute, resolve } from 'node:path';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -89,15 +91,24 @@ export type MergeResult =
  */
 export class WorktreeManager {
   private worktrees: Map<string, WorktreeInfo> = new Map();
+  private readonly rootDirectory: string;
+  private readonly projectRoot: string;
 
   constructor(
     private readonly config: WorktreeConfig = DEFAULT_WORKTREE_CONFIG,
     /** Project root (the main git repo). */
-    private readonly projectRoot: string = '.',
-  ) {}
+    projectRoot: string = '.',
+  ) {
+    this.projectRoot = isAbsolute(projectRoot)
+      ? projectRoot
+      : resolve(Deno.cwd(), projectRoot);
+    this.rootDirectory = isAbsolute(config.root_directory)
+      ? config.root_directory
+      : resolve(this.projectRoot, config.root_directory);
+  }
 
   private getMetaPath(taskId: string): string {
-    return `${this.config.root_directory}/${taskId}.meta.json`;
+    return resolve(this.rootDirectory, `${taskId}.meta.json`);
   }
 
   private async persistMeta(taskId: string, info: WorktreeInfo): Promise<void> {
@@ -125,7 +136,9 @@ export class WorktreeManager {
       ) {
         return {
           taskId: parsed.taskId,
-          path: parsed.path,
+          path: isAbsolute(parsed.path)
+            ? parsed.path
+            : resolve(this.projectRoot, parsed.path),
           branch: parsed.branch,
           state: parsed.state as WorktreeState,
           created_at: parsed.created_at,
@@ -164,7 +177,7 @@ export class WorktreeManager {
     }
 
     const branch = `gran-maestro/${taskId}`;
-    const worktreePath = `${this.config.root_directory}/${taskId}`;
+    const worktreePath = resolve(this.rootDirectory, taskId);
     const base = baseBranch ?? this.config.base_branch;
 
     const info: WorktreeInfo = {
@@ -181,7 +194,7 @@ export class WorktreeManager {
       // Ensure the root directory exists
       // Node.js fallback: fs.promises.mkdir
       try {
-        await Deno.mkdir(this.config.root_directory, { recursive: true });
+        await Deno.mkdir(this.rootDirectory, { recursive: true });
       } catch {
         // May already exist
       }
@@ -213,7 +226,7 @@ export class WorktreeManager {
   async remove(taskId: string, force = false): Promise<void> {
     const info = this.worktrees.get(taskId);
     const worktreePath =
-      info?.path ?? `${this.config.root_directory}/${taskId}`;
+      info?.path ?? resolve(this.rootDirectory, taskId);
     const branch = info?.branch ?? `gran-maestro/${taskId}`;
 
     try {
@@ -248,7 +261,7 @@ export class WorktreeManager {
   async merge(taskId: string, targetBranch: string): Promise<MergeResult> {
     const info = this.worktrees.get(taskId);
     const worktreePath =
-      info?.path ?? `${this.config.root_directory}/${taskId}`;
+      info?.path ?? resolve(this.rootDirectory, taskId);
     const branch = info?.branch ?? `gran-maestro/${taskId}`;
 
     if (info) {
@@ -331,7 +344,7 @@ export class WorktreeManager {
    */
   async listActive(): Promise<WorktreeInfo[]> {
     try {
-      for await (const entry of Deno.readDir(this.config.root_directory)) {
+      for await (const entry of Deno.readDir(this.rootDirectory)) {
         if (!entry.isFile || !entry.name.endsWith('.meta.json')) {
           continue;
         }
@@ -424,7 +437,7 @@ export class WorktreeManager {
     // Attempt to kill any running CLI process associated with this worktree.
     // The actual PID tracking is done by the orchestration engine; here we
     // do a best-effort pkill by working directory pattern.
-    const worktreePath = `${this.config.root_directory}/${taskId}`;
+    const worktreePath = resolve(this.rootDirectory, taskId);
     try {
       await runWithTimeout(
         `pkill -f "${worktreePath}" || true`,
