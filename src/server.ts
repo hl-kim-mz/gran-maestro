@@ -30,6 +30,7 @@ import { projectWorktreesApi } from "./routes/worktrees.ts";
 import { projectRegistryApi } from "./routes/projects.ts";
 import { projectManageApi } from "./routes/manage.ts";
 import { projectArchivesApi } from "./routes/archives.ts";
+import { projectCapturesApi } from "./routes/captures.ts";
 
 import {
   BASE_DIR,
@@ -56,6 +57,7 @@ projectApi.route("/", projectDesignsApi);
 projectApi.route("/", projectPlansApi);
 projectApi.route("/", projectManageApi);
 projectApi.route("/", projectArchivesApi);
+projectApi.route("/", projectCapturesApi);
 projectApi.route("/", projectIdeationApi);
 projectApi.route("/", projectDiscussionApi);
 projectApi.route("/", projectTreeApi);

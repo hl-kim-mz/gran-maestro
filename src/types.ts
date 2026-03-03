@@ -123,6 +123,29 @@ export interface CaptureMeta {
   [key: string]: unknown;
 }
 
+export interface CaptureCreatePayload {
+  url: string;
+  selector: string;
+  rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
+  screenshot_data: string | null;
+  memo: string;
+  tags: string[];
+  css_path: string;
+  html_snapshot: string | null;
+  mode: "immediate" | "batch";
+  component_name: string | null;
+  source_path: string | null;
+}
+
+export interface CaptureUpdatePayload {
+  status: "pending" | "selected" | "consumed" | "done";
+}
+
 export interface IdeationSession {
   id: string;
   topic: string;
