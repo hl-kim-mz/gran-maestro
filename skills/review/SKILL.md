@@ -19,11 +19,17 @@ argument-hint: "[REQ-ID] [--auto]"
 
 ## 실행 프로토콜
 
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
+
 ### Step 1: 초기화
 
 1. **RV 채번**: `request.json.review_iterations.length + 1` → 3자리 0패딩 → `RV-001`, `RV-002`, ...
    - `review_iterations` 배열이 비어있으면 `length = 0` → `RV-001` 정상 채번.
-2. **디렉토리 생성**: `.gran-maestro/requests/REQ-NNN/reviews/RV-NNN/`
+2. **디렉토리 생성**: `{PROJECT_ROOT}/.gran-maestro/requests/REQ-NNN/reviews/RV-NNN/`
 3. **review.json 생성**:
    ```json
    {

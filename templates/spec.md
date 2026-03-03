@@ -33,7 +33,7 @@ Q3: .md / .json / .yaml / .env 등 문서·설정 파일만인가?
 ⚠️  컨텍스트 보유를 이유로 한 claude-dev 선택은 유효하지 않다.
     외주 에이전트는 worktree를 직접 탐색하므로 컨텍스트 보유는 이점이 아님.
 -->
-- Worktree: .gran-maestro/worktrees/{TASK_ID}
+- Worktree: {PROJECT_ROOT}/.gran-maestro/worktrees/{TASK_ID}
 
 ## 1. 요약 (Summary)
 
@@ -84,9 +84,9 @@ Q3: .md / .json / .yaml / .env 등 문서·설정 파일만인가?
 
 ### 설계 문서 참조 (Design Wing 산출물)
 
-- Architecture: {.gran-maestro/requests/REQ-XXX/design/architecture.md 또는 N/A}
-- Data Model: {.gran-maestro/requests/REQ-XXX/design/data-model.md 또는 N/A}
-- UI Spec: {.gran-maestro/requests/REQ-XXX/design/ui-spec.md 또는 N/A}
+- Architecture: {{PROJECT_ROOT}/.gran-maestro/requests/REQ-XXX/design/architecture.md 또는 N/A}
+- Data Model: {{PROJECT_ROOT}/.gran-maestro/requests/REQ-XXX/design/data-model.md 또는 N/A}
+- UI Spec: {{PROJECT_ROOT}/.gran-maestro/requests/REQ-XXX/design/ui-spec.md 또는 N/A}
 
 > **검증**: Design Wing 에이전트가 소환된 경우, 해당 설계 문서 참조가 반드시 채워져야 합니다.
 > PM Conductor는 스펙 승인 전에 design_refs 필드의 완전성을 검증합니다.

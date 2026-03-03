@@ -11,6 +11,12 @@ argument-hint: "{REQ-ID} [--force]"
 
 ## 실행 프로토콜
 
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
+
 1. REQ ID 파싱 → 활성 태스크 확인 → 취소 확인 프롬프트 (`--force` 아닌 경우)
 2. 취소 처리: 에이전트/CLI 프로세스 종료 → git worktree 삭제 → 임시 브랜치 정리 → `status="cancelled"`
 3. **Plan 상태 동기화**: `source_plan` 있으면 `python3 mst.py plan sync {source_plan}` 실행; 없으면 스킵

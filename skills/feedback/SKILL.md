@@ -11,6 +11,12 @@ argument-hint: "{REQ-ID} {피드백 내용}"
 
 ## 실행 프로토콜
 
+> **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
+> 스킬 실행 시작 시 `PROJECT_ROOT`를 취득하고, 이후 모든 경로에 `{PROJECT_ROOT}/` 접두사를 붙입니다.
+> ```bash
+> PROJECT_ROOT=$(pwd)
+> ```
+
 1. `$ARGUMENTS`에서 REQ ID + 피드백 내용 파싱
 2. Feedback Composer 활성화 → 구조화된 피드백 문서 변환 → `tasks/NN/feedback-RN.md` 저장
 3. 실패 유형 분류 및 라우팅:
