@@ -89,7 +89,38 @@ export interface SSEEvent {
   planId?: string;
   projectId?: string;
   designId?: string;
+  captureId?: string;
   data: unknown;
+}
+
+export interface CaptureMeta {
+  id: string;
+  status: "pending" | "selected" | "consumed" | "done" | "archived";
+  created_at: string;
+  url: string;
+  selector: string | null;
+  rect:
+    | {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }
+    | null;
+  screenshot_path: string | null;
+  memo: string;
+  tags: string[];
+  html_snapshot: string | null;
+  css_path: string | null;
+  component_name: string | null;
+  source_path: string | null;
+  linked_plan: string | null;
+  linked_request: string | null;
+  ttl_expires_at: string | null;
+  ttl_warned_at: string | null;
+  consumed_at: string | null;
+  mode: "immediate" | "batch";
+  [key: string]: unknown;
 }
 
 export interface IdeationSession {

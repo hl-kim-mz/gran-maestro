@@ -22,8 +22,8 @@ Subcommands:
   archive list        [--type TYPE]
   archive restore     <ARCHIVE-ID>
 
-  counter next        [--type req|idn|dsc|dbg|exp|pln|des] [--dir PATH]
-  counter peek        [--type req|idn|dsc|dbg|exp|pln|des]
+  counter next        [--type req|idn|dsc|dbg|exp|pln|des|cap] [--dir PATH]
+  counter peek        [--type req|idn|dsc|dbg|exp|pln|des|cap]
 
   version get
   version check
@@ -504,6 +504,7 @@ TYPE_DIRS = {
     "exp": ("explore",   "EXP"),
     "pln": ("plans",     "PLN"),
     "des": ("designs",   "DES"),
+    "cap": ("captures", "CAP"),
 }
 
 
@@ -526,6 +527,19 @@ def cmd_counter_next(args):
         plans = BASE_DIR / "plans"
         max_num = 0
         for d in plans.glob("PLN-*"):
+            try:
+                n = int(d.name.split("-")[1])
+                if n > max_num:
+                    max_num = n
+            except (IndexError, ValueError):
+                pass
+        save_json(counter_path, {"last_id": max_num})
+    # cap 특수 초기화
+    if args.type == "cap" and not counter_path.exists():
+        captures = BASE_DIR / "captures"
+        captures.mkdir(parents=True, exist_ok=True)
+        max_num = 0
+        for d in captures.glob("CAP-*"):
             try:
                 n = int(d.name.split("-")[1])
                 if n > max_num:
@@ -1403,11 +1417,19 @@ def build_parser():
     ctr_sub = ctr.add_subparsers(dest="subcommand")
 
     ctr_next = ctr_sub.add_parser("next")
-    ctr_next.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des"], default="req")
+    ctr_next.add_argument(
+        "--type",
+        choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des", "cap"],
+        default="req",
+    )
     ctr_next.add_argument("--dir")
 
     ctr_peek = ctr_sub.add_parser("peek")
-    ctr_peek.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des"], default="req")
+    ctr_peek.add_argument(
+        "--type",
+        choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des", "cap"],
+        default="req",
+    )
     ctr_peek.add_argument("--dir")
 
     # --- archive ---

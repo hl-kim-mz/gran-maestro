@@ -201,6 +201,17 @@ export function classifyFsEvent(
     };
   }
 
+  // Pattern: .gran-maestro/captures/CAP-***
+  const captureMatch = normPath.match(/\.gran-maestro\/captures\/(CAP-[^/]+)/);
+  if (captureMatch) {
+    return {
+      type: "capture_update",
+      projectId,
+      captureId: captureMatch[1],
+      data: { path, kind, timestamp: new Date().toISOString() },
+    };
+  }
+
   // Pattern: .gran-maestro/plans/PLN-***
   const planMatch = normPath.match(/\.gran-maestro\/plans\/(PLN-[^/]+)/);
   if (planMatch) {
