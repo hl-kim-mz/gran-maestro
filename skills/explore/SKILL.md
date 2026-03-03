@@ -31,9 +31,26 @@ Claude가 탐색 목표 분석 → Codex: 코드 구조/구현 패턴 추적; Ge
 
 ### Step 2: 병렬 백그라운드 탐색
 
-모든 `explorers`를 `Task(subagent_type:"general-purpose", run_in_background:true)`로 동시 실행합니다.
+`explorers` 키를 순회하여 provider별로 동시 실행합니다.
 
 각 프롬프트에는 **"읽기 전용 탐색만 수행, 파일 수정/생성 금지"**를 명시하고, 결과를 `explore-{key}.md`에 작성합니다.
+
+- `provider: "codex"`:
+  ```
+  Bash(
+    run_in_background: true,
+    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/prompts/explore-{key}-prompt.md)\" > {absolute_path}/explore-{key}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/explore-{key}.md"
+  )
+  ```
+- `provider: "gemini"`:
+  ```
+  Bash(
+    run_in_background: true,
+    command: "gemini -p \"$(cat {absolute_path}/prompts/explore-{key}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/explore-{key}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/explore-{key}.md"
+  )
+  ```
+
+(참고: claude는 explore의 explorers에서 제외되므로 dispatch 블록 불필요)
 
 ### Step 3: Claude PM 종합
 

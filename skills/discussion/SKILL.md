@@ -165,18 +165,16 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
    participant 발송 (`participants` 동적 순회):
    - `provider: "codex"`:
      ```
-     Task(
-       subagent_type: "general-purpose",
+     Bash(
        run_in_background: true,
-       prompt: "Skill(skill: 'mst:codex', args: '--prompt-file {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md --output {absolute_path}/rounds/00/{participant.key}.md') 실행 후 완료 보고"
+       command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/00/{participant.key}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/rounds/00/{participant.key}.md"
      )
      ```
    - `provider: "gemini"`:
      ```
-     Task(
-       subagent_type: "general-purpose",
+     Bash(
        run_in_background: true,
-       prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md > {absolute_path}/rounds/00/{participant.key}.md') 실행 후 완료 보고"
+       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/rounds/00/{participant.key}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/rounds/00/{participant.key}.md"
      )
      ```
    - `provider: "claude"`:
@@ -192,18 +190,16 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
    critic 동시 발송 (`critics` 동적 순회):
    - `provider: "codex"`:
      ```
-     Task(
-       subagent_type: "general-purpose",
+     Bash(
        run_in_background: true,
-       prompt: "Skill(skill: 'mst:codex', args: '--prompt-file {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md --output {absolute_path}/rounds/00/critique-{criticKey}.md') 실행 후 완료 보고"
+       command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/rounds/00/critique-{criticKey}.md"
      )
      ```
    - `provider: "gemini"`:
      ```
-     Task(
-       subagent_type: "general-purpose",
+     Bash(
        run_in_background: true,
-       prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md > {absolute_path}/rounds/00/critique-{criticKey}.md') 실행 후 완료 보고"
+       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/rounds/00/critique-{criticKey}.md"
      )
      ```
    - `provider: "claude"`:
@@ -242,6 +238,8 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
 #### Step 3.5: Critic 초기 평가 (단일 라운드 수렴 시)
 
 `critic_count >= 1`이면: `rounds/00` 응답 기반으로 `rounds/00/prompts/critique-{criticKey}-prompt.md` 생성 → Step 4c와 동일 방식으로 `rounds/00/critique-{criticKey}.md` 저장. Step 4 미실행 시에도 Critic 평가 보장.
+
+> **NOTE**: "Step 4c와 동일 방식"은 Step 2 (R0) critic 발송 블록의 Bash 직접 호출 패턴을 가리킵니다. `provider: "codex"` → `Bash(codex exec ...)`, `provider: "gemini"` → `Bash(gemini -p ...)`, `provider: "claude"` → `Task(...)` 방식으로 dispatch하되, 경로는 `rounds/00/prompts/critique-{criticKey}-prompt.md` → `rounds/00/critique-{criticKey}.md`를 사용합니다.
 
 ### Step 3.6: Round 0 완료 상태 업데이트
 
@@ -329,18 +327,16 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
 participant 발송 (`participants` 동적 순회):
 - `provider: "codex"`:
   ```
-  Task(
-    subagent_type: "general-purpose",
+  Bash(
     run_in_background: true,
-    prompt: "Skill(skill: 'mst:codex', args: '--prompt-file {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md --output {absolute_path}/rounds/NN/{participant.key}.md') 실행 후 완료 보고"
+    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/rounds/NN/{participant.key}.md"
   )
   ```
 - `provider: "gemini"`:
   ```
-  Task(
-    subagent_type: "general-purpose",
+  Bash(
     run_in_background: true,
-    prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md > {absolute_path}/rounds/NN/{participant.key}.md') 실행 후 완료 보고"
+    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/rounds/NN/{participant.key}.md"
   )
   ```
 - `provider: "claude"`:
@@ -356,18 +352,16 @@ participant 발송 (`participants` 동적 순회):
 critic 동시 발송 (`critics` 동적 순회):
 - `provider: "codex"`:
   ```
-  Task(
-    subagent_type: "general-purpose",
+  Bash(
     run_in_background: true,
-    prompt: "Skill(skill: 'mst:codex', args: '--prompt-file {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md --output {absolute_path}/rounds/NN/critique-{criticKey}.md') 실행 후 완료 보고"
+    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/rounds/NN/critique-{criticKey}.md"
   )
   ```
 - `provider: "gemini"`:
   ```
-  Task(
-    subagent_type: "general-purpose",
+  Bash(
     run_in_background: true,
-    prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md > {absolute_path}/rounds/NN/critique-{criticKey}.md') 실행 후 완료 보고"
+    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/rounds/NN/critique-{criticKey}.md"
   )
   ```
 - `provider: "claude"`:

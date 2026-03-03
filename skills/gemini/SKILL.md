@@ -1,13 +1,13 @@
 ---
 name: gemini
-description: "Gemini CLI를 호출하여 대용량 컨텍스트 작업을 실행합니다. 사용자가 '제미니 실행', '제미니로', '대용량 분석'을 말하거나 /mst:gemini를 호출할 때 사용. Gran Maestro 워크플로우 내 모든 Gemini 호출은 이 스킬을 경유합니다."
+description: "Gemini CLI를 호출하여 대용량 컨텍스트 작업을 실행합니다. 사용자가 '제미니 실행', '제미니로', '대용량 분석'을 말하거나 /mst:gemini를 호출할 때 사용. Gran Maestro request 워크플로우(--trace 모드 포함)에서 단일 진입점 역할. discussion/ideation/debug/explore/plan-review의 병렬 dispatch에서는 Bash 직접 호출을 사용합니다."
 user-invocable: true
 argument-hint: "{프롬프트} [--prompt-file {경로}] [--files {패턴}] [--trace {REQ/TASK/label}]"
 ---
 
 # maestro:gemini
 
-Gemini CLI 호출의 단일 진입점. 대용량 문서/프론트엔드/넓은 컨텍스트 작업에 적합. Maestro 모드 활성 여부 무관.
+Gemini CLI 호출의 단일 진입점. request 워크플로우(--trace 모드 포함)에서 단일 진입점 역할. discussion/ideation/debug/explore/plan-review의 병렬 dispatch에서는 Bash 직접 호출을 사용합니다. 대용량 문서/프론트엔드/넓은 컨텍스트 작업에 적합. Maestro 모드 활성 여부 무관.
 
 ## 실행 프로토콜
 

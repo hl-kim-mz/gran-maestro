@@ -235,23 +235,23 @@ stdout에 생성된 파일 경로 목록이 출력된다.
 **[동시 dispatch]** 모든 활성 역할을 단일 응답 내 동시 실행:
 
 에이전트 선택 (`config.plan_review.roles.{role}.agent` 기반):
-- `"codex"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: "Skill(skill: 'mst:codex', args: '--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --output .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log') 실행 후 완료 보고")`
-- `"gemini"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: "Skill(skill: 'mst:gemini', args: '--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log') 실행 후 완료 보고")`
+- `"codex"` → `Bash(run_in_background: true, command: "codex exec --full-auto -C $(pwd) \"$(cat .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; echo 'EXIT_CODE:'$? >> .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")`
+- `"gemini"` → `Bash(run_in_background: true, command: "gemini -p \"$(cat .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" --model {config.models.gemini.default} --approval-mode yolo > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; echo 'EXIT_CODE:'$? >> .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")`
 - `"claude"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: {사전 단계에서 보관한 파일 내용})`
 
 각 Task 호출의 반환값에서 task_id를 추출하여 역할명과 함께 메모리에 보관 (결과 추적용).
 예: `{ architect: "task-abc123", completeness: "task-def456", ... }`
 
 `config.plan_review.parallel == false`이면 역할 순서대로 순차 실행:
-- codex 역할: `Skill(skill: "mst:codex", args: "--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md --output .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")` → 완료 후 Read(.log) → 다음 역할 진행
-- gemini 역할: `Skill(skill: "mst:gemini", args: "--prompt-file .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")` → 완료 후 Read(.log) → 다음 역할 진행
+- codex 역할: `Bash(command: "codex exec --full-auto -C $(pwd) \"$(cat .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; echo 'EXIT_CODE:'$? >> .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")` → 완료 후 Read(.log) → 다음 역할 진행
+- gemini 역할: `Bash(command: "gemini -p \"$(cat .gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" --model {config.models.gemini.default} --approval-mode yolo > .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; echo 'EXIT_CODE:'$? >> .gran-maestro/plans/PLN-NNN/prompts/review-{role}.log")` → 완료 후 Read(.log) → 다음 역할 진행
 - claude 역할: `Read(.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)` 후 → `Task(subagent_type: "general-purpose", prompt: {파일 내용})` (블로킹) → 반환값 직접 사용 → 다음 역할 진행
 (순차 실행 시 task_id 불필요, TaskOutput 호출 없음)
 
 #### 3.8.4: 결과 수집 및 PM 분석
 
 **병렬 실행 시 (`parallel == true`)**:
-- codex/gemini 역할: `TaskOutput(task_id, block: true)` 완료 대기 (래퍼 Task 완료 신호) → `Read(.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log)`로 실제 결과 확인
+- codex/gemini 역할: `TaskOutput(task_id, block: true)` 완료 대기 (Bash background 완료 신호) → `Read(.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log)`로 실제 결과 확인
 - claude 역할: `TaskOutput(task_id, block: true)` 반환값을 직접 결과로 사용
 
 **순차 실행 시 (`parallel == false`)**:
