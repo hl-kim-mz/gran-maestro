@@ -1,5 +1,5 @@
 import { MESSAGE_TYPES, STORAGE_KEYS } from '../shared/constants';
-import { InspectStatusMsg, ServerStatusMsg, ToggleInspectMsg } from '../shared/types';
+import { InspectStatusMsg, OVERLAY_TOGGLE_MESSAGE, OverlayToggleMsg, ServerStatusMsg, ToggleInspectMsg } from '../shared/types';
 import { sendToBackground } from '../shared/messages';
 
 const SERVER_STATUS_POLL_MS = 3_000;
@@ -9,10 +9,14 @@ const inspectText = document.getElementById('inspectText') as HTMLParagraphEleme
 const serverStatusDot = document.getElementById('serverStatusDot') as HTMLSpanElement | null;
 const serverStatusText = document.getElementById('serverStatusText') as HTMLSpanElement | null;
 const projectSelect = document.getElementById('projectSelect') as HTMLSelectElement | null;
+const overlayToggleButton = document.getElementById('overlayToggle') as HTMLButtonElement | null;
+const overlayText = document.getElementById('overlayText') as HTMLParagraphElement | null;
 
 const inspectStateStorageKey = (tabId: number) => `popup-inspect-state-${tabId}`;
+const overlayStateStorageKey = 'gm-overlay-badge-state';
 let activeTabId: number | null = null;
 let isInspectMode = false;
+let isOverlayEnabled = true;
 
 function applyInspectModeUI(enabled: boolean): void {
   isInspectMode = enabled;
@@ -21,6 +25,16 @@ function applyInspectModeUI(enabled: boolean): void {
   }
   if (inspectText) {
     inspectText.textContent = enabled ? 'Inspect mode is ON' : 'Inspect mode is OFF';
+  }
+}
+
+function applyOverlayModeUI(enabled: boolean): void {
+  isOverlayEnabled = enabled;
+  if (overlayToggleButton) {
+    overlayToggleButton.textContent = enabled ? 'Disable Overlay IDs' : 'Enable Overlay IDs';
+  }
+  if (overlayText) {
+    overlayText.textContent = enabled ? 'Overlay IDs are ON' : 'Overlay IDs are OFF';
   }
 }
 
@@ -83,6 +97,18 @@ async function hydrateInspectUI(tabId: number): Promise<void> {
   applyInspectModeUI(Boolean(state[key]));
 }
 
+async function hydrateOverlayUI(): Promise<void> {
+  const overlayState = await chrome.storage.local.get(overlayStateStorageKey);
+  const hasStoredOverlayState = Object.prototype.hasOwnProperty.call(
+    overlayState,
+    overlayStateStorageKey
+  );
+  const overlayStateValue = hasStoredOverlayState
+    ? Boolean(overlayState[overlayStateStorageKey])
+    : true;
+  applyOverlayModeUI(overlayStateValue);
+}
+
 async function hydrateProjectUI(): Promise<void> {
   ensureProjectOptions();
   const state = await chrome.storage.local.get(STORAGE_KEYS.SELECTED_PROJECT);
@@ -131,12 +157,38 @@ function setupListeners(): void {
       });
     });
   }
+
+  if (overlayToggleButton) {
+    overlayToggleButton.addEventListener('click', async () => {
+      if (activeTabId === null) {
+        return;
+      }
+
+      const nextState = !isOverlayEnabled;
+      const message: OverlayToggleMsg = {
+        type: OVERLAY_TOGGLE_MESSAGE,
+        payload: {
+          tabId: activeTabId,
+          enabled: nextState
+        }
+      };
+
+      try {
+        await chrome.tabs.sendMessage(activeTabId, message);
+        await chrome.storage.local.set({ [overlayStateStorageKey]: nextState });
+        applyOverlayModeUI(nextState);
+      } catch {
+        applyOverlayModeUI(isOverlayEnabled);
+      }
+    });
+  }
 }
 
 async function bootstrap(): Promise<void> {
   try {
     activeTabId = await queryActiveTabId();
     await hydrateInspectUI(activeTabId);
+    await hydrateOverlayUI();
     await hydrateProjectUI();
     await setupConnectionPolling();
   } catch {

@@ -1,12 +1,15 @@
 import { Highlighter } from './highlighter';
 import { Navigator } from './navigator';
 import { InlinePanel } from './panel';
+import { OverlayBadgeManager } from './overlay/badge-manager';
 import { captureScreenshotToWebP } from './screenshot';
 import { buildCaptureClipboardText, copyTextToClipboard } from './clipboard';
 import { showToast } from './toast';
 import { MESSAGE_TYPES } from '../shared/constants';
-import { CaptureMode, CapturePayload, CaptureSaveResponse } from '../shared/types';
-import { sendToBackground } from '../shared/messages';
+import { CaptureMode, CapturePayload, CaptureSaveResponse, OVERLAY_TOGGLE_MESSAGE, OverlayToggleMsg } from '../shared/types';
+import { isExtensionMessage, sendToBackground } from '../shared/messages';
+
+const OVERLAY_STATE_STORAGE_KEY = 'gm-overlay-badge-state';
 
 interface InspectorOptions {
   onSelect?: (element: Element) => void;
@@ -16,8 +19,10 @@ export class Inspector {
   private readonly highlighter: Highlighter;
   private readonly navigator: Navigator;
   private readonly panel: InlinePanel;
+  private readonly badgeManager: OverlayBadgeManager;
   private readonly onSelect?: (element: Element) => void;
   private readonly cursorRestoreTarget: HTMLElement | null;
+  private overlayEnabled = true;
   private active = false;
   private rafId: number | null = null;
   private pendingTarget: Element | null = null;
@@ -33,6 +38,13 @@ export class Inspector {
     });
     this.onSelect = options.onSelect;
     this.cursorRestoreTarget = document.body;
+    this.badgeManager = new OverlayBadgeManager({
+      doc: document,
+      onBadgeSelect: this.handleBadgeSelect
+    });
+    chrome.runtime.onMessage.addListener(this.handleRuntimeMessage);
+    chrome.storage.onChanged.addListener(this.handleStorageChange);
+    void this.loadOverlayState();
   }
 
   activate(): void {
@@ -52,6 +64,10 @@ export class Inspector {
     document.addEventListener('click', this.handleClick, { capture: true });
     document.addEventListener('keydown', this.handleKeyDown, { capture: true });
     document.addEventListener('scroll', this.handleScroll, { capture: true });
+
+    if (this.overlayEnabled) {
+      this.badgeManager.activate();
+    }
   }
 
   deactivate(): void {
@@ -78,6 +94,8 @@ export class Inspector {
     if (this.cursorRestoreTarget) {
       this.cursorRestoreTarget.style.cursor = this.previousBodyCursor;
     }
+
+    this.badgeManager.deactivate();
   }
 
   isActive(): boolean {
@@ -209,6 +227,77 @@ export class Inspector {
     }
     return target;
   }
+
+  private handleBadgeSelect = (target: Element): void => {
+    const normalizedTarget = this.resolveTarget(target);
+    if (!normalizedTarget) {
+      return;
+    }
+    this.setCurrent(normalizedTarget);
+    if (this.active) {
+      this.panel.show(normalizedTarget);
+    }
+    this.onSelect?.(normalizedTarget);
+  };
+
+  private async loadOverlayState(): Promise<void> {
+    const savedState = await chrome.storage.local.get(OVERLAY_STATE_STORAGE_KEY);
+    const nextState = savedState[OVERLAY_STATE_STORAGE_KEY];
+    if (typeof nextState === 'boolean') {
+      this.overlayEnabled = nextState;
+    }
+  }
+
+  private setOverlayEnabled(enabled: boolean): void {
+    const nextEnabled = Boolean(enabled);
+    if (this.overlayEnabled === nextEnabled) {
+      if (this.overlayEnabled && this.active) {
+        this.badgeManager.refresh();
+      }
+      return;
+    }
+    this.overlayEnabled = nextEnabled;
+    void chrome.storage.local.set({ [OVERLAY_STATE_STORAGE_KEY]: nextEnabled });
+
+    if (!this.active) {
+      return;
+    }
+
+    if (nextEnabled) {
+      this.badgeManager.activate();
+    } else {
+      this.badgeManager.deactivate();
+    }
+  }
+
+  private handleRuntimeMessage = (message: unknown): void => {
+    if (!isExtensionMessage(message)) {
+      return;
+    }
+
+    if (message.type !== OVERLAY_TOGGLE_MESSAGE) {
+      return;
+    }
+
+    const overlayMessage = message as OverlayToggleMsg;
+    this.setOverlayEnabled(overlayMessage.payload.enabled);
+  };
+
+  private handleStorageChange = (
+    changes: { [key: string]: chrome.storage.StorageChange },
+    areaName: chrome.storage.AreaName
+  ): void => {
+    if (areaName !== 'local') {
+      return;
+    }
+
+    const changed = changes[OVERLAY_STATE_STORAGE_KEY];
+    if (!changed || typeof changed.newValue !== 'boolean') {
+      return;
+    }
+
+    this.setOverlayEnabled(changed.newValue);
+  };
 
   private async handleCapture(mode: CaptureMode, payload: CapturePayload): Promise<void> {
     try {

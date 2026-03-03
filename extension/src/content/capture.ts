@@ -1,4 +1,5 @@
 import { CaptureMode, CapturePayload } from '../shared/types';
+import { collectDegradationMetadata } from './degradation';
 
 const MAX_HTML_SNAPSHOT_BYTES = 50 * 1024;
 
@@ -24,6 +25,7 @@ export function buildCapturePayload(input: BuildCapturePayloadInput): CapturePay
   const memo = input.memo.trim();
   const selector = input.selector.trim();
   const cssPath = input.cssPath.trim();
+  const degradation = collectDegradationMetadata(input.element);
 
   return {
     url: window.location.href,
@@ -40,7 +42,7 @@ export function buildCapturePayload(input: BuildCapturePayloadInput): CapturePay
     memo,
     tags: [...input.tags],
     mode: input.mode,
-    component_name: null,
-    source_path: null
+    component_name: degradation?.component_name ?? null,
+    source_path: degradation?.source_path ?? null
   };
 }

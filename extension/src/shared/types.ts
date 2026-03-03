@@ -2,6 +2,9 @@ import { MESSAGE_TYPES } from './constants';
 
 export type MessageType = typeof MESSAGE_TYPES[keyof typeof MESSAGE_TYPES];
 
+export const OVERLAY_TOGGLE_MESSAGE = 'OVERLAY_TOGGLE' as const;
+export type OverlayToggleMessageType = typeof OVERLAY_TOGGLE_MESSAGE;
+
 export type CaptureMode = 'immediate' | 'batch';
 
 export interface CaptureRect {
@@ -118,6 +121,14 @@ export interface ServerStatusQueryMsg {
   payload: Record<string, never>;
 }
 
+export interface OverlayToggleMsg {
+  type: OverlayToggleMessageType;
+  payload: {
+    tabId: number;
+    enabled: boolean;
+  };
+}
+
 export type ExtensionMessage =
   | ToggleInspectMsg
   | InspectStatusMsg
@@ -126,7 +137,8 @@ export type ExtensionMessage =
   | CaptureSaveMsg
   | SaveCaptureMsg
   | ServerStatusMsg
-  | ServerStatusQueryMsg;
+  | ServerStatusQueryMsg
+  | OverlayToggleMsg;
 
 export interface ExtensionResponse {
   ok: boolean;
