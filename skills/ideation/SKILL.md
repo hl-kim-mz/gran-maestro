@@ -307,18 +307,12 @@ Synthesis prompt는 템플릿 `templates/ideation-synthesis.md` 사용.
 - **[경로 A] `/mst:request` 서브 호출 (`--from-start` 포함):**
   1. `synthesis.md`를 호출자(/mst:request)에게 반환
   2. `session.json`의 `status`를 즉시 `"completed"`로 갱신
-  3. Step 5 진행
 
 - **[경로 B] 독립 실행 (flags 없음):**
   1. `synthesis.md` 표시
   2. 사용자 질의 반영 토론 진행
   3. 내용 append: `discussion.md`
   4. `session.json`의 `status`를 `"discussing"` → 완료 시 `"completed"`로 갱신
-  5. Step 5 진행
-
-### Step 5: 아카이브 체크 (완료 시, 자동)
-
-config.resolved.json의 `archive.auto_archive_on_complete`가 true이면 `archive` 절차 수행(상세는 `/mst:archive`).
 
 ## 에러 처리
 
