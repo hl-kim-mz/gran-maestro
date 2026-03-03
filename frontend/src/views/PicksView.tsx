@@ -12,6 +12,7 @@ import { RefreshButton } from '@/components/shared/RefreshButton';
 import { useResizableSidebar } from '@/hooks/useResizableSidebar';
 import { ResizableHandle } from '@/components/shared/ResizableHandle';
 import { ClipboardList } from 'lucide-react';
+import { LifecycleTimeline } from '@/components/picks/LifecycleTimeline';
 
 interface CaptureRect {
   x: number;
@@ -34,6 +35,7 @@ interface CaptureMeta {
   html_snapshot?: string | null;
   linked_plan?: string | null;
   linked_request?: string | null;
+  consumed_at?: string | null;
 }
 
 interface FilterOption {
@@ -435,6 +437,14 @@ export function PicksView() {
                     {formatCoordinates(selectedCapture.rect)}
                   </p>
                 </section>
+
+                <LifecycleTimeline capture={{
+                  status: selectedCapture.status as 'pending' | 'selected' | 'consumed' | 'done' | 'archived',
+                  linked_plan: selectedCapture.linked_plan ?? null,
+                  linked_request: selectedCapture.linked_request ?? null,
+                  created_at: selectedCapture.created_at ?? new Date().toISOString(),
+                  consumed_at: selectedCapture.consumed_at ?? null,
+                }} />
 
                 <section>
                   <h3 className="text-xs font-bold uppercase text-muted-foreground mb-2">HTML Snippet</h3>
