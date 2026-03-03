@@ -17,10 +17,11 @@ Subcommands:
   plan complete      <PLN-ID>
   plan count         [--active | --all]
 
-  archive run         [--type req|idn|dsc|dbg|exp|pln|des] [--max N] [--dir PATH]
+  archive run         [--type req|idn|dsc|dbg|exp|pln|des|cap] [--max N] [--dir PATH]
   archive run-all     [--max N]
   archive list        [--type TYPE]
   archive restore     <ARCHIVE-ID>
+  capture ttl-check
 
   counter next        [--type req|idn|dsc|dbg|exp|pln|des|cap] [--dir PATH]
   counter peek        [--type req|idn|dsc|dbg|exp|pln|des|cap]
@@ -58,7 +59,7 @@ import glob
 import tarfile
 import time
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 
@@ -506,6 +507,7 @@ TYPE_DIRS = {
     "des": ("designs",   "DES"),
     "cap": ("captures", "CAP"),
 }
+JSON_FILE_MAP = {"req": "request.json", "cap": "capture.json"}
 
 
 def type_archived_dir(type_key: str) -> Path:
@@ -562,6 +564,111 @@ def cmd_counter_peek(args):
     _, prefix = TYPE_DIRS.get(args.type, ("requests", "REQ"))
     last_id = data.get("last_id", 0)
     print(f"{prefix}-{last_id + 1:03d} (next, current last_id={last_id})")
+    return 0
+
+
+def _parse_utc_datetime(value):
+    if not isinstance(value, str):
+        return None
+    try:
+        normalized = value
+        if normalized.endswith("Z"):
+            normalized = normalized[:-1] + "+00:00"
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _capture_is_plan_active(plan_id):
+    if not plan_id:
+        return False
+    plan_data = load_json(plans_dir() / str(plan_id) / "plan.json")
+    if not isinstance(plan_data, dict):
+        return False
+    return plan_data.get("status") in ("active", "in_progress")
+
+
+def _capture_linked_requests_done(plan_id):
+    if not plan_id:
+        return False
+    plan_data = load_json(plans_dir() / str(plan_id) / "plan.json")
+    if not isinstance(plan_data, dict):
+        return False
+    linked_requests = plan_data.get("linked_requests")
+    if not isinstance(linked_requests, list) or not linked_requests:
+        return False
+
+    for req_id in linked_requests:
+        request_paths = [
+            requests_dir() / req_id / "request.json",
+            requests_dir() / "completed" / req_id / "request.json",
+        ]
+        req_path = next((p for p in request_paths if p.exists()), None)
+        if req_path is None:
+            return False
+        req_data = load_json(req_path) or {}
+        if req_data.get("status") not in ("completed", "cancelled"):
+            return False
+    return True
+
+
+def _capture_expired(meta, now):
+    created_at = _parse_utc_datetime(meta.get("created_at", "")) if isinstance(meta, dict) else None
+    if created_at is None:
+        return False
+    ttl_expires_at = _parse_utc_datetime(meta.get("ttl_expires_at", ""))
+    expires_at = ttl_expires_at or (created_at + timedelta(days=7))
+    return now >= expires_at
+
+
+def cmd_capture_ttl_check(args):
+    captures_dir = BASE_DIR / "captures"
+    if not captures_dir.exists():
+        print("No captures directory.")
+        return 0
+
+    now = datetime.now(timezone.utc)
+    warn_threshold = timedelta(hours=24)
+    expired = []
+
+    for cap_dir in sorted(captures_dir.glob("CAP-*")):
+        if not cap_dir.is_dir():
+            continue
+        cap_path = cap_dir / "capture.json"
+        meta = load_json(cap_path) or {}
+
+        changed = False
+        created_at = _parse_utc_datetime(meta.get("created_at", ""))
+        if created_at is None:
+            continue
+
+        ttl_warned_at = _parse_utc_datetime(meta.get("ttl_warned_at", ""))
+        if ttl_warned_at is None and now - created_at >= warn_threshold:
+            meta["ttl_warned_at"] = now.isoformat()
+            changed = True
+
+        if _capture_expired(meta, now):
+            linked_plan = (meta.get("linked_plan") or "").upper()
+            if not _capture_is_plan_active(linked_plan):
+                expired.append(cap_dir.name)
+
+        if _capture_linked_requests_done(meta.get("linked_plan")):
+            if meta.get("status") != "done":
+                meta["status"] = "done"
+                changed = True
+
+        if changed:
+            save_json(cap_path, meta)
+
+    if expired:
+        print("Expired captures:")
+        for name in expired:
+            print(name)
+    else:
+        print("No expired captures.")
     return 0
 
 
@@ -893,26 +1000,50 @@ def _archive_run_type(type_key: str, max_active: int, emit_output: bool) -> int:
     dst_dir.mkdir(parents=True, exist_ok=True)
 
     dirs = sorted(src_dir.glob(f"{prefix}-*"))
-    json_file = "request.json" if type_key == "req" else "session.json"
+    json_file = JSON_FILE_MAP.get(type_key, "session.json")
 
-    completed = [d for d in dirs if d.is_dir() and
-                 (load_json(d / json_file) or {}).get("status") in ("completed", "cancelled")]
+    if type_key == "cap":
+        now = datetime.now(timezone.utc)
+        to_archive = []
+        for d in dirs:
+            if not d.is_dir():
+                continue
+            data = load_json(d / json_file) or {}
+            if not _capture_expired(data, now):
+                continue
+            linked_plan = (data.get("linked_plan") or "").upper()
+            if not _capture_is_plan_active(linked_plan):
+                to_archive.append(d)
+    else:
+        completed = [d for d in dirs if d.is_dir() and
+                     (load_json(d / json_file) or {}).get("status") in ("completed", "cancelled")]
 
-    if len(dirs) - len(completed) <= max_active:
-        if emit_output:
-            print("No archiving needed.")
-        return 0
+        if len(dirs) - len(completed) <= max_active:
+            if emit_output:
+                print("No archiving needed.")
+            return 0
 
-    to_archive = completed[:len(dirs) - max_active]
+        to_archive = completed[:len(dirs) - max_active]
+
     if not to_archive:
         if emit_output:
-            print("No completed sessions to archive.")
+            if type_key == "cap":
+                print("No captures to archive.")
+            else:
+                print("No completed sessions to archive.")
         return 0
 
     ids = [d.name for d in to_archive]
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     archive_name = f"{subdir}-{ids[0]}-to-{ids[-1]}-{timestamp}.tar.gz"
     archive_path = dst_dir / archive_name
+
+    if type_key == "cap":
+        for d in to_archive:
+            cap_json = d / json_file
+            cap_data = load_json(cap_json) or {}
+            cap_data["status"] = "archived"
+            save_json(cap_json, cap_data)
 
     with tarfile.open(archive_path, "w:gz") as tar:
         for d in to_archive:
@@ -969,7 +1100,7 @@ def cmd_archive_list(args):
 def cmd_archive_restore(args):
     target = args.archive_id.upper()
     prefix = target[:3]
-    prefix_to_type = {"REQ": "req", "IDN": "idn", "DSC": "dsc", "DBG": "dbg"}
+    prefix_to_type = {"REQ": "req", "IDN": "idn", "DSC": "dsc", "DBG": "dbg", "CAP": "cap"}
     type_key = prefix_to_type.get(prefix, "req")
     subdir, _ = TYPE_DIRS.get(type_key, ("requests", "REQ"))
     archived = type_archived_dir(type_key)
@@ -1437,7 +1568,7 @@ def build_parser():
     arc_sub = arc.add_subparsers(dest="subcommand")
 
     arc_run = arc_sub.add_parser("run")
-    arc_run.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des"], default="req")
+    arc_run.add_argument("--type", choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des", "cap"], default="req")
     arc_run.add_argument("--max", type=int)
     arc_run.add_argument("--dir")
 
@@ -1449,6 +1580,12 @@ def build_parser():
 
     arc_restore = arc_sub.add_parser("restore")
     arc_restore.add_argument("archive_id")
+
+    # --- capture ---
+    cap = sub.add_parser("capture")
+    cap_sub = cap.add_subparsers(dest="subcommand")
+    cap_ttl_check = cap_sub.add_parser("ttl-check")
+    cap_ttl_check.set_defaults(func=cmd_capture_ttl_check)
 
     # --- version ---
     ver = sub.add_parser("version")
@@ -1583,6 +1720,7 @@ def main():
         ("context", "gather"): cmd_context_gather,
         ("agents", "check"):   cmd_agents_check,
         ("agents", "sync"):    cmd_agents_sync,
+        ("capture", "ttl-check"): cmd_capture_ttl_check,
         ("archive", "run"): cmd_archive_run,
         ("archive", "run-all"): cmd_archive_run_all,
         ("archive", "list"): cmd_archive_list,

@@ -1,13 +1,13 @@
 ---
 name: archive
-description: "세션 아카이브를 관리합니다. 오래된 ideation/discussion/request 세션을 압축 보관하고, 아카이브 현황 조회/복원/삭제를 수행합니다. 사용자가 '아카이브', '정리', '세션 정리'를 말하거나 /mst:archive를 호출할 때 사용."
+description: "세션 아카이브를 관리합니다. 오래된 ideation/discussion/request/capture 항목을 압축 보관하고, 아카이브 현황 조회/복원/삭제를 수행합니다. 사용자가 '아카이브', '정리', '세션 정리'를 말하거나 /mst:archive를 호출할 때 사용."
 user-invocable: true
-argument-hint: "[--run [--type {ideation|discussion|requests}]] [--restore {ID}] [--purge [--before {YYYY-MM-DD}]] [--list]"
+argument-hint: "[--run [--type {ideation|discussion|requests|cap}]] [--restore {ID}] [--purge [--before {YYYY-MM-DD}]] [--list]"
 ---
 
 # maestro:archive
 
-타입별(ideation/discussion/requests) 최근 N개 세션만 활성 유지하고, 초과분을 `archived/`에 tar.gz 압축 보관합니다.
+타입별(ideation/discussion/requests/captures) 최근 N개 항목만 활성 유지하고, 초과분을 `archived/`에 tar.gz 압축 보관합니다.
 
 ## 설정 참조
 
@@ -30,7 +30,7 @@ argument-hint: "[--run [--type {ideation|discussion|requests}]] [--restore {ID}]
 
 ### 인자 없음: 아카이브 현황 표시
 
-`archive` 설정 로드 → 각 타입 디렉토리 스캔(IDN-*/DSC-*/REQ-* 수) + `archived/`의 tar.gz 파일 수/디스크 사용량 확인 → 현황 표시:
+`archive` 설정 로드 → 각 타입 디렉토리 스캔(IDN-*/DSC-*/REQ-* 수, CAP-* 수) + `archived/`의 tar.gz 파일 수/디스크 사용량 확인 → 현황 표시:
 
 ```
 Gran Maestro — 아카이브 현황
@@ -49,10 +49,11 @@ requests     23      0         초과 (3개 아카이브 대상)
 
 ### `--run`: 수동 아카이브 실행
 
-`--type {ideation|discussion|requests}`로 특정 타입만 실행 가능.
+`--type {ideation|discussion|requests|cap}`로 특정 타입만 실행 가능.
 
 1. 대상 타입 스캔 → `session.json`/`request.json` 읽기
 2. **진행 중 세션 보호**: `done`/`completed`/`cancelled` 아닌 세션은 절대 아카이브 금지
+   - **captures 예외**: captures 타입은 status 기반이 아닌 TTL 기반 아카이브를 적용합니다. 7일 TTL 만료 + linked_plan 비활성인 캡처만 아카이브 대상이며, pending/selected 상태라도 TTL이 만료되면 아카이브됩니다.
 3. 완료 세션을 `created_at` 오래된 순 정렬 → `max_active_sessions` 초과분 선별
 4. `{type_dir}/archived/` 생성 후 tar.gz 압축 (원본 삭제):
    ```bash
@@ -74,7 +75,7 @@ requests: 3개 세션 아카이브됨
 
 ### `--restore {ID}`: 아카이브에서 세션 복원
 
-1. ID 접두사(REQ/IDN/DSC/DBG)로 타입 결정 → `archived/`에서 해당 ID 포함 tar.gz 탐색
+1. ID 접두사(REQ/IDN/DSC/DBG/CAP)로 타입 결정 → `archived/`에서 해당 ID 포함 tar.gz 탐색
 2. 목록 확인: `tar -tzf {archive_file} | grep {ID}`
 3. 세션 디렉토리만 추출: `tar -xzf {archive_file} -C {PROJECT_ROOT}/.gran-maestro/{type_dir} {session_dir}`
 4. 복원 결과 표시; 아카이브 파일 자체는 삭제 안 함
@@ -118,11 +119,11 @@ requests (1 archive):
 
 ## 진행 중 세션 보호 규칙
 
-`done`/`completed`/`cancelled` 아닌 모든 세션은 자동/수동 아카이브 모두에서 절대 아카이브 금지 (예: `analyzing`, `collecting`, `phase1_analysis`, `phase2_execution` 등).
+`done`/`completed`/`cancelled` 아닌 모든 항목은 자동/수동 아카이브 모두에서 절대 아카이브 금지 (예: `analyzing`, `collecting`, `phase1_analysis`, `phase2_execution` 등).
 
 ## counter.json 보호 규칙
 
-각 타입 디렉토리의 `counter.json`은 절대 삭제 금지 — 세션 ID 단조 증가 카운터로 아카이브/정리 대상 아님. `--run` 시 세션 디렉토리(IDN-*/DSC-*/DBG-*/REQ-*)만 처리, `counter.json`은 건드리지 않음.
+각 타입 디렉토리의 `counter.json`은 절대 삭제 금지 — ID 단조 증가 카운터로 아카이브/정리 대상 아님. `--run` 시 대상 디렉토리(IDN-*/DSC-*/DBG-*/REQ-*/CAP-*)만 처리, `counter.json`은 건드리지 않음.
 
 ## 디렉토리 구조
 
@@ -140,6 +141,10 @@ requests (1 archive):
 │   ├── REQ-* (active) + counter.json
 │   └── archived/
 │       └── requests-REQ001-REQ010-20260217.tar.gz
+├── captures/
+│   ├── CAP-* (active) + counter.json
+│   └── archived/
+│       └── captures-CAP001-CAP003-20260217.tar.gz
 ├── debug/
 │   ├── DBG-* + counter.json
 │   └── archived/
@@ -163,6 +168,7 @@ requests (1 archive):
 /mst:archive                          # 현황 표시
 /mst:archive --run                    # 모든 타입 아카이브 실행
 /mst:archive --run --type ideation    # ideation만 아카이브
+/mst:archive --run --type cap          # captures만 아카이브 (TTL 기반)
 /mst:archive --restore IDN-003        # IDN-003 복원
 /mst:archive --list                   # 아카이브 목록
 /mst:archive --purge                  # 만료 아카이브 삭제
