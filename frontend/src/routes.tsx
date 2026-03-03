@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { OverviewView } from './views/OverviewView';
 import { PlansView } from './views/PlansView';
 import { WorkflowView } from './views/WorkflowView';
+import { PicksView } from './views/PicksView';
 import { IdeationView } from './views/IdeationView';
 import { DebugView } from './views/DebugView';
 import { DesignView } from './views/DesignView';
@@ -21,6 +22,8 @@ export function AppRoutes() {
       <Route path="/workflow/:reqId" element={<WorkflowView />} />
       <Route path="/workflow/:reqId/spec" element={<WorkflowView />} />
       <Route path="/workflow/:reqId/tasks/:taskId" element={<WorkflowView />} />
+      <Route path="/picks" element={<PicksView />} />
+      <Route path="/picks/:captureId" element={<PicksView />} />
       <Route path="/ideation" element={<IdeationView />} />
       <Route path="/ideation/:sessionId" element={<IdeationView />} />
       <Route path="/debug" element={<DebugView />} />

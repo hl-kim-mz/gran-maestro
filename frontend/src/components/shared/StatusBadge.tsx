@@ -42,6 +42,8 @@ export function StatusBadge({ status, className }: { status: StatusType; classNa
     review: 'text-purple-600 border-purple-400 dark:text-purple-400 dark:border-purple-500',
     phase3_review: 'text-purple-600 border-purple-400 dark:text-purple-400 dark:border-purple-500',
     feedback: 'text-orange-600 border-orange-400 dark:text-orange-400 dark:border-orange-500',
+    selected: 'text-blue-600 border-blue-400 dark:text-blue-400 dark:border-blue-500',
+    consumed: 'text-teal-600 border-teal-400 dark:text-teal-400 dark:border-teal-500',
     cancelled: 'text-muted-foreground border-muted-foreground/40',
   };
 

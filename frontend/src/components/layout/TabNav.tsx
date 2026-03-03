@@ -6,6 +6,7 @@ import {
   Bug,
   Palette,
   Files,
+  Crosshair,
   Settings,
 } from 'lucide-react';
 import { useEffect } from 'react';
@@ -14,6 +15,7 @@ import { useAppContext } from '@/context/AppContext';
 export const TABS = [
   { id: 'plans', label: 'Plans', icon: LayoutDashboard, key: '1', path: '/plans' },
   { id: 'workflow', label: 'Workflow', icon: GitBranch, key: '2', path: '/workflow' },
+  { id: 'picks', label: 'Picks', icon: Crosshair, key: '8', path: '/picks' },
   { id: 'ideation', label: 'Ideation', icon: Lightbulb, key: '3', path: '/ideation' },
   { id: 'debug', label: 'Debug', icon: Bug, key: '4', path: '/debug' },
   { id: 'designs', label: 'Designs', icon: Palette, key: '5', path: '/designs' },
