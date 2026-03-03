@@ -22,7 +22,7 @@ docs/                # 문서
 
 | 파일 | 필드 |
 |------|------|
-| `.claude-plugin/plugin.json` | `version` |
+| `.claude-plugin/plugin.json` | `version` |₩
 | `package.json` | `version` |
 | `.claude-plugin/marketplace.json` | `plugins[0].version` |
 
@@ -81,5 +81,4 @@ docs/                # 문서
 
 <상세 설명 (선택)>
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
