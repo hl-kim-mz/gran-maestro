@@ -1269,6 +1269,46 @@ def cmd_config_resolve(args):
     return 0
 
 
+def cmd_hooks_post_skill(args):
+    try:
+        payload = json.loads(sys.stdin.read())
+        if not isinstance(payload, dict):
+            return 0
+
+        tool_input = payload.get("tool_input", {})
+        if not isinstance(tool_input, dict):
+            return 0
+
+        skill = tool_input.get("skill", "")
+        if not isinstance(skill, str):
+            return 0
+        if skill not in {"mst:accept", "mst:ideation", "mst:discussion", "mst:debug"}:
+            return 0
+
+        resolved = load_json(BASE_DIR / "config.resolved.json") or {}
+        archive_cfg = resolved.get("archive", {})
+        if not isinstance(archive_cfg, dict):
+            archive_cfg = {}
+
+        if not archive_cfg.get("auto_archive_on_complete", True):
+            return 0
+
+        max_active = archive_cfg.get("max_active_sessions", 20)
+        try:
+            max_active = int(max_active)
+        except (TypeError, ValueError):
+            max_active = 20
+
+        for type_key in TYPE_DIRS:
+            try:
+                _archive_run_type(type_key, max_active=max_active, emit_output=False)
+            except Exception:
+                pass
+    except Exception:
+        return 0
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
@@ -1477,6 +1517,12 @@ def build_parser():
     cfg_resolve = cfg_sub.add_parser("resolve", help="defaults + overrides → config.resolved.json")
     cfg_resolve.set_defaults(func=cmd_config_resolve)
 
+    # --- hooks ---
+    hooks = sub.add_parser("hooks")
+    hooks_sub = hooks.add_subparsers(dest="subcommand")
+    hooks_post_skill = hooks_sub.add_parser("post-skill")
+    hooks_post_skill.set_defaults(func=cmd_hooks_post_skill)
+
     return parser
 
 
@@ -1530,6 +1576,7 @@ def main():
         ("stitch", "sleep"): cmd_stitch_sleep,
         ("wait-files", None): cmd_wait_files,
         ("config", "resolve"): cmd_config_resolve,
+        ("hooks", "post-skill"): cmd_hooks_post_skill,
     }
 
     key = (args.command, getattr(args, "subcommand", None))
