@@ -15,17 +15,6 @@ import { queueOfflineCapture } from './offline-store';
 import { postCapture, ServerRequestError } from './server-client';
 import { syncOfflineQueue } from './sync-manager';
 
-const inspectStorageKey = (tabId: number): string => `${STORAGE_KEYS.INSPECT_PREFIX}${tabId}`;
-
-async function setInspectState(tabId: number, enabled: boolean): Promise<void> {
-  await chrome.storage.local.set({ [inspectStorageKey(tabId)]: enabled });
-}
-
-async function readInspectState(tabId: number): Promise<boolean> {
-  const currentState = await chrome.storage.local.get(inspectStorageKey(tabId));
-  return Boolean(currentState[inspectStorageKey(tabId)]);
-}
-
 async function readServerStatus(): Promise<boolean> {
   const status = await chrome.storage.local.get(STORAGE_KEYS.SERVER_STATUS);
   return Boolean(status[STORAGE_KEYS.SERVER_STATUS]);
@@ -100,7 +89,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      await setInspectState(typedMessage.payload.tabId, responseFromContent.payload.enabled);
       sendResponse({
         ok: true,
         type: MESSAGE_TYPES.INSPECT_STATUS,
@@ -159,13 +147,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message.type === MESSAGE_TYPES.INSPECT_STATUS) {
-      await setInspectState(message.payload.tabId, message.payload.enabled);
-      const currentInspectState = await readInspectState(message.payload.tabId);
       sendResponse({
-        ok: true,
-        payload: {
-          currentInspectState
-        }
+        ok: true
       } as ExtensionResponse);
       return;
     }

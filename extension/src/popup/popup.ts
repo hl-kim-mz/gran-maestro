@@ -18,6 +18,7 @@ import { sendToBackground } from '../shared/messages';
 const SERVER_STATUS_POLL_MS = 3_000;
 const INSPECT_ERROR_TIMEOUT_MS = 3_000;
 const INSPECT_ERROR_TEXT = 'Please reload the page and try again';
+const INSPECT_TEXT = 'Pick an element on the page';
 
 const toggleButton = document.getElementById('inspectToggle') as HTMLButtonElement | null;
 const inspectText = document.getElementById('inspectText') as HTMLParagraphElement | null;
@@ -28,12 +29,10 @@ const refreshProjectsButton = document.getElementById('refreshProjects') as HTML
 const overlayToggleButton = document.getElementById('overlayToggle') as HTMLButtonElement | null;
 const overlayText = document.getElementById('overlayText') as HTMLParagraphElement | null;
 
-const inspectStateStorageKey = (tabId: number) => `popup-inspect-state-${tabId}`;
 const overlayStateStorageKey = 'gm-overlay-badge-state';
 const disconnectedServerTooltip = '/mst:dashboard로 서버를 시작하세요';
 
 let activeTabId: number | null = null;
-let isInspectMode = false;
 let isOverlayEnabled = true;
 let isProjectCatalogLoaded = false;
 let lastServerConnected = false;
@@ -42,13 +41,12 @@ let cachedProjects: Project[] = [];
 
 type InspectResponse = InspectStatusMsg | ExtensionResponse;
 
-function applyInspectModeUI(enabled: boolean): void {
-  isInspectMode = enabled;
+function applyInspectModeUI(): void {
   if (toggleButton) {
-    toggleButton.textContent = enabled ? 'Disable Inspect' : 'Enable Inspect';
+    toggleButton.textContent = 'Pick Element';
   }
   if (inspectText) {
-    inspectText.textContent = enabled ? 'Inspect mode is ON' : 'Inspect mode is OFF';
+    inspectText.textContent = INSPECT_TEXT;
   }
 }
 
@@ -172,7 +170,7 @@ function showInspectErrorMessage(): void {
   inspectText.textContent = INSPECT_ERROR_TEXT;
   inspectErrorTimeout = window.setTimeout(() => {
     inspectErrorTimeout = null;
-    applyInspectModeUI(isInspectMode);
+    applyInspectModeUI();
   }, INSPECT_ERROR_TIMEOUT_MS);
 }
 
@@ -323,12 +321,6 @@ async function queryActiveTabId(): Promise<number> {
   return activeTab.id;
 }
 
-async function hydrateInspectUI(tabId: number): Promise<void> {
-  const key = inspectStateStorageKey(tabId);
-  const state = await chrome.storage.local.get(key);
-  applyInspectModeUI(Boolean(state[key]));
-}
-
 async function hydrateOverlayUI(): Promise<void> {
   const overlayState = await chrome.storage.local.get(overlayStateStorageKey);
   const hasStoredOverlayState = Object.prototype.hasOwnProperty.call(
@@ -355,12 +347,11 @@ function setupListeners(): void {
         return;
       }
 
-      const nextState = !isInspectMode;
       const message: ToggleInspectMsg = {
         type: MESSAGE_TYPES.TOGGLE_INSPECT,
         payload: {
           tabId: activeTabId,
-          enabled: nextState
+          enabled: true
         }
       };
 
@@ -379,10 +370,7 @@ function setupListeners(): void {
           throw new Error(INSPECT_ERROR_TEXT);
         }
 
-        applyInspectModeUI(inspectPayload.enabled);
-        await chrome.storage.local.set({
-          [inspectStateStorageKey(activeTabId)]: inspectPayload.enabled
-        });
+        applyInspectModeUI();
       } catch {
         showInspectErrorMessage();
       }
@@ -432,7 +420,6 @@ function setupListeners(): void {
 async function bootstrap(): Promise<void> {
   try {
     activeTabId = await queryActiveTabId();
-    await hydrateInspectUI(activeTabId);
     await hydrateOverlayUI();
     applyServerStatusUI(false);
     renderDisconnectedProjectFallback();
@@ -441,7 +428,7 @@ async function bootstrap(): Promise<void> {
       await hydrateProjectUI();
     }
   } catch {
-    applyInspectModeUI(false);
+    applyInspectModeUI();
     applyServerStatusUI(false);
   }
 }
@@ -452,8 +439,7 @@ chrome.runtime.onMessage.addListener((message) => {
     void handleServerStatusChange(statusMessage.payload.connected);
   }
   if (message?.type === MESSAGE_TYPES.INSPECT_STATUS) {
-    const inspectMessage = message as InspectStatusMsg;
-    applyInspectModeUI(inspectMessage.payload.enabled);
+    return;
   }
   if (message?.type === MESSAGE_TYPES.PROJECTS_REFRESH) {
     void hydrateProjectUI();
@@ -461,7 +447,7 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 bootstrap().catch(() => {
-  applyInspectModeUI(false);
+  applyInspectModeUI();
   applyServerStatusUI(false);
 });
 

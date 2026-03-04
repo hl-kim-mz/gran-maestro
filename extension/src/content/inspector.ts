@@ -156,6 +156,7 @@ export class Inspector {
       this.panel.hide();
       this.navigator.setCurrent(null);
       this.highlighter.hide();
+      this.deactivate();
       return;
     }
 
@@ -177,7 +178,7 @@ export class Inspector {
       event.stopPropagation();
       event.stopImmediatePropagation();
       if (this.panel.isOpen()) {
-        this.panel.hide();
+        this.deactivate();
         return;
       }
       this.deactivate();
@@ -193,9 +194,7 @@ export class Inspector {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
-        this.panel.hide();
-        this.navigator.setCurrent(null);
-        this.highlighter.hide();
+        this.deactivate();
         return;
       }
 
@@ -359,9 +358,7 @@ export class Inspector {
       const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
       showToast(`캡처 실패: ${message}`, 'error');
     } finally {
-      if (mode === 'immediate') {
-        this.deactivate();
-      }
+      this.deactivate();
     }
   }
 }

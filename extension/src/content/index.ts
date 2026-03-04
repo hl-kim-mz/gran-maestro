@@ -9,12 +9,8 @@ const inspector = new Inspector({
   }
 });
 
-function applyInspectMode(enabled: boolean): void {
-  if (enabled) {
-    inspector.activate();
-  } else {
-    inspector.deactivate();
-  }
+function applyInspectMode(_enabled: boolean): void {
+  inspector.activate();
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

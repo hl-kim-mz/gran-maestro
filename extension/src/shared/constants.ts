@@ -39,7 +39,6 @@ export const MESSAGE_TYPES = {
 } as const;
 
 export const STORAGE_KEYS = {
-  INSPECT_PREFIX: 'inspect-enabled-tab-',
   SERVER_STATUS: 'server-status-connected',
   LAST_CAPTURE: 'last-capture',
   SYNC_STATUS: 'sync-status',
