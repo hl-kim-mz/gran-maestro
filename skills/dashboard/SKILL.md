@@ -50,7 +50,7 @@ argument-hint: "[--port {포트}] [--stop] [--restart]"
      -d "{\"name\": \"<project_name>\", \"path\": \"<cwd>/.gran-maestro\"}"
    ```
    ⚠️ `path`는 반드시 `<cwd>/.gran-maestro` 디렉토리 경로여야 합니다. CWD만 전달하면 안 됩니다.
-10. 브라우저 실행: macOS `open`, Linux `xdg-open` → `http://localhost:<port>?project=<id>&token=<hubToken>`
+10. 브라우저 실행: macOS `open`, Linux `xdg-open` → `http://localhost:<port>?project=<id>`
 11. 사용자 안내 출력 (URL/프로젝트명/ID)
 
 ## 대시보드 뷰
@@ -68,7 +68,6 @@ argument-hint: "[--port {포트}] [--stop] [--restart]"
 | 항목 | 경로 |
 |------|------|
 | PID 파일 | `~/.gran-maestro-hub/hub.pid` |
-| 토큰 | `~/.gran-maestro-hub/hub.token` |
 | 프로젝트 레지스트리 | `~/.gran-maestro-hub/registry.json` |
 | 로그 | `/tmp/gran-maestro-hub.log` |
 
@@ -93,5 +92,5 @@ argument-hint: "[--port {포트}] [--stop] [--restart]"
 - Deno 없음 → https://deno.land 설치
 - 포트 사용 중 → `--restart` 또는 `--port`로 다른 포트 사용
 - 서버 시작 실패 → `/tmp/gran-maestro-hub.log` 확인, Deno 권한 플래그 확인
-- 브라우저 안 열림 → 토큰 URL 수동 복사
+- 브라우저 안 열림 → URL `http://localhost:<port>?project=<id>` 수동 복사
 - 프로젝트 등록 실패 → `.gran-maestro/` 디렉토리 존재 확인

@@ -7,7 +7,6 @@ export const OFFLINE_SYNC_MAX_ATTEMPTS = 3;
 
 export const SERVER_ENDPOINTS = {
   HEALTH: '/api/health',
-  AUTH_TOKEN: '/api/auth/token',
   PROJECTS: '/api/projects'
 } as const;
 
@@ -43,7 +42,6 @@ export const STORAGE_KEYS = {
   LAST_CAPTURE: 'last-capture',
   SYNC_STATUS: 'sync-status',
   SERVER_ORIGIN: 'server-origin-override',
-  SESSION_TOKEN: 'server-session-token',
   SELECTED_PROJECT: 'selected-project'
 } as const;
 

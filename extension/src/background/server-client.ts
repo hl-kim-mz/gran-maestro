@@ -1,6 +1,5 @@
 import { DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_SERVER_ORIGIN, SERVER_ENDPOINTS, STORAGE_KEYS, capturesEndpoint, captureCounterEndpoint } from '../shared/constants';
 import { CapturePayload, ServerConfig } from '../shared/types';
-import { getSessionToken, getStoredSessionToken, clearSessionToken } from './session-token';
 
 interface ErrorResult {
   status?: number;
@@ -85,16 +84,11 @@ function extractCaptureId(payload: unknown): string | null {
 async function postCaptureRaw(
   config: ServerConfig,
   capturePayload: CapturePayload,
-  projectId: string,
-  token?: string
+  projectId: string
 ): Promise<Response> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
 
   const timeout = requestTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS);
   try {
@@ -150,43 +144,14 @@ export async function healthCheck(): Promise<boolean> {
 export async function postCapture(capturePayload: CapturePayload): Promise<string> {
   const config = await readServerConfig();
   const projectId = await getSelectedProjectId();
-  const tokenFromStorage = await getStoredSessionToken();
   let response: Response | null = null;
 
   try {
-    response = await postCaptureRaw(config, capturePayload, projectId, tokenFromStorage ?? undefined);
+    response = await postCaptureRaw(config, capturePayload, projectId);
   } catch (error) {
     throw new ServerRequestError('CAPTURE_SAVE failed while posting capture', {
       isOffline: true
     });
-  }
-
-  if (response.status === 401) {
-    let newToken: string | undefined;
-    try {
-      newToken = (await getSessionToken()) ?? undefined;
-    } catch {
-      await clearSessionToken();
-      throw new ServerRequestError('CAPTURE_SAVE unauthorized');
-    }
-
-    if (!newToken) {
-      await clearSessionToken();
-      throw new ServerRequestError('CAPTURE_SAVE unauthorized');
-    }
-
-    try {
-      response = await postCaptureRaw(config, capturePayload, projectId, newToken);
-    } catch (retryError) {
-      throw new ServerRequestError('CAPTURE_SAVE failed while retrying with token', {
-        isOffline: true
-      });
-    }
-
-    if (response.status === 401) {
-      await clearSessionToken();
-      throw new ServerRequestError('CAPTURE_SAVE unauthorized after retry');
-    }
   }
 
   if (!response.ok) {

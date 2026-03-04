@@ -54,7 +54,6 @@ Settings for dashboard server access.
 |----|--------|------|
 | `server.port` | `3847` | dashboard port |
 | `server.host` | `127.0.0.1` | dashboard host |
-| `server.auth_enabled` | `true` | bearer token authentication |
 
 ---
 

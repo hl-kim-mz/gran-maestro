@@ -4,7 +4,6 @@
 
 export interface GranMaestroConfig {
   dashboard_port?: number;
-  dashboard_auth?: boolean;
   [key: string]: unknown;
 }
 

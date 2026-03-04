@@ -65,7 +65,6 @@
 |----|--------|------|
 | `server.port` | `3847` | 대시보드 포트 |
 | `server.host` | `127.0.0.1` | 대시보드 호스트 |
-| `server.auth_enabled` | `true` | 대시보드 Bearer 토큰 인증 |
 
 ---
 

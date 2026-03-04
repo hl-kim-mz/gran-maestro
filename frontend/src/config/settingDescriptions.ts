@@ -1,7 +1,6 @@
 export const SETTING_DESCRIPTIONS: Record<string, string> = {
   'version': '현재 플러그인 버전',
   'plugin_name': '플러그인 이름',
-  'dashboard_auth': '대시보드 인증 사용 여부',
   'branding.name': '브랜딩 이름',
   'branding.tagline': '브랜딩 태그라인',
   'workflow.max_feedback_rounds': '최대 피드백 반복 횟수 (Phase 4)',
@@ -11,7 +10,6 @@ export const SETTING_DESCRIPTIONS: Record<string, string> = {
   'workflow.spec_prereview': '스펙 작성 후 구현 전 Pre-review Pass 실행 여부',
   'server.port': '대시보드 포트',
   'server.host': '대시보드 호스트',
-  'server.auth_enabled': '대시보드 Bearer 토큰 인증',
   'concurrency.max_parallel_tasks': '최대 병렬 태스크 수',
   'concurrency.max_parallel_reviews': '최대 병렬 리뷰 수',
   'concurrency.batch_max_parallel_reqs': '배치 승인 시 최대 병렬 REQ 수',

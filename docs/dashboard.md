@@ -20,7 +20,7 @@
 | `--port <번호>` | 지정한 포트 번호로 서버를 시작합니다 |
 | `--restart` | 서버를 중지한 후 다시 시작합니다 |
 
-시작 후 브라우저가 자동으로 열리며, URL에 Bearer 토큰이 포함됩니다.
+시작 후 브라우저가 자동으로 열립니다.
 
 ## 요구사항
 
@@ -50,7 +50,6 @@ irm https://deno.land/install.ps1 | iex
 | 항목 | 경로 |
 |------|------|
 | PID 파일 | `~/.gran-maestro-hub/hub.pid` |
-| 인증 토큰 | `~/.gran-maestro-hub/hub.token` |
 | 프로젝트 레지스트리 | `~/.gran-maestro-hub/registry.json` |
 | 로그 | `/tmp/gran-maestro-hub.log` |
 
@@ -63,20 +62,6 @@ irm https://deno.land/install.ps1 | iex
 | Documents | `.gran-maestro/` 하위 MD/JSON 마크다운 렌더링 |
 | Dependency Graph | 요청 간 blockedBy/blocks 관계 시각화 |
 | Settings | `config.json` 웹 UI 편집 (섹션별 폼, 기본값 리셋) |
-
-## 인증
-
-Bearer 토큰 인증으로 보호됩니다. 서버 시작 시 랜덤 UUID 토큰이 생성되어 `~/.gran-maestro-hub/hub.token`에 저장됩니다. 브라우저 URL에 토큰이 자동으로 포함되므로 별도 로그인 없이 접속할 수 있습니다.
-
-인증을 비활성화하려면 `config.json`에서 `server.auth_enabled`를 `false`로 설정합니다:
-
-```json
-"server": {
-  "auth_enabled": false
-}
-```
-
-> 주의: 인증 비활성화 시 로컬 네트워크에 노출될 수 있습니다. 개인 개발 환경에서만 사용하세요.
 
 ## API 엔드포인트
 
@@ -186,8 +171,7 @@ Bearer 토큰 인증으로 보호됩니다. 서버 시작 시 랜덤 UUID 토큰
 ```json
 "server": {
   "port": 8080,
-  "host": "127.0.0.1",
-  "auth_enabled": true
+  "host": "127.0.0.1"
 }
 ```
 
@@ -202,6 +186,5 @@ Bearer 토큰 인증으로 보호됩니다. 서버 시작 시 랜덤 UUID 토큰
 |----|--------|------|
 | `server.port` | `3847` | 대시보드 포트 번호 |
 | `server.host` | `127.0.0.1` | 바인딩 호스트 (로컬호스트 고정 권장) |
-| `server.auth_enabled` | `true` | Bearer 토큰 인증 활성화 여부 |
 
 설정 변경 후에는 `/mst:dashboard --restart`로 서버를 재시작해야 적용됩니다.

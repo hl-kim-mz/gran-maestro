@@ -38,7 +38,6 @@ argument-hint: "[{key} [{value}]]"
 | `workflow.default_agent` | 기본 실행 에이전트 | `codex-dev` | string |
 | `server.port` | 대시보드 포트 | `3847` | number |
 | `server.host` | 대시보드 호스트 | `127.0.0.1` | string |
-| `server.auth_enabled` | 대시보드 인증 활성화 | `true` | boolean |
 | `concurrency.max_parallel_tasks` | 최대 병렬 태스크 수 | `5` | number |
 | `concurrency.max_parallel_reviews` | 최대 병렬 리뷰 수 | `3` | number |
 | `concurrency.queue_strategy` | 큐 전략 | `fifo` | string |

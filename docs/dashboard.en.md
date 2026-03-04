@@ -20,7 +20,7 @@ A local web server-based dashboard for visual workflow monitoring.
 | `--port <number>` | start with a specific port |
 | `--restart` | stop and start again |
 
-The browser opens automatically after startup, with a Bearer token in the URL.
+The browser opens automatically after startup.
 
 ## Requirements
 
@@ -50,7 +50,6 @@ Server data is stored in `~/.gran-maestro-hub/`:
 | Item | Path |
 |------|------|
 | PID file | `~/.gran-maestro-hub/hub.pid` |
-| auth token | `~/.gran-maestro-hub/hub.token` |
 | project registry | `~/.gran-maestro-hub/registry.json` |
 | log | `/tmp/gran-maestro-hub.log` |
 
@@ -63,20 +62,6 @@ Server data is stored in `~/.gran-maestro-hub/`:
 | Documents | Markdown rendering of `.gran-maestro/` subfolder files (MD/JSON) |
 | Dependency Graph | Visualization of blockedBy / blocks relationships among requests |
 | Settings | Edit `config.json` in web UI (section form, reset defaults) |
-
-## Authentication
-
-It is protected by Bearer token authentication. A random UUID token is generated at server startup and saved to `~/.gran-maestro-hub/hub.token`. Because the token is included automatically in the browser URL, no separate login is needed.
-
-To disable authentication, set `server.auth_enabled` to `false` in `config.json`:
-
-```json
-"server": {
-  "auth_enabled": false
-}
-```
-
-> Caution: disabling auth can expose it on a local network. Use only on private development environments.
 
 ## API endpoints
 
@@ -113,8 +98,7 @@ Modify the `server` section of `config.json`:
 ```json
 "server": {
   "port": 8080,
-  "host": "127.0.0.1",
-  "auth_enabled": true
+  "host": "127.0.0.1"
 }
 ```
 
@@ -129,6 +113,5 @@ Or modify with `/mst:settings` command:
 |----|--------|-------------|
 | `server.port` | `3847` | dashboard port |
 | `server.host` | `127.0.0.1` | binding host (localhost recommended) |
-| `server.auth_enabled` | `true` | Bearer token authentication enabled |
 
 Restart the server with `/mst:dashboard --restart` after changing settings.

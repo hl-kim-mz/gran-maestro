@@ -2,7 +2,7 @@ import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 import { atomicWriteJSON, acquireLock, releaseLock } from "../core/concurrency.ts";
 import type { CaptureCreatePayload, CaptureMeta, CaptureUpdatePayload } from "../types.ts";
 import { dirExists, listDirs, readJsonFile, writeJsonFile } from "../utils.ts";
-import { HUB_DIR, loadConfig, resolveBaseDir } from "../config.ts";
+import { resolveBaseDir } from "../config.ts";
 
 type CaptureStatus = CaptureMeta["status"];
 type CaptureStatusUpdate = CaptureUpdatePayload["status"];
@@ -25,23 +25,6 @@ function isAllowedCaptureOrigin(origin: string): boolean {
   }
 
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalized);
-}
-
-function extractBearerToken(authHeader: string | undefined | null): string | null {
-  if (!authHeader) return null;
-  const match = authHeader.match(/^bearer\s+(.+)$/i);
-  if (!match) return null;
-  const token = match[1]?.trim();
-  return token && token.length > 0 ? token : null;
-}
-
-async function readHubToken(): Promise<string | null> {
-  try {
-    const token = (await Deno.readTextFile(`${HUB_DIR}/hub.token`)).trim();
-    return token.length > 0 ? token : null;
-  } catch {
-    return null;
-  }
 }
 
 function isSupportedStatus(value: unknown): value is CaptureStatus {
@@ -200,21 +183,6 @@ projectCapturesApi.use(async (c, next) => {
   const origin = c.req.header("Origin");
   if (origin && !isAllowedCaptureOrigin(origin)) {
     return c.json({ error: "Invalid origin" }, 403);
-  }
-
-  const config = await loadConfig(baseDir);
-  const authEnabled =
-    typeof config?.server === "object" &&
-    config.server !== null &&
-    (config.server as { auth_enabled?: unknown }).auth_enabled === true;
-
-  if (authEnabled) {
-    const bearerToken = extractBearerToken(c.req.header("Authorization"));
-    const expectedToken = await readHubToken();
-
-    if (!bearerToken || !expectedToken || bearerToken !== expectedToken) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
   }
 
   return next();

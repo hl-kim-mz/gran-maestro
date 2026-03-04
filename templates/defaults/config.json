@@ -7,8 +7,7 @@
   },
   "server": {
     "port": 3847,
-    "host": "127.0.0.1",
-    "auth_enabled": true
+    "host": "127.0.0.1"
   },
   "workflow": {
     "max_feedback_rounds": 5,
