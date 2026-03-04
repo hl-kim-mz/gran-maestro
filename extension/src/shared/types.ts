@@ -28,6 +28,13 @@ export interface CapturePayload {
   source_path: string | null;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  path: string;
+  registered_at: string;
+}
+
 export interface ServerConfig {
   baseUrl: string;
 }

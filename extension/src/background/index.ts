@@ -87,14 +87,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     if (message.type === MESSAGE_TYPES.TOGGLE_INSPECT) {
       const typedMessage = message as ToggleInspectMsg;
-      await setInspectState(typedMessage.payload.tabId, typedMessage.payload.enabled);
-
       const responseFromContent = await sendToContent<InspectStatusMsg>(
         typedMessage.payload.tabId,
         message
       );
 
+      if (!responseFromContent?.payload || typeof responseFromContent.payload.enabled !== 'boolean') {
+        sendResponse({
+          ok: false,
+          error: 'Invalid inspect status response'
+        } as ExtensionResponse);
+        return;
+      }
+
+      await setInspectState(typedMessage.payload.tabId, responseFromContent.payload.enabled);
       sendResponse({
+        ok: true,
         type: MESSAGE_TYPES.INSPECT_STATUS,
         payload: responseFromContent.payload
       });

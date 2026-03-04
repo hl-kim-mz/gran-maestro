@@ -9,7 +9,8 @@ export const SERVER_ENDPOINTS = {
   CAPTURES: '/api/captures',
   CAPTURE_COUNTER_NEXT: '/api/captures/counter/next',
   HEALTH: '/api/health',
-  AUTH_TOKEN: '/api/auth/token'
+  AUTH_TOKEN: '/api/auth/token',
+  PROJECTS: '/api/projects'
 } as const;
 
 export const SERVER_DB = {
