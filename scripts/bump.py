@@ -127,6 +127,30 @@ def get_git_log_since_last_bump(old_version: str) -> list[str]:
         return [f"(git log 실패: {e})"]
 
 
+def run_builds() -> list[tuple[str, bool]]:
+    """Extension과 Frontend 빌드를 실행하고 결과를 반환한다."""
+    builds = [
+        ("extension", ROOT / "extension", ["npm", "run", "build"]),
+        ("frontend", ROOT / "frontend", ["npm", "run", "build"]),
+    ]
+    results: list[tuple[str, bool]] = []
+    for name, cwd, cmd in builds:
+        if not cwd.exists():
+            results.append((name, True))
+            continue
+        try:
+            subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True)
+            results.append((name, True))
+        except subprocess.CalledProcessError as e:
+            print(f"에러: {name} 빌드 실패", file=sys.stderr)
+            if e.stdout:
+                print(e.stdout, file=sys.stderr)
+            if e.stderr:
+                print(e.stderr, file=sys.stderr)
+            results.append((name, False))
+    return results
+
+
 def main() -> None:
     valid_types = ("patch", "minor", "major")
 
@@ -155,6 +179,14 @@ def main() -> None:
     # git log 수집 (파일 수정 전에)
     log_lines = get_git_log_since_last_bump(old_version)
 
+    # Extension + Frontend 빌드
+    print("빌드 실행 중...")
+    build_results = run_builds()
+    build_failed = any(not ok for _, ok in build_results)
+    if build_failed:
+        print("에러: 빌드 실패로 버전업을 중단합니다.", file=sys.stderr)
+        sys.exit(1)
+
     # 3파일 버전 수정
     write_version_package(new_version)
     write_version_plugin(new_version)
@@ -163,6 +195,10 @@ def main() -> None:
     # 결과 출력
     print(f"버전: {old_version} → {new_version}")
     print(DIVIDER)
+    print("빌드:")
+    for name, ok in build_results:
+        print(f"  ✓ {name}" if ok else f"  ✗ {name}")
+    print()
     print("파일 업데이트:")
     print(f"  ✓ package.json")
     print(f"  ✓ .claude-plugin/plugin.json")
