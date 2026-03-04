@@ -75,6 +75,11 @@
         gap: 6px;
       }
 
+      .project-select-row {
+        display: flex;
+        gap: 6px;
+      }
+
       .project-label {
         font-size: 12px;
         color: var(--text-soft);
@@ -87,6 +92,17 @@
         border-radius: 8px;
         padding: 8px;
         color: var(--text);
+      }
+
+      .refresh-btn {
+        width: 36px;
+        flex: 0 0 36px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--text);
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
       }
 
       .overlay-toggle {
@@ -111,7 +127,10 @@
       </div>
       <div class="project-row">
         <label class="project-label" for="projectSelect">Project</label>
-        <select id="projectSelect" class="project-select"></select>
+        <div class="project-select-row">
+          <select id="projectSelect" class="project-select"></select>
+          <button id="refreshProjects" class="refresh-btn" type="button" title="Refresh projects">↻</button>
+        </div>
       </div>
       <button id="inspectToggle" class="inspect-toggle" type="button">Enable Inspect</button>
       <p id="inspectText" style="font-size: 12px; color: var(--text-soft); margin: 10px 0 0">

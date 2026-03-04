@@ -24,6 +24,7 @@ const inspectText = document.getElementById('inspectText') as HTMLParagraphEleme
 const serverStatusDot = document.getElementById('serverStatusDot') as HTMLSpanElement | null;
 const serverStatusText = document.getElementById('serverStatusText') as HTMLSpanElement | null;
 const projectSelect = document.getElementById('projectSelect') as HTMLSelectElement | null;
+const refreshProjectsButton = document.getElementById('refreshProjects') as HTMLButtonElement | null;
 const overlayToggleButton = document.getElementById('overlayToggle') as HTMLButtonElement | null;
 const overlayText = document.getElementById('overlayText') as HTMLParagraphElement | null;
 
@@ -73,6 +74,14 @@ function applyServerStatusUI(connected: boolean): void {
       serverStatusText.title = disconnectedServerTooltip;
     }
   }
+}
+
+function isStaleProjectFallback(): boolean {
+  if (!projectSelect) {
+    return false;
+  }
+
+  return Array.from(projectSelect.options).some((option) => option.value === 'default');
 }
 
 function clearProjectOptions(): void {
@@ -266,6 +275,11 @@ async function handleServerStatusChange(connected: boolean): Promise<void> {
       if (!isProjectCatalogLoaded) {
         renderDisconnectedProjectFallback();
       }
+      return;
+    }
+
+    if (isStaleProjectFallback()) {
+      await hydrateProjectUI();
     }
     return;
   }
@@ -383,6 +397,12 @@ function setupListeners(): void {
     });
   }
 
+  if (refreshProjectsButton) {
+    refreshProjectsButton.addEventListener('click', () => {
+      void hydrateProjectUI();
+    });
+  }
+
   if (overlayToggleButton) {
     overlayToggleButton.addEventListener('click', async () => {
       if (activeTabId === null) {
@@ -417,9 +437,8 @@ async function bootstrap(): Promise<void> {
     applyServerStatusUI(false);
     renderDisconnectedProjectFallback();
     await setupConnectionPolling();
-    if (lastServerConnected && cachedProjects.length > 0) {
-      populateProjectDropdown(cachedProjects);
-      await applyProjectState(cachedProjects);
+    if (lastServerConnected) {
+      await hydrateProjectUI();
     }
   } catch {
     applyInspectModeUI(false);
@@ -435,6 +454,9 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === MESSAGE_TYPES.INSPECT_STATUS) {
     const inspectMessage = message as InspectStatusMsg;
     applyInspectModeUI(inspectMessage.payload.enabled);
+  }
+  if (message?.type === MESSAGE_TYPES.PROJECTS_REFRESH) {
+    void hydrateProjectUI();
   }
 });
 

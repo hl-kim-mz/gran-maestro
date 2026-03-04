@@ -128,6 +128,11 @@ export interface ServerStatusQueryMsg {
   payload: Record<string, never>;
 }
 
+export interface ProjectsRefreshMsg {
+  type: typeof MESSAGE_TYPES.PROJECTS_REFRESH;
+  payload: Record<string, never>;
+}
+
 export interface OverlayToggleMsg {
   type: OverlayToggleMessageType;
   payload: {
@@ -145,6 +150,7 @@ export type ExtensionMessage =
   | SaveCaptureMsg
   | ServerStatusMsg
   | ServerStatusQueryMsg
+  | ProjectsRefreshMsg
   | OverlayToggleMsg;
 
 export interface ExtensionResponse {

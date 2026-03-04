@@ -29,6 +29,15 @@ async function updateConnectionState(nextConnected: boolean): Promise<void> {
     }).catch(() => {
       // no receiver yet — popup may not be open
     });
+
+    if (nextConnected) {
+      chrome.runtime.sendMessage({
+        type: MESSAGE_TYPES.PROJECTS_REFRESH,
+        payload: {}
+      }).catch(() => {
+        // no receiver yet — popup may not be open
+      });
+    }
   }
 }
 
