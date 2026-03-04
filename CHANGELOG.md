@@ -4,6 +4,15 @@
 
 ---
 
+## [0.47.2] — 2026-03-04
+
+### 개선
+
+- **Extension Capture API projectId 경로 포함**: 캡처 API 경로에 projectId를 포함하여 프로젝트별 캡처 정확도 향상
+- **Extension 프로젝트 드롭다운 안정성 강화**: race condition 추가 수정 및 auto-refresh 기능 추가
+
+---
+
 ## [0.47.1] — 2026-03-04
 
 ### 버그 수정
