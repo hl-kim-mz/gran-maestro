@@ -12,11 +12,44 @@ export interface BuildCapturePayloadInput {
   mode: CaptureMode;
 }
 
-function trimText(value: string, maxLength: number): string {
-  if (value.length <= maxLength) {
-    return value;
+function trimHtmlSnapshot(element: Element, maxLength: number): string | null {
+  const html = element.outerHTML ?? '';
+  if (html.length <= maxLength) {
+    return html;
   }
-  return value.slice(0, maxLength);
+
+  const clone = element.cloneNode(true) as Element;
+  let removedNodes = 0;
+
+  while (clone.childNodes.length > 0 && clone.outerHTML.length > maxLength) {
+    const lastChild = clone.childNodes[clone.childNodes.length - 1];
+    clone.removeChild(lastChild);
+    removedNodes++;
+  }
+
+  if (removedNodes > 0 && clone.outerHTML.length > maxLength) {
+    clone.textContent = '';
+    const contentRemovedComment = clone.ownerDocument.createComment('truncated: content removed');
+    clone.appendChild(contentRemovedComment);
+
+    if (clone.outerHTML.length <= maxLength) {
+      return clone.outerHTML;
+    }
+    return clone.outerHTML.slice(0, maxLength);
+  }
+
+  if (removedNodes === 0) {
+    return html.slice(0, maxLength);
+  }
+
+  const truncatedComment = clone.ownerDocument.createComment(`truncated: ${removedNodes} nodes removed`);
+  clone.appendChild(truncatedComment);
+  if (clone.outerHTML.length <= maxLength) {
+    return clone.outerHTML;
+  }
+  clone.removeChild(truncatedComment);
+
+  return clone.outerHTML;
 }
 
 export function buildCapturePayload(input: BuildCapturePayloadInput): CapturePayload {
@@ -37,7 +70,7 @@ export function buildCapturePayload(input: BuildCapturePayloadInput): CapturePay
       width: rect.width,
       height: rect.height
     },
-    html_snapshot: html ? trimText(html, MAX_HTML_SNAPSHOT_BYTES) : null,
+    html_snapshot: html ? trimHtmlSnapshot(input.element, MAX_HTML_SNAPSHOT_BYTES) : null,
     screenshot_data: null,
     memo,
     tags: [...input.tags],

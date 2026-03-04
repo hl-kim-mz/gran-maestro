@@ -111,6 +111,10 @@ export class Inspector {
     event.stopPropagation();
     event.stopImmediatePropagation();
 
+    if (this.panel.isOpen()) {
+      return;
+    }
+
     const target = this.resolveTarget(event.target);
     if (!target) {
       return;
@@ -123,7 +127,7 @@ export class Inspector {
 
     this.rafId = requestAnimationFrame(() => {
       this.rafId = null;
-      if (this.pendingTarget) {
+      if (this.pendingTarget && !this.panel.isOpen()) {
         this.setCurrent(this.pendingTarget);
         this.pendingTarget = null;
       }
@@ -181,6 +185,30 @@ export class Inspector {
     }
 
     if (this.panel.isOpen() && this.panel.contains(event.target)) {
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      if (this.panel.isOpen()) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        this.panel.hide();
+        this.navigator.setCurrent(null);
+        this.highlighter.hide();
+        return;
+      }
+
+      const current = this.navigator.getCurrent();
+      if (!current) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this.panel.show(current);
+      this.onSelect?.(current);
       return;
     }
 
