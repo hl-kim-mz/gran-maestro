@@ -21,16 +21,14 @@ async function updateConnectionState(nextConnected: boolean): Promise<void> {
   if (previous !== nextConnected) {
     listeners.forEach((listener) => listener(nextConnected));
 
-    try {
-      chrome.runtime.sendMessage({
-        type: MESSAGE_TYPES.SERVER_STATUS,
-        payload: {
-          connected: nextConnected
-        }
-      });
-    } catch {
-      // no receiver yet
-    }
+    chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.SERVER_STATUS,
+      payload: {
+        connected: nextConnected
+      }
+    }).catch(() => {
+      // no receiver yet — popup may not be open
+    });
   }
 }
 
