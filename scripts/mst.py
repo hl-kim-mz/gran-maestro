@@ -1443,6 +1443,75 @@ def cmd_hooks_post_skill(args):
 
 
 # ---------------------------------------------------------------------------
+# extension subcommands
+# ---------------------------------------------------------------------------
+
+def _ensure_copy_impl(plugin_root: Path, home_dir: Path) -> int:
+    if sys.platform == "win32":
+        print("미지원 OS", file=sys.stderr)
+        return 1
+
+    src = plugin_root / "extension"
+    dst = home_dir / "chrome-extension"
+
+    is_project = (plugin_root / ".git").exists() and src.is_dir()
+    if is_project:
+        print("프로젝트 설치 감지. 직접 경로 사용 권장", file=sys.stderr)
+        print("skipped")
+        return 0
+
+    if not src.exists():
+        if dst.exists():
+            print("경고: 플러그인 extension/ 경로가 없어 stale 상태일 수 있습니다.", file=sys.stderr)
+        print("unchanged")
+        return 0
+
+    try:
+        home_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        print(f"[extension ensure-copy] 대상 상위 디렉토리 생성 실패: {exc}", file=sys.stderr)
+        print("unchanged")
+        return 0
+
+    if not dst.exists():
+        try:
+            shutil.copytree(src, dst)
+        except Exception as exc:
+            print(f"[extension ensure-copy] extension 복사 실패: {exc}", file=sys.stderr)
+            print("unchanged")
+            return 0
+        print("created")
+        return 0
+
+    src_manifest = load_json(src / "manifest.json")
+    dst_manifest = load_json(dst / "manifest.json")
+
+    src_version = src_manifest.get("version") if isinstance(src_manifest, dict) else None
+    dst_version = dst_manifest.get("version") if isinstance(dst_manifest, dict) else None
+    version_changed = src_version != dst_version or src_version is None or dst_version is None
+
+    if version_changed:
+        try:
+            shutil.rmtree(dst)
+            shutil.copytree(src, dst)
+        except Exception as exc:
+            print(f"[extension ensure-copy] 버전 변경 반영 실패: {exc}", file=sys.stderr)
+            print("unchanged")
+            return 0
+        print("updated")
+        return 0
+
+    print("unchanged")
+    return 0
+
+
+def cmd_extension_ensure_copy(args):
+    plugin_root = Path(__file__).resolve().parent.parent
+    home_dir = Path.home() / ".gran-maestro"
+    return _ensure_copy_impl(plugin_root, home_dir)
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -1658,6 +1727,11 @@ def build_parser():
     notify_parser.add_argument("event_type")
     notify_parser.add_argument("data", nargs="?", default=None)
 
+    # --- extension ---
+    ext = sub.add_parser("extension")
+    ext_sub = ext.add_subparsers(dest="subcommand")
+    ext_sub.add_parser("ensure-copy")
+
     # --- config ---
     cfg = sub.add_parser("config")
     cfg_sub = cfg.add_subparsers(dest="subcommand")
@@ -1723,6 +1797,7 @@ def main():
         ("notify", None): cmd_notify,
         ("stitch", "sleep"): cmd_stitch_sleep,
         ("wait-files", None): cmd_wait_files,
+        ("extension", "ensure-copy"): cmd_extension_ensure_copy,
         ("config", "resolve"): cmd_config_resolve,
         ("hooks", "post-skill"): cmd_hooks_post_skill,
     }
