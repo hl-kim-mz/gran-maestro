@@ -1,6 +1,6 @@
 ---
 name: setup-extension
-description: "Chrome Extension(UI Picker)을 Load Unpacked 방식으로 설치하도록 안내합니다. chrome://extensions 페이지 오픈, 절대 경로 표시, 클립보드 복사, Dashboard 서버 연결 확인의 4단계를 순서대로 실행합니다. 사용자가 'Extension 설치', '크롬 확장 설정', '/mst:setup-extension'를 호출할 때 사용."
+description: "Chrome Extension(UI Picker)을 안정 경로에 복사하고 Load Unpacked 방식으로 설치하도록 안내합니다. Extension 안정 경로 복사, chrome://extensions 페이지 오픈, 절대 경로 표시, 클립보드 복사, Dashboard 서버 연결 확인을 순서대로 실행합니다. 사용자가 'Extension 설치', '크롬 확장 설정', '/mst:setup-extension'를 호출할 때 사용."
 user-invocable: true
 argument-hint: "[--skip-open]"
 ---
@@ -23,7 +23,18 @@ Extension 경로 확인, Chrome 확장 프로그램 페이지 오픈, 설치 안
   플러그인을 최신 버전으로 업데이트한 후 다시 시도해주세요.
   ```
 
-- 디렉토리가 있으면: 절대 경로를 산출하여 `EXT_PATH` 변수에 보관
+- 디렉토리가 있으면: `python3 {PLUGIN_ROOT}/scripts/mst.py extension ensure-copy`를 Bash로 실행하고 stdout 마지막 줄(결과 토큰)을 확인
+  - **명령 실패(exit code != 0) 시**: 아래 경고를 출력하고 기존 동작으로 fallback — `EXT_PATH`를 `{PLUGIN_ROOT}/extension/`(절대 경로)로 설정하여 스킬을 계속 진행 (차단하지 않음)
+    ```
+    [경고] extension ensure-copy 실행에 실패했습니다. 기존 경로를 사용합니다.
+    ```
+  - **결과 토큰이 `skipped`** (프로젝트 설치): `EXT_PATH`를 `{PLUGIN_ROOT}/extension/`(절대 경로)로 설정
+  - **결과 토큰이 `created`/`updated`/`unchanged`** (플러그인 설치): `EXT_PATH`를 `~/.gran-maestro/chrome-extension/`(절대 경로로 확장)로 설정
+  - **결과 토큰이 `updated`일 때 추가 안내**: 아래 메시지를 출력
+    ```
+    Extension이 새 버전으로 업데이트되었습니다.
+    chrome://extensions 페이지에서 확장 프로그램 새로고침 아이콘(🔄)을 클릭하여 변경사항을 반영해주세요.
+    ```
 
 ### Step 2: Chrome 확장 프로그램 페이지 오픈
 
@@ -110,8 +121,11 @@ Extension 경로 확인, Chrome 확장 프로그램 페이지 오픈, 설치 안
 
 ## 주의사항
 
-- **멱등성**: 이 스킬은 파일 시스템을 변경하지 않습니다. 클립보드 복사와 안내 메시지만 실행하므로 여러 번 실행해도 부작용이 없습니다.
-- **Extension 소스**: `{PLUGIN_ROOT}/extension/` 디렉토리에서 경로를 읽습니다. 이 디렉토리가 없으면 Step 1에서 중단됩니다 (REQ-260 완료 후 사용 가능).
+- **멱등성**: 이 스킬은 `extension ensure-copy`를 통해 안정 경로에 Extension 파일을 복사하지만, 멱등하게 동작합니다 (버전이 같으면 `unchanged`, 다르면 `updated`). 클립보드 복사와 안내 메시지만 추가로 실행하므로 여러 번 실행해도 부작용이 없습니다.
+- **Extension 소스**: 설치 형태에 따라 Extension 경로가 다릅니다.
+  - **플러그인 설치** (`created`/`updated`/`unchanged`): `~/.gran-maestro/chrome-extension/` — 플러그인 업데이트와 독립적인 안정 경로에 복사본이 위치합니다.
+  - **프로젝트 설치** (`skipped`): `{PLUGIN_ROOT}/extension/` — 개발 중인 소스 디렉토리를 직접 사용합니다.
+  - `{PLUGIN_ROOT}/extension/` 디렉토리가 없으면 Step 1에서 중단됩니다 (REQ-260 완료 후 사용 가능).
 - **Chrome 개발자 모드 경고**: Load Unpacked 방식의 본질적 특성으로, 설치 시 Chrome이 개발자 모드 경고를 표시할 수 있습니다. 정상 동작입니다.
 - **이미 설치된 경우**: Extension이 이미 로드된 상태에서 재실행해도 동일한 안내만 표시됩니다 (Chrome API 제한으로 설치 여부를 자동 감지할 수 없음).
 
@@ -123,4 +137,5 @@ Extension 경로 확인, Chrome 확장 프로그램 페이지 오픈, 설치 안
 | chrome://extensions 가 열리지 않음 | Chrome 미설치 또는 OS 제한 | `--skip-open`으로 재실행 후 수동으로 chrome://extensions 입력 |
 | 클립보드 복사 실패 (Linux) | `xclip`/`wl-copy` 미설치 | `sudo apt install xclip` 또는 `sudo apt install wl-clipboard` 설치 후 재실행 |
 | WSL 환경에서 오픈 실패 | `xdg-open` 동작 제한 | `--skip-open`으로 재실행; Windows Chrome에서 수동으로 경로 입력 |
+| `extension ensure-copy` 실패 경고 | `mst.py` 스크립트 오류 또는 구버전 | 경고만 출력되며 스킬은 `{PLUGIN_ROOT}/extension/` 경로로 계속 진행됨; 플러그인을 최신 버전으로 업데이트하면 해결 |
 | Dashboard 서버 연결 실패 | 서버 미실행 상태 | `/mst:dashboard`로 서버 시작 후 Extension 재연결 (설치 자체는 완료됨) |
