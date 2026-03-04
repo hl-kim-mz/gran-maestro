@@ -17,7 +17,7 @@ import { sendToBackground } from '../shared/messages';
 
 const SERVER_STATUS_POLL_MS = 3_000;
 const INSPECT_ERROR_TIMEOUT_MS = 3_000;
-const INSPECT_ERROR_TEXT = 'Cannot inspect this page';
+const INSPECT_ERROR_TEXT = 'Please reload the page and try again';
 
 const toggleButton = document.getElementById('inspectToggle') as HTMLButtonElement | null;
 const inspectText = document.getElementById('inspectText') as HTMLParagraphElement | null;
