@@ -48,6 +48,10 @@ const app = new Hono();
 const projectApi = new Hono();
 const DIST_DIR = new URL("../dist", import.meta.url).pathname;
 
+app.get("/api/health", (c) => {
+  return c.json({ ok: true });
+});
+
 projectApi.route("/", projectConfigApi);
 projectApi.route("/", projectRequestsApi);
 projectApi.route("/", projectStatsApi);

@@ -116,7 +116,17 @@ export async function healthCheck(): Promise<boolean> {
       }
     );
 
-    return response.ok;
+    if (!response.ok) {
+      return false;
+    }
+
+    try {
+      const body = await response.json() as Record<string, unknown>;
+      return body?.ok === true;
+    } catch (error) {
+      console.warn('healthCheck: failed to parse response JSON', error);
+      return false;
+    }
   } catch (error) {
     if (isAbortError(error) || error instanceof TypeError) {
       return false;
