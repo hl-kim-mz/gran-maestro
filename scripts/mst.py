@@ -524,36 +524,24 @@ def get_counter_path(type_key: str, dir_override: str = None) -> Path:
 
 def cmd_counter_next(args):
     counter_path = get_counter_path(args.type, args.dir)
-    # pln 특수 초기화
-    if args.type == "pln" and not counter_path.exists():
-        plans = BASE_DIR / "plans"
-        max_num = 0
-        for d in plans.glob("PLN-*"):
-            try:
-                n = int(d.name.split("-")[1])
-                if n > max_num:
-                    max_num = n
-            except (IndexError, ValueError):
-                pass
-        save_json(counter_path, {"last_id": max_num})
-    # cap 특수 초기화
-    if args.type == "cap" and not counter_path.exists():
-        captures = BASE_DIR / "captures"
-        captures.mkdir(parents=True, exist_ok=True)
-        max_num = 0
-        for d in captures.glob("CAP-*"):
-            try:
-                n = int(d.name.split("-")[1])
-                if n > max_num:
-                    max_num = n
-            except (IndexError, ValueError):
-                pass
-        save_json(counter_path, {"last_id": max_num})
+    subdir, prefix = TYPE_DIRS.get(args.type, ("requests", "REQ"))
+    scan_root = Path(args.dir) if args.dir else BASE_DIR / subdir
+    disk_max = 0
+    for d in scan_root.glob(f"{prefix}-*"):
+        if not d.is_dir():
+            continue
+        try:
+            n = int(d.name.split("-")[1])
+        except (IndexError, ValueError):
+            continue
+        if n > disk_max:
+            disk_max = n
+
+    scan_root.mkdir(parents=True, exist_ok=True)
     data = load_json(counter_path) or {}
-    last_id = data.get("last_id", 0)
+    last_id = max(data.get("last_id", 0), disk_max)
     next_id = last_id + 1
     save_json(counter_path, {"last_id": next_id})
-    _, prefix = TYPE_DIRS.get(args.type, ("requests", "REQ"))
     print(f"{prefix}-{next_id:03d}")
     return 0
 
