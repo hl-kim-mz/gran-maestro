@@ -1,4 +1,4 @@
-import { DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_SERVER_ORIGIN, SERVER_ENDPOINTS, STORAGE_KEYS } from '../shared/constants';
+import { DEFAULT_REQUEST_TIMEOUT_MS, DEFAULT_SERVER_ORIGIN, SERVER_ENDPOINTS, STORAGE_KEYS, capturesEndpoint, captureCounterEndpoint } from '../shared/constants';
 import { CapturePayload, ServerConfig } from '../shared/types';
 import { getSessionToken, getStoredSessionToken, clearSessionToken } from './session-token';
 
@@ -56,6 +56,15 @@ function buildEndpoint(baseUrl: string, path: string): string {
   return `${baseUrl}${path}`;
 }
 
+async function getSelectedProjectId(): Promise<string> {
+  const state = await chrome.storage.local.get(STORAGE_KEYS.SELECTED_PROJECT);
+  const projectId = state[STORAGE_KEYS.SELECTED_PROJECT];
+  if (typeof projectId === 'string' && projectId.length > 0) {
+    return projectId;
+  }
+  throw new ServerRequestError('No project selected');
+}
+
 function extractCaptureId(payload: unknown): string | null {
   if (typeof payload === 'string') {
     return payload;
@@ -76,6 +85,7 @@ function extractCaptureId(payload: unknown): string | null {
 async function postCaptureRaw(
   config: ServerConfig,
   capturePayload: CapturePayload,
+  projectId: string,
   token?: string
 ): Promise<Response> {
   const headers: Record<string, string> = {
@@ -89,7 +99,7 @@ async function postCaptureRaw(
   const timeout = requestTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch(
-      buildEndpoint(config.baseUrl, SERVER_ENDPOINTS.CAPTURES),
+      buildEndpoint(config.baseUrl, capturesEndpoint(projectId)),
       {
         method: 'POST',
         headers,
@@ -139,11 +149,12 @@ export async function healthCheck(): Promise<boolean> {
 
 export async function postCapture(capturePayload: CapturePayload): Promise<string> {
   const config = await readServerConfig();
+  const projectId = await getSelectedProjectId();
   const tokenFromStorage = await getStoredSessionToken();
   let response: Response | null = null;
 
   try {
-    response = await postCaptureRaw(config, capturePayload, tokenFromStorage ?? undefined);
+    response = await postCaptureRaw(config, capturePayload, projectId, tokenFromStorage ?? undefined);
   } catch (error) {
     throw new ServerRequestError('CAPTURE_SAVE failed while posting capture', {
       isOffline: true
@@ -165,7 +176,7 @@ export async function postCapture(capturePayload: CapturePayload): Promise<strin
     }
 
     try {
-      response = await postCaptureRaw(config, capturePayload, newToken);
+      response = await postCaptureRaw(config, capturePayload, projectId, newToken);
     } catch (retryError) {
       throw new ServerRequestError('CAPTURE_SAVE failed while retrying with token', {
         isOffline: true
@@ -195,11 +206,12 @@ export async function postCapture(capturePayload: CapturePayload): Promise<strin
 
 export async function getNextId(): Promise<string> {
   const config = await readServerConfig();
+  const projectId = await getSelectedProjectId();
   const timeout = requestTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS);
 
   try {
     const response = await fetch(
-      buildEndpoint(config.baseUrl, SERVER_ENDPOINTS.CAPTURE_COUNTER_NEXT),
+      buildEndpoint(config.baseUrl, captureCounterEndpoint(projectId)),
       {
         method: 'GET',
         signal: timeout.signal

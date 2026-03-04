@@ -6,12 +6,18 @@ export const OFFLINE_SYNC_DELAY_MS = 1_000;
 export const OFFLINE_SYNC_MAX_ATTEMPTS = 3;
 
 export const SERVER_ENDPOINTS = {
-  CAPTURES: '/api/captures',
-  CAPTURE_COUNTER_NEXT: '/api/captures/counter/next',
   HEALTH: '/api/health',
   AUTH_TOKEN: '/api/auth/token',
   PROJECTS: '/api/projects'
 } as const;
+
+export function capturesEndpoint(projectId: string): string {
+  return `/api/projects/${projectId}/captures`;
+}
+
+export function captureCounterEndpoint(projectId: string): string {
+  return `/api/projects/${projectId}/captures/counter/next`;
+}
 
 export const SERVER_DB = {
   NAME: 'gran-maestro-extension',
