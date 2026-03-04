@@ -151,6 +151,7 @@ mcp__stitch__edit_screens(...)                     ← 사용 금지
 | 스킬 | 설명 |
 |------|------|
 | `/mst:setup-omx` | Codex CLI 프로젝트에 oh-my-codex 설치 자동화 |
+| `/mst:setup-extension` | Chrome Extension 설치 안내 |
 
 ### 한국어 트리거
 
@@ -183,6 +184,7 @@ mcp__stitch__edit_screens(...)                     ← 사용 금지
 | "정리", "클린업", "청소", "세션 정리 전부" | `/mst:cleanup` |
 | "아카이브", "세션 아카이브", "압축 보관" | `/mst:archive` |
 | "OMX 설치", "oh-my-codex 설정" | `/mst:setup-omx` |
+| "Extension 설치", "크롬 확장 설정" | `/mst:setup-extension` |
 
 </skills_reference>
 
