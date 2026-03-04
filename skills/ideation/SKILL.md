@@ -203,14 +203,14 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" > {absolute_path}/opinion-{participant.key}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/opinion-{participant.key}.md"
+    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" > {absolute_path}/opinion-{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/opinion-{participant.key}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:
   ```
   Bash(
     run_in_background: true,
-    command: "gemini -p \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/opinion-{participant.key}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/opinion-{participant.key}.md"
+    command: "gemini -p \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/opinion-{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/opinion-{participant.key}.md; exit $EC"
   )
   ```
 - `provider: "claude"`:
@@ -229,14 +229,14 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/critique-{criticKey}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/critique-{criticKey}.md"
+    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/critique-{criticKey}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:
   ```
   Bash(
     run_in_background: true,
-    command: "gemini -p \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/critique-{criticKey}.md 2>&1; echo 'EXIT_CODE:'$? >> {absolute_path}/critique-{criticKey}.md"
+    command: "gemini -p \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/critique-{criticKey}.md; exit $EC"
   )
   ```
 - `provider: "claude"`:

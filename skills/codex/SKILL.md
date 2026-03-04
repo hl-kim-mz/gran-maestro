@@ -25,7 +25,7 @@ Codex CLI 호출의 단일 진입점. request 워크플로우(--trace 모드 포
    ```bash
    codex exec --full-auto -C {working_dir} "{prompt}"                         # 인라인
    codex exec --full-auto -C {working_dir} "$(cat {prompt_file})"             # --prompt-file
-   codex exec --full-auto -C {working_dir} "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log  # trace
+   set -o pipefail; codex exec --full-auto -C {working_dir} "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log  # trace
    ```
 6. **결과 처리**: `--trace` → Trace 문서 작성 후 경로만 출력; `--output` → 파일 저장; 둘 다 없음 → 결과 표시
 
@@ -76,6 +76,9 @@ working_dir: {작업 디렉토리}
    ```
    Trace 저장 완료: requests/{REQ-ID}/tasks/{TASK-NUM}/traces/codex-{label}-{timestamp}.md
    ```
+
+> **Exit Code 캡처 (MANDATORY)**: Bash 도구의 exit code를 반드시 확인한다.
+> 0이 아니면 trace의 `exit_code` 필드에 해당 값을 기록하고, `## 오류` 섹션을 포함한다.
 
 ## 옵션
 

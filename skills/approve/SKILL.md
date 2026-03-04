@@ -437,14 +437,14 @@ Write -> {PROJECT_ROOT}/.gran-maestro/requests/{REQ-ID}/tasks/{NN}/prompts/phase
 ```bash
 # codex-dev인 경우
 Bash(
-  command: 'codex exec --full-auto -C {worktree_path} "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log',
+  command: 'set -o pipefail; codex exec --full-auto -C {worktree_path} "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log',
   run_in_background: true,
   timeout: {config.timeouts.cli_large_task_ms}
 )
 
 # gemini-dev인 경우
 Bash(
-  command: 'gemini -p "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log',
+  command: 'set -o pipefail; gemini -p "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log',
   run_in_background: true,
   timeout: {config.timeouts.cli_large_task_ms}
 )
@@ -617,7 +617,7 @@ Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_pat
    - 영향 파일 목록
    - 전면 재작성 권장 여부
    ```bash
-   codex exec --full-auto -C {worktree_path} "$(cat {escalation_prompt_path})" 2>&1 | tee {task_dir}/running-fallback.log
+   set -o pipefail; codex exec --full-auto -C {worktree_path} "$(cat {escalation_prompt_path})" 2>&1 | tee {task_dir}/running-fallback.log
    ```
 
 4. **결과 처리**:
