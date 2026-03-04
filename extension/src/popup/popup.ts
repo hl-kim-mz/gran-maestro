@@ -186,11 +186,18 @@ async function fetchProjects(): Promise<Project[]> {
     });
 
     if (!response.ok) {
+      console.warn(
+        `[Gran Maestro] fetchProjects failed: HTTP ${response.status} ${response.statusText}`
+      );
       return [];
     }
 
     const body = await response.json();
     if (!Array.isArray(body)) {
+      console.warn(
+        '[Gran Maestro] fetchProjects failed: unexpected response structure',
+        body
+      );
       return [];
     }
 
@@ -199,7 +206,8 @@ async function fetchProjects(): Promise<Project[]> {
       .filter((project): project is Project => project !== null);
 
     return projects;
-  } catch {
+  } catch (error) {
+    console.warn('[Gran Maestro] fetchProjects failed:', error);
     return [];
   }
 }
@@ -409,6 +417,10 @@ async function bootstrap(): Promise<void> {
     applyServerStatusUI(false);
     renderDisconnectedProjectFallback();
     await setupConnectionPolling();
+    if (lastServerConnected && cachedProjects.length > 0) {
+      populateProjectDropdown(cachedProjects);
+      await applyProjectState(cachedProjects);
+    }
   } catch {
     applyInspectModeUI(false);
     applyServerStatusUI(false);
