@@ -2,7 +2,7 @@
 name: stitch
 description: "Stitch MCP를 사용해 UI 화면을 설계합니다. 명시적 디자인 요청, 새 화면 추가, 전체 디자인 변경 시 사용."
 user-invocable: true
-argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
+argument-hint: "[--auto] [--variants] [--req REQ-NNN] [--model pro|flash] [--redesign SCREEN_ID] {화면 설명}"
 ---
 
 # maestro:stitch
@@ -10,7 +10,14 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] {화면 설명}"
 ## 선행 조건 확인
 
 1. `config.stitch.enabled` 확인 → false면 즉시 종료 (안내 메시지 출력)
-2. `config.stitch.auto_detect` 확인:
+2. **모델 ID 해석**:
+   - `config.stitch.model_id` 읽기 → 미설정(null/undefined)이면 `"MODEL_ID_UNSPECIFIED"`
+   - `--model` 옵션 확인:
+     - `--model pro` → `"GEMINI_3_PRO"` 오버라이드
+     - `--model flash` → `"GEMINI_3_FLASH"` 오버라이드
+     - 유효하지 않은 값 → "[Stitch] 알 수 없는 모델: {값}. config 기본값({config.stitch.model_id})을 사용합니다." 출력 후 config 값 유지
+   - 결과를 `{STITCH_MODEL}` 변수에 보관 (이후 모든 MCP 호출에 사용)
+3. `config.stitch.auto_detect` 확인:
    - false면: 사용자 명시 설정으로 간주 → 계속
    - true면:
      a. **UI 키워드 1차 필터**: 요청 텍스트/spec §1 요약에 아래 키워드 중 하나라도 포함되지 않으면 list_projects 호출 없이 skip:
@@ -107,6 +114,10 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 - 감지: `--multi` 플래그 명시 or `mst:plan` Step 4.5 "스티치로 디자인 시안 보기" 선택 진입
 - 처리: 사용자 확인 없이 바로 **멀티 스타일 생성 프로토콜** 진행
 
+### F. Redesign 요청 (--redesign SCREEN_ID)
+- 감지: `--redesign` 플래그 + SCREEN_ID
+- 처리: 사용자 확인 후 generate_variants(REIMAGINE) 실행 → **Redesign 프로토콜** 진행
+
 ## 화면 생성 프로토콜
 
 0. **baseline_screen_ids 기록**:
@@ -151,7 +162,8 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    mcp__stitch__generate_screen_from_text(
      projectId: {stitch_project_id},
      prompt: "{화면 설명}\n\n[기존 레이아웃 컨텍스트]\n{수집된 컨텍스트}",
-     deviceType: "DESKTOP"
+     deviceType: "DESKTOP",
+     modelId: {STITCH_MODEL}
    )
    ```
    - **응답 있음 (screen_id 포함)**: step 4-2(output_components 저장)로 진행
@@ -195,7 +207,8 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
      projectId: {stitch_project_id},
      selectedScreenIds: [{생성된 screen_id}],
      prompt: "다양한 레이아웃과 색상 방향으로 3가지 변형 생성",
-     variantOptions: { variantCount: 3, creativeRange: "EXPLORE" }
+     variantOptions: { variantCount: 3, creativeRange: "EXPLORE" },
+     modelId: {STITCH_MODEL}
    )
    ```
 
@@ -265,7 +278,8 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
      mcp__stitch__generate_screen_from_text(
        projectId: {stitch_project_id},
        prompt: "{기본 화면 설명}\n\n[스타일 방향] {스타일명}: {스타일 차별화 포인트}",
-       deviceType: "DESKTOP"
+       deviceType: "DESKTOP",
+       modelId: {STITCH_MODEL}
      )
      ```
    - 응답 있음(screen_id 포함): screen_id 임시 보관 → **output_components 코드 포함 시** `{PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/screen-{스타일순번:001,002,...}.html` 저장 후 스타일명→html_file_path 맵 보관 → 다음 스타일 호출 계속
@@ -333,7 +347,8 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
        projectId: {stitch_project_id},
        selectedScreenIds: [{스타일의 screen_id}],
        prompt: "선택된 스타일을 유지하면서 레이아웃과 색상을 다양하게 변형",
-       variantOptions: { variantCount: {Q2 선택값}, creativeRange: "EXPLORE" }
+       variantOptions: { variantCount: {Q2 선택값}, creativeRange: "EXPLORE" },
+       modelId: {STITCH_MODEL}
      )
      ```
    - 생성된 variant screen_id들을 accumulated_screens에 추가
@@ -506,6 +521,69 @@ variants 생성 시:
 | 화면 생성 실패 | "[Stitch] 화면 생성 실패 — {오류}. 텍스트 명세로 진행합니다." |
 | enabled=false | "[Stitch] 비활성화됨 (config.stitch.enabled=false)" |
 
+## Redesign 프로토콜
+
+`--redesign SCREEN_ID` 옵션으로 기존 화면을 근본적으로 재설계한다.
+
+> **project_id 해석**: `--redesign`은 DES 채번/프로젝트 생성을 건너뛰고 `config.stitch.project_id`를 직접 사용한다. 미설정 시 에러 종료.
+
+1. **대상 화면 유효성 확인**:
+   ```
+   mcp__stitch__get_screen(
+     name: "projects/{config.stitch.project_id}/screens/{SCREEN_ID}",
+     projectId: {config.stitch.project_id},
+     screenId: {SCREEN_ID}
+   )
+   ```
+   - 성공 시: 응답에서 `{원본_TITLE}` 및 프로젝트 URL `https://stitch.withgoogle.com/projects/{config.stitch.project_id}`을 `{원본_URL}`로 보관
+   - 실패 시: "[Stitch] 화면을 찾을 수 없습니다 — screen_id: {SCREEN_ID}" 출력 후 종료
+
+2. **사용자 확인** (`AskUserQuestion`):
+   - **Q1: variants 수를 선택해주세요** (기본 3):
+     - 선택지: 1개 / 2개 / 3개 / 4개 / 5개
+   - **Q2: 변경할 aspects를 선택해주세요** (`multiSelect: true`, 기본 전체):
+     - 선택지: LAYOUT / COLOR_SCHEME / IMAGES / TEXT_FONT / TEXT_CONTENT / 전체 (기본)
+     - "전체" 선택 시: 모든 aspects 적용
+
+3. **variants 생성**:
+   ```
+   mcp__stitch__generate_variants(
+     projectId: {stitch_project_id},
+     selectedScreenIds: [{SCREEN_ID}],
+     prompt: "기존 화면을 근본적으로 재설계",
+     variantOptions: {
+       variantCount: {Q1 선택 수},
+       creativeRange: "REIMAGINE",
+       aspects: [{Q2 선택 aspects}]
+     },
+     modelId: {STITCH_MODEL}
+   )
+   ```
+
+4. **결과 표시**:
+   - `generate_variants` 응답의 각 variant screen에서 `stitch_screen_id`를 수집
+   - 프로젝트 URL: `https://stitch.withgoogle.com/projects/{config.stitch.project_id}`
+   ```
+   [Stitch] {N}가지 Redesign 방향이 생성되었습니다.
+   🔗 원본: {원본_URL} ({원본_TITLE})
+   🔗 프로젝트: {프로젝트 URL}
+   ```
+
+5. **메타데이터 기록** (기존 메타데이터 패턴 재사용):
+   - REQ-NNN이 있을 경우 `request.json`의 `stitch_screens` 배열에 각 variant를 기록:
+     ```json
+     {
+       "stitch_screen_id": "{variant_screen_id}",
+       "source_screen_id": "{SCREEN_ID}",
+       "url": "https://stitch.withgoogle.com/projects/{config.stitch.project_id}",
+       "type": "redesign",
+       "creative_range": "REIMAGINE",
+       "created_at": "{ISO8601}",
+       "status": "active"
+     }
+     ```
+   - design.json의 `screens[]`에도 각 variant 메타데이터 추가
+
 ## 옵션
 
 - `--auto`: 사용자 확인 없이 자동 실행
@@ -514,3 +592,5 @@ variants 생성 시:
 - `--edit SCREEN_ID`: 기존 화면 수정
 - `--list`: 현재 Stitch 프로젝트의 화면 목록 조회
 - `--multi`: 멀티 스타일 시안 생성 모드. 3~4개 스타일을 자동 도출하여 각각 화면을 생성하고, 사용자가 선택 후 variants 추가 가능.
+- `--model pro|flash`: 생성에 사용할 모델 지정. `pro` = GEMINI_3_PRO, `flash` = GEMINI_3_FLASH. 미지정 시 `config.stitch.model_id` 사용.
+- `--redesign SCREEN_ID`: 기존 화면을 근본적으로 재설계 (generate_variants REIMAGINE 모드). variants 수와 변경 aspects를 사용자에게 확인 후 실행.
