@@ -49,6 +49,7 @@ Subcommands:
 """
 
 import argparse
+import hashlib
 import json
 import re
 import os
@@ -1499,6 +1500,38 @@ def cmd_hooks_post_skill(args):
 # extension subcommands
 # ---------------------------------------------------------------------------
 
+def _dir_content_hash(directory: Path) -> str:
+    EXCLUDED_HASH_PARTS = {"node_modules", ".git", ".omc"}
+
+    if not directory.exists():
+        return ""
+
+    hasher = hashlib.sha256()
+
+    try:
+        entries = sorted(
+            [entry for entry in directory.rglob("*") if entry.is_file() and not entry.is_symlink()],
+            key=lambda entry: str(entry.relative_to(directory).as_posix()),
+        )
+    except Exception:
+        return ""
+
+    for path in entries:
+        relative_path = path.relative_to(directory)
+        if relative_path.name == ".content-hash":
+            continue
+        if any(part in EXCLUDED_HASH_PARTS for part in relative_path.parts):
+            continue
+        try:
+            hasher.update(str(relative_path.as_posix()).encode("utf-8"))
+            hasher.update(b"\x00")
+            hasher.update(path.read_bytes())
+        except Exception:
+            continue
+
+    return hasher.hexdigest()
+
+
 def _ensure_copy_impl(plugin_root: Path, home_dir: Path) -> int:
     if sys.platform == "win32":
         print("미지원 OS", file=sys.stderr)
@@ -1533,17 +1566,21 @@ def _ensure_copy_impl(plugin_root: Path, home_dir: Path) -> int:
             print(f"[extension ensure-copy] extension 복사 실패: {exc}", file=sys.stderr)
             print("unchanged")
             return 0
+        try:
+            (dst / ".content-hash").write_text(_dir_content_hash(src), encoding="utf-8")
+        except Exception:
+            pass
         print("created")
         return 0
 
-    src_manifest = load_json(src / "manifest.json")
-    dst_manifest = load_json(dst / "manifest.json")
+    src_hash = _dir_content_hash(src)
+    dst_hash = ""
+    try:
+        dst_hash = (dst / ".content-hash").read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
 
-    src_version = src_manifest.get("version") if isinstance(src_manifest, dict) else None
-    dst_version = dst_manifest.get("version") if isinstance(dst_manifest, dict) else None
-    version_changed = src_version != dst_version or src_version is None or dst_version is None
-
-    if version_changed:
+    if src_hash != dst_hash:
         try:
             shutil.rmtree(dst)
             shutil.copytree(src, dst)
@@ -1551,6 +1588,10 @@ def _ensure_copy_impl(plugin_root: Path, home_dir: Path) -> int:
             print(f"[extension ensure-copy] 버전 변경 반영 실패: {exc}", file=sys.stderr)
             print("unchanged")
             return 0
+        try:
+            (dst / ".content-hash").write_text(src_hash, encoding="utf-8")
+        except Exception:
+            pass
         print("updated")
         return 0
 
