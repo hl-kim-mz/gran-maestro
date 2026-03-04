@@ -173,6 +173,18 @@ export class Inspector {
       return;
     }
 
+    if (this.panel.isOpen() && this.panel.contains(event.target)) {
+      return;
+    }
+
+    if (event.isComposing) {
+      return;
+    }
+
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -182,10 +194,6 @@ export class Inspector {
         return;
       }
       this.deactivate();
-      return;
-    }
-
-    if (this.panel.isOpen() && this.panel.contains(event.target)) {
       return;
     }
 
@@ -212,21 +220,32 @@ export class Inspector {
     }
 
     if (
-      event.key !== 'ArrowUp' &&
-      event.key !== 'ArrowDown' &&
-      event.key !== 'ArrowLeft' &&
-      event.key !== 'ArrowRight'
+      event.key === 'ArrowUp' ||
+      event.key === 'ArrowDown' ||
+      event.key === 'ArrowLeft' ||
+      event.key === 'ArrowRight'
     ) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+
+      const next = this.navigator.move(event.key);
+      if (next) {
+        this.setCurrent(next);
+      }
       return;
     }
 
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
+    const isSingleCharacterKey = event.key.length === 1;
+    const isCommonTextOrControlKey =
+      event.key === 'Tab' ||
+      event.key === ' ' ||
+      event.key === 'Backspace' ||
+      event.key === 'Delete';
 
-    const next = this.navigator.move(event.key);
-    if (next) {
-      this.setCurrent(next);
+    if (isSingleCharacterKey || isCommonTextOrControlKey) {
+      event.preventDefault();
+      event.stopPropagation();
     }
   };
 
