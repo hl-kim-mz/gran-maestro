@@ -4,6 +4,36 @@
 
 ---
 
+## [0.46.1] — 2026-03-04
+
+### 새 기능
+
+- **Chrome Extension (UI Picker)**: MV3 기반 캡처/메모/태깅/즉시모드/오버레이 Chrome Extension 구현
+- **Extension 설치 스킬**: `/mst:setup-extension` 스킬로 Load Unpacked 방식 설치 안내 자동화
+- **Picks 스킬**: `/mst:picks`로 captures 큐에서 자연어 항목 선택 및 plan 연동
+- **캡처 REST API**: POST/GET/PATCH captures 엔드포인트 + SSE 실시간 스트림 + Origin/토큰 인증
+- **Picks 탭 UI**: 대시보드에 Picks 뷰 추가 및 StatusBadge 캡처 상태 색상 표시
+- **Lifecycle Timeline**: 대시보드에 라이프사이클 타임라인 통합 및 PicksView 상세 패널 연동
+- **서버 /api/health 엔드포인트**: Extension healthCheck body 검증 강화
+- **Stitch 모델 선택 설정**: config에 Stitch 모델 설정 추가 및 `--redesign` 옵션 신설
+
+### 개선
+
+- **CLI 셸 exit code 전파**: 8개 스킬, 26개 위치에서 exit code 올바르게 캡처 및 전파
+- **스킬 절대경로 컨벤션**: worktree-manager 및 23개 스킬 파일에 절대경로 컨벤션 도입
+- **Codex/Gemini provider 간소화**: Claude 래퍼 제거, Bash 직접 호출로 변경
+- **카운터 동기화 보정**: 매 호출마다 max(counter, disk) 보정으로 ID 충돌 방지
+- **캡처 TTL 자동 아카이브**: 만료된 캡처 자동 정리
+- **plan/spec 캡처 참조 템플릿**: `[CAP-NNN]` 컨텍스트 주입 체이닝 지원
+- **Extension Graceful Degradation**: 서버 미연결 시 안정적 동작 + Overlay ID 통합
+
+### 버그 수정
+
+- **Extension 팝업 UI 버그 수정**: 팝업 UX 개선 (B1, B2, U1, U2)
+- **Extension sendMessage 에러 처리**: Promise 기반 `.catch()`로 비동기 에러 올바르게 처리
+
+---
+
 ## [0.46.0] — 2026-03-02
 
 ### 새 기능
