@@ -2,17 +2,29 @@
   "manifest_version": 3,
   "name": "Gran Maestro Extension",
   "description": "Chrome Extension foundation for REQ-260",
-  "version": "0.1.0",
-  "permissions": ["activeTab", "storage", "clipboardWrite", "tabs", "alarms"],
-  "host_permissions": ["http://127.0.0.1:3847/*"],
+  "version": "0.47.3",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "clipboardWrite",
+    "tabs",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:3847/*"
+  ],
   "background": {
     "service_worker": "dist/background.js",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["dist/content.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "dist/content.js"
+      ]
     }
   ],
   "action": {

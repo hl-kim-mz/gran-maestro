@@ -6,8 +6,8 @@ scripts/bump.py — Gran Maestro 버전 범프 스크립트
     python3 scripts/bump.py <patch|minor|major>
 
 역할:
-    - 3파일 버전 일치 검증
-    - 다음 버전 계산 및 3파일 수정
+    - 5파일 버전 일치 검증
+    - 다음 버전 계산 및 5파일 수정
     - 직전 "Bump version to" 커밋 이후 git log 출력
 
 CHANGELOG 작성·커밋·푸시는 Claude가 담당한다.
@@ -27,6 +27,8 @@ ROOT = Path(__file__).resolve().parent.parent
 FILE_PACKAGE = ROOT / "package.json"
 FILE_PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
 FILE_MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
+FILE_EXT_MANIFEST = ROOT / "extension" / "manifest.json"
+FILE_EXT_PACKAGE = ROOT / "extension" / "package.json"
 
 
 def read_version_package() -> str:
@@ -42,6 +44,16 @@ def read_version_plugin() -> str:
 def read_version_marketplace() -> str:
     with open(FILE_MARKETPLACE, encoding="utf-8") as f:
         return json.load(f)["plugins"][0]["version"]
+
+
+def read_version_ext_manifest() -> str:
+    with open(FILE_EXT_MANIFEST, encoding="utf-8") as f:
+        return json.load(f)["version"]
+
+
+def read_version_ext_package() -> str:
+    with open(FILE_EXT_PACKAGE, encoding="utf-8") as f:
+        return json.load(f)["version"]
 
 
 def bump_version(version: str, bump_type: str) -> str:
@@ -85,6 +97,24 @@ def write_version_marketplace(new_version: str) -> None:
         data = json.load(f)
     data["plugins"][0]["version"] = new_version
     with open(FILE_MARKETPLACE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def write_version_ext_manifest(new_version: str) -> None:
+    with open(FILE_EXT_MANIFEST, encoding="utf-8") as f:
+        data = json.load(f)
+    data["version"] = new_version
+    with open(FILE_EXT_MANIFEST, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def write_version_ext_package(new_version: str) -> None:
+    with open(FILE_EXT_PACKAGE, encoding="utf-8") as f:
+        data = json.load(f)
+    data["version"] = new_version
+    with open(FILE_EXT_PACKAGE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
@@ -164,13 +194,19 @@ def main() -> None:
     v_package = read_version_package()
     v_plugin = read_version_plugin()
     v_marketplace = read_version_marketplace()
+    v_ext_manifest = read_version_ext_manifest()
+    v_ext_package = read_version_ext_package()
 
-    # 3파일 버전 일치 검증
-    if not (v_package == v_plugin == v_marketplace):
-        print("에러: 3파일의 버전이 일치하지 않습니다. 수동으로 확인 후 맞춰주세요.")
+    # 5파일 버전 일치 검증
+    if not (
+        v_package == v_plugin == v_marketplace == v_ext_manifest == v_ext_package
+    ):
+        print("에러: 5파일의 버전이 일치하지 않습니다. 수동으로 확인 후 맞춰주세요.")
         print(f"  package.json:              {v_package}")
         print(f"  .claude-plugin/plugin.json: {v_plugin}")
         print(f"  .claude-plugin/marketplace.json: {v_marketplace}")
+        print(f"  extension/manifest.json:    {v_ext_manifest}")
+        print(f"  extension/package.json:     {v_ext_package}")
         sys.exit(1)
 
     old_version = v_package
@@ -187,10 +223,12 @@ def main() -> None:
         print("에러: 빌드 실패로 버전업을 중단합니다.", file=sys.stderr)
         sys.exit(1)
 
-    # 3파일 버전 수정
+    # 5파일 버전 수정
     write_version_package(new_version)
     write_version_plugin(new_version)
     write_version_marketplace(new_version)
+    write_version_ext_manifest(new_version)
+    write_version_ext_package(new_version)
 
     # 결과 출력
     print(f"버전: {old_version} → {new_version}")
@@ -203,6 +241,8 @@ def main() -> None:
     print(f"  ✓ package.json")
     print(f"  ✓ .claude-plugin/plugin.json")
     print(f"  ✓ .claude-plugin/marketplace.json")
+    print(f"  ✓ extension/manifest.json")
+    print(f"  ✓ extension/package.json")
     print()
     print(f"직전 버전({old_version}) 이후 커밋 로그:")
     print(DIVIDER)

@@ -16,15 +16,17 @@ src/                 # TypeScript 소스
 docs/                # 문서
 ```
 
-## 버전 관리 (3파일 동기화 필수)
+## 버전 관리 (5파일 동기화 필수)
 
-버전은 아래 3개 파일에서 **반드시 동일하게** 유지해야 합니다:
+버전은 아래 5개 파일에서 **반드시 동일하게** 유지해야 합니다:
 
 | 파일 | 필드 |
 |------|------|
-| `.claude-plugin/plugin.json` | `version` |₩
+| `.claude-plugin/plugin.json` | `version` |
 | `package.json` | `version` |
 | `.claude-plugin/marketplace.json` | `plugins[0].version` |
+| `extension/manifest.json` | `version` |
+| `extension/package.json` | `version` |
 
 ## 버전업 요청 처리
 
@@ -35,7 +37,7 @@ docs/                # 문서
 1. **미커밋 변경사항 확인**: `git status`로 커밋되지 않은 변경사항이 있으면 먼저 커밋
 2. **버전 결정**: 변경 범위에 따라 적절한 버전을 선택 (patch: 버그 수정/소규모 변경, minor: 기능 추가/개선, major: 호환성 깨지는 변경)
 3. **bump 스크립트 실행**: `python3 scripts/bump.py <patch|minor|major>`
-   - 3파일 버전 자동 수정 + 직전 버전 이후 git log 출력
+   - 5파일 버전 자동 수정 + 직전 버전 이후 git log 출력
 4. **CHANGELOG.md 업데이트**: 스크립트가 출력한 git log를 참고하여 `CHANGELOG.md` 상단에 새 버전 섹션 추가
    - `## [X.Y.Z] — YYYY-MM-DD` 헤더
    - `### 새 기능` / `### 개선` / `### 버그 수정` 섹션 (해당 항목만 포함)
@@ -56,7 +58,7 @@ docs/                # 문서
 
 커밋/푸시 요청 시 아래를 반드시 확인합니다:
 
-1. **버전 동기화**: 3개 파일의 버전이 일치하는지 확인
+1. **버전 동기화**: 5개 파일의 버전이 일치하는지 확인
 2. **agents 배열**: `plugin.json`의 `agents`가 `agents/` 디렉토리 내 모든 `.md` 파일을 나열하는지 확인
 3. **신규 파일 누락**: 새로 추가된 agent/skill 파일이 매니페스트에 반영되었는지 확인
 4. **TypeScript (core)**: `npx tsc --noEmit`으로 타입 오류 없는지 확인 (src/ 변경 시)

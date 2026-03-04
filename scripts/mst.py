@@ -665,19 +665,38 @@ def cmd_capture_ttl_check(args):
 # ---------------------------------------------------------------------------
 
 def _project_root() -> Path:
+    cwd = Path.cwd().resolve()
+    worktrees_root = BASE_DIR / "worktrees"
+
+    candidate = cwd
+    while (
+        candidate != BASE_DIR
+        and candidate != worktrees_root
+        and candidate.parent != worktrees_root
+        and candidate.parent != candidate
+    ):
+        candidate = candidate.parent
+
+    if candidate.parent == worktrees_root:
+        return candidate
+
     return BASE_DIR.parent
 
 
 def _read_versions() -> dict:
-    """3파일에서 버전 읽기. 반환: {'package': str, 'plugin': str, 'marketplace': str}"""
+    """5파일에서 버전 읽기."""
     root = _project_root()
     pkg = load_json(root / "package.json") or {}
     plugin = load_json(root / ".claude-plugin" / "plugin.json") or {}
     market = load_json(root / ".claude-plugin" / "marketplace.json") or {}
+    ext_manifest = load_json(root / "extension" / "manifest.json") or {}
+    ext_package = load_json(root / "extension" / "package.json") or {}
     return {
         "package":     pkg.get("version", ""),
         "plugin":      plugin.get("version", ""),
         "marketplace": (market.get("plugins") or [{}])[0].get("version", ""),
+        "ext_manifest": ext_manifest.get("version", ""),
+        "ext_package":  ext_package.get("version", ""),
     }
 
 
@@ -692,7 +711,12 @@ def cmd_version_check(args):
     pkg = versions["package"]
     plugin = versions["plugin"]
     market = versions["marketplace"]
-    if pkg == plugin == market and pkg != "":
+    ext_manifest = versions["ext_manifest"]
+    ext_package = versions["ext_package"]
+    if (
+        pkg == plugin == market == ext_manifest == ext_package
+        and pkg != ""
+    ):
         print(f"✓ {pkg} (동기화됨)")
         return 0
     else:
@@ -700,12 +724,25 @@ def cmd_version_check(args):
         print(f"  package.json:              {pkg}")
         print(f"  plugin.json:               {plugin}")
         print(f"  marketplace.json:          {market}")
+        print(f"  extension/manifest.json:   {ext_manifest}")
+        print(f"  extension/package.json:    {ext_package}")
         return 1
 
 
 def cmd_version_bump(args):
     versions = _read_versions()
     current = versions["package"]
+    if not (
+        current == versions["plugin"] == versions["marketplace"] == versions["ext_manifest"] == versions["ext_package"]
+    ):
+        print("Error: version mismatch")
+        print(f"  package.json:              {versions['package']}")
+        print(f"  plugin.json:               {versions['plugin']}")
+        print(f"  marketplace.json:          {versions['marketplace']}")
+        print(f"  extension/manifest.json:   {versions['ext_manifest']}")
+        print(f"  extension/package.json:    {versions['ext_package']}")
+        return 1
+
     parts = current.split(".")
     if len(parts) != 3:
         print(f"Error: cannot parse version '{current}'", file=sys.stderr)
@@ -752,6 +789,18 @@ def cmd_version_bump(args):
     plugins[0]["version"] = new_version
     market_data["plugins"] = plugins
     save_json(market_path, market_data)
+
+    # Update extension manifest
+    ext_manifest_path = root / "extension" / "manifest.json"
+    ext_manifest_data = load_json(ext_manifest_path) or {}
+    ext_manifest_data["version"] = new_version
+    save_json(ext_manifest_path, ext_manifest_data)
+
+    # Update extension package.json
+    ext_package_path = root / "extension" / "package.json"
+    ext_package_data = load_json(ext_package_path) or {}
+    ext_package_data["version"] = new_version
+    save_json(ext_package_path, ext_package_data)
 
     print(new_version)
     return 0
@@ -807,7 +856,11 @@ def cmd_context_gather(args):
     # Version
     versions = _read_versions()
     version_synced = (
-        versions["package"] == versions["plugin"] == versions["marketplace"]
+        versions["package"]
+        == versions["plugin"]
+        == versions["marketplace"]
+        == versions["ext_manifest"]
+        == versions["ext_package"]
         and versions["package"] != ""
     )
 

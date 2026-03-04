@@ -8,14 +8,16 @@
 - minor (0.2.0 → 0.3.0): 새 기능, 새 에이전트/스킬 추가
 - major (0.2.0 → 1.0.0): 호환성 깨지는 변경
 
-## 2. 버전 동기화 (3파일)
+## 2. 버전 동기화 (5파일)
 
-아래 3개 파일의 버전을 동일하게 업데이트합니다:
+아래 5개 파일의 버전을 동일하게 업데이트합니다:
 
 ```
 .claude-plugin/plugin.json       → "version": "X.Y.Z"
 package.json                     → "version": "X.Y.Z"
 .claude-plugin/marketplace.json  → plugins[0].version: "X.Y.Z"
+extension/manifest.json          → "version": "X.Y.Z"
+extension/package.json           → "version": "X.Y.Z"
 ```
 
 ## 3. 매니페스트 정합성 확인
@@ -48,7 +50,7 @@ npx tsc --noEmit
 ## 5. 커밋 & 푸시
 
 ```bash
-git add .claude-plugin/plugin.json package.json .claude-plugin/marketplace.json
+git add .claude-plugin/plugin.json package.json .claude-plugin/marketplace.json extension/manifest.json extension/package.json
 # + 변경된 파일들
 git commit -m "Release vX.Y.Z — <변경 요약>"
 git push
