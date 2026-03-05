@@ -116,6 +116,9 @@
     }
   },
   "models": {
+    "codex": {
+      "default": "gpt-5.3-codex"
+    },
     "claude": {
       "pm_conductor": "sonnet",
       "architect": "sonnet",
