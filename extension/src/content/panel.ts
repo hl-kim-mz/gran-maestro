@@ -120,6 +120,21 @@ export class InlinePanel {
       }
       event.stopPropagation();
     });
+
+    this.memoInput.addEventListener('keydown', (event: KeyboardEvent): void => {
+      if (event.key !== 'Enter') {
+        return;
+      }
+      if (event.isComposing) {
+        return;
+      }
+      if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.handleCapture('immediate');
+    });
   }
 
   public show(target: Element): void {
@@ -168,6 +183,13 @@ export class InlinePanel {
     this.host.style.visibility = 'visible';
     this.host.style.pointerEvents = 'auto';
     this.isVisible = true;
+
+    requestAnimationFrame(() => {
+      if (!this.isVisible) {
+        return;
+      }
+      this.memoInput.focus();
+    });
   }
 
   public hide(): void {

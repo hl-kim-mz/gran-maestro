@@ -107,9 +107,7 @@ export class Inspector {
       return;
     }
 
-    event.preventDefault();
     event.stopPropagation();
-    event.stopImmediatePropagation();
 
     if (this.panel.isOpen()) {
       return;
@@ -138,6 +136,12 @@ export class Inspector {
     if (!this.active) {
       return;
     }
+
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.pendingTarget = null;
 
     const target = this.resolveTarget(event.target);
     if (!target) {
@@ -173,6 +177,14 @@ export class Inspector {
       return;
     }
 
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this.deactivate();
+      return;
+    }
+
     if (this.panel.isOpen() && this.panel.contains(event.target)) {
       return;
     }
@@ -182,18 +194,6 @@ export class Inspector {
     }
 
     if (event.ctrlKey || event.metaKey || event.altKey) {
-      return;
-    }
-
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      if (this.panel.isOpen()) {
-        this.deactivate();
-        return;
-      }
-      this.deactivate();
       return;
     }
 
