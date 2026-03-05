@@ -508,7 +508,7 @@ export function PicksView() {
                     />
                   ) : (
                     <div className="text-xs text-muted-foreground border rounded-md p-8 text-center">
-                      Screenshot 미리보기가 없습니다
+                      스크린샷을 캡처하지 못했습니다
                     </div>
                   )}
                 </section>

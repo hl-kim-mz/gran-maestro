@@ -367,12 +367,20 @@ export class Inspector {
       if (mode === 'immediate') {
         const copied = await copyTextToClipboard(buildCaptureClipboardText(captureId, payload.memo, payload.selector));
         if (copied) {
-          showToast('캡처 완료! 클립보드에 복사됨', 'success');
+          if (screenshotData) {
+            showToast('캡처 완료! 클립보드에 복사됨', 'success');
+          } else {
+            showToast('스크린샷 없이 캡처됨', 'success');
+          }
         } else {
           showToast('클립보드 복사 실패. 수동 복사로 진행하세요.', 'error');
         }
       } else {
-        showToast('캡처가 큐에 추가되었습니다.', 'success');
+        if (screenshotData) {
+          showToast('캡처가 큐에 추가되었습니다.', 'success');
+        } else {
+          showToast('스크린샷 없이 캡처가 큐에 추가되었습니다.', 'success');
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';

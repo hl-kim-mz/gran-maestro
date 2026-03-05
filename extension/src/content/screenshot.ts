@@ -55,6 +55,10 @@ export async function captureScreenshotToWebP(): Promise<string | null> {
   });
 
   if (!screenshot?.ok || !screenshot.payload?.imageDataUrl) {
+    console.warn(
+      '[GM] Screenshot capture failed:',
+      screenshot?.ok === false ? screenshot.error : 'No image data'
+    );
     return null;
   }
 

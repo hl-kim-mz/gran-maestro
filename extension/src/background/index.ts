@@ -108,16 +108,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message.type === MESSAGE_TYPES.TAKE_SCREENSHOT) {
-      const windowId = sender?.tab?.windowId;
-      const imageDataUrl = windowId
-        ? await chrome.tabs.captureVisibleTab(windowId, { format: 'png' })
-        : await chrome.tabs.captureVisibleTab({ format: 'png' });
+      try {
+        const windowId = sender?.tab?.windowId;
+        const imageDataUrl = windowId
+          ? await chrome.tabs.captureVisibleTab(windowId, { format: 'png' })
+          : await chrome.tabs.captureVisibleTab({ format: 'png' });
 
-      const response: TakeScreenshotResponse = {
-        ok: true,
-        payload: { imageDataUrl }
-      };
-      sendResponse(response);
+        const response: TakeScreenshotResponse = {
+          ok: true,
+          payload: { imageDataUrl }
+        };
+        sendResponse(response);
+      } catch (error) {
+        console.error(
+          '[GM] captureVisibleTab error:',
+          error instanceof Error ? error.message : error
+        );
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : 'Screenshot capture failed'
+        } as ExtensionResponse);
+      }
       return;
     }
 

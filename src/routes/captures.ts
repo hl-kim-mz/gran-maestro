@@ -360,7 +360,11 @@ projectCapturesApi.post("/captures", async (c) => {
       await Deno.writeFile(`${captureDir}/screenshot.webp`, screenshotBytes);
       const prefix = projectId ? `/api/projects/${projectId}` : "/api";
       screenshotPath = `${prefix}/captures/${captureId}/screenshot`;
-    } catch {
+    } catch (err) {
+      console.warn(
+        `[GM] Screenshot save failed for ${captureId}:`,
+        err instanceof Error ? err.message : err
+      );
       screenshotPath = null;
     }
   }
