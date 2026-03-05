@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard,
+  Gauge,
+  ClipboardList,
   GitBranch,
   Lightbulb,
   Bug,
@@ -13,14 +14,15 @@ import { useEffect } from 'react';
 import { useAppContext } from '@/context/AppContext';
 
 export const TABS = [
-  { id: 'plans', label: 'Plans', icon: LayoutDashboard, key: '1', path: '/plans' },
-  { id: 'workflow', label: 'Workflow', icon: GitBranch, key: '2', path: '/workflow' },
-  { id: 'picks', label: 'Picks', icon: Crosshair, key: '8', path: '/picks' },
-  { id: 'ideation', label: 'Ideation', icon: Lightbulb, key: '3', path: '/ideation' },
-  { id: 'debug', label: 'Debug', icon: Bug, key: '4', path: '/debug' },
-  { id: 'designs', label: 'Designs', icon: Palette, key: '5', path: '/designs' },
-  { id: 'documents', label: 'Documents', icon: Files, key: '6', path: '/documents' },
-  { id: 'settings', label: 'Settings', icon: Settings, key: '7', path: '/settings' },
+  { id: 'overview', label: 'Overview', icon: Gauge, key: '0', path: '/overview' },
+  { id: 'picks', label: 'Picks', icon: Crosshair, key: '1', path: '/picks' },
+  { id: 'plans', label: 'Plans', icon: ClipboardList, key: '2', path: '/plans' },
+  { id: 'workflow', label: 'Workflow', icon: GitBranch, key: '3', path: '/workflow' },
+  { id: 'ideation', label: 'Ideation', icon: Lightbulb, key: '4', path: '/ideation' },
+  { id: 'debug', label: 'Debug', icon: Bug, key: '5', path: '/debug' },
+  { id: 'designs', label: 'Designs', icon: Palette, key: '6', path: '/designs' },
+  { id: 'documents', label: 'Documents', icon: Files, key: '7', path: '/documents' },
+  { id: 'settings', label: 'Settings', icon: Settings, key: '8', path: '/settings' },
 ];
 
 export function TabNav({
