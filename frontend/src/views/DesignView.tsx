@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
+import { Button } from '@/components/ui/button';
 import { ExternalLink, Palette } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseDesignSections } from '@/shared/designUtils';
@@ -21,6 +22,7 @@ interface DesignScreen {
   title?: string;
   url?: string;
   image_url?: string | null;
+  html_file?: string | null;
   created_at?: string;
   status?: string;
 }
@@ -73,6 +75,7 @@ export function DesignView() {
   const [selectedSession, setSelectedSession] = useState<DesignSession | null>(null);
   const [selectedScreenFile, setSelectedScreenFile] = useState<string | null>(null);
   const [screenContent, setScreenContent] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'image' | 'html'>('html');
   const [planDesignSections, setPlanDesignSections] = useState<ReturnType<typeof parseDesignSections>>([]);
   const [selectedPlanSection, setSelectedPlanSection] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -167,6 +170,8 @@ export function DesignView() {
   }, [lastSseEvent, fetchSessions]);
 
   useEffect(() => {
+    setViewMode('html');
+
     if (!selectedSession || !projectId) {
       setSelectedScreenFile(null);
       setScreenContent(null);
@@ -200,6 +205,10 @@ export function DesignView() {
         setPlanDesignSections([]);
       });
   }, [selectedSession?.id, projectId]);
+
+  useEffect(() => {
+    setViewMode('html');
+  }, [selectedScreenFile]);
 
   useEffect(() => {
     if (!selectedSession || !selectedScreenFile || !projectId) {
@@ -244,6 +253,13 @@ export function DesignView() {
   const screenFiles = selectedSession?.screen_files ?? [];
   const parsedScreen = screenContent ? parseScreenContent(screenContent) : null;
   const parsedScreenTitle = parsedScreen?.title ? parsedScreen.title : 'Design 화면';
+  const selectedScreenId = selectedScreenFile?.replace(/\.md$/, '');
+  const selectedScreen = selectedSession?.screens?.find((screen) => screen.id === selectedScreenId);
+  const hasHtmlPreview = Boolean(selectedScreen?.html_file);
+  const htmlPreviewSrc =
+    projectId && selectedSession && selectedScreenFile
+      ? `/api/projects/${projectId}/designs/${selectedSession.id}/screens/${selectedScreenFile}/html`
+      : null;
 
   const isPlanDesign = selectedSession?.source === 'plan_design';
 
@@ -429,37 +445,69 @@ export function DesignView() {
                         {file === selectedScreenFile ? (
                           <>
                             <h3 className="text-lg font-semibold mb-3">{parsedScreenTitle}</h3>
-                            {parsedScreen?.imageUrl && (
-                              <Card className="mb-4 overflow-hidden">
-                                <a
-                                  href={parsedScreen.stitchUrl ?? parsedScreen.imageUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                            {hasHtmlPreview && (
+                              <div className="flex gap-1 mb-3">
+                                <Button
+                                  type="button"
+                                  variant={viewMode === 'image' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => setViewMode('image')}
                                 >
-                                  <img
-                                    src={parsedScreen.imageUrl}
-                                    alt={parsedScreen.title}
-                                    className="max-w-[85%] block mx-auto"
-                                  />
-                                </a>
-                                <CardContent className="p-3 pt-2">
-                                  {parsedScreen.stitchUrl && (
+                                  이미지
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant={viewMode === 'html' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => setViewMode('html')}
+                                >
+                                  HTML 미리보기
+                                </Button>
+                              </div>
+                            )}
+                            {hasHtmlPreview && viewMode === 'html' && htmlPreviewSrc ? (
+                              <iframe
+                                title={`${selectedSession.id}-${file}-html-preview`}
+                                src={htmlPreviewSrc}
+                                className="w-full border rounded"
+                                style={{ minHeight: '600px' }}
+                                sandbox="allow-scripts"
+                              />
+                            ) : (
+                              <>
+                                {parsedScreen?.imageUrl && (
+                                  <Card className="mb-4 overflow-hidden">
                                     <a
-                                      href={parsedScreen.stitchUrl}
+                                      href={parsedScreen.stitchUrl ?? parsedScreen.imageUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                                     >
-                                      <ExternalLink className="h-3 w-3" /> {parsedScreen.stitchLabel}
+                                      <img
+                                        src={parsedScreen.imageUrl}
+                                        alt={parsedScreen.title}
+                                        className="max-w-[85%] block mx-auto"
+                                      />
                                     </a>
-                                  )}
-                                </CardContent>
-                              </Card>
-                            )}
-                            {parsedScreen?.description ? (
-                              <MarkdownRenderer content={parsedScreen.description} />
-                            ) : (
-                              <div className="text-sm text-muted-foreground">디자인 상세가 없습니다</div>
+                                    <CardContent className="p-3 pt-2">
+                                      {parsedScreen.stitchUrl && (
+                                        <a
+                                          href={parsedScreen.stitchUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                        >
+                                          <ExternalLink className="h-3 w-3" /> {parsedScreen.stitchLabel}
+                                        </a>
+                                      )}
+                                    </CardContent>
+                                  </Card>
+                                )}
+                                {parsedScreen?.description ? (
+                                  <MarkdownRenderer content={parsedScreen.description} />
+                                ) : (
+                                  <div className="text-sm text-muted-foreground">디자인 상세가 없습니다</div>
+                                )}
+                              </>
                             )}
                           </>
                         ) : (
