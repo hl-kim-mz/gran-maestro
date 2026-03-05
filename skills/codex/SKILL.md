@@ -21,7 +21,7 @@ Codex CLI 호출의 단일 진입점. request 워크플로우(--trace 모드 포
 2. **프롬프트 소스**: `--prompt-file` 있으면 파일 우선 (미존재 시 에러 중단); 없으면 인라인 사용
 3. `--dir` 지정 시 디렉토리 존재 확인 (없으면 에러 중단); 상대경로는 cwd 기준
 4. `--trace` 모드 판별 (아래 섹션 참조)
-5. **기본 모델**: `config.resolved.json`의 `models.codex.default` 사용; 없으면 `-m` 플래그 생략
+5. **기본 모델**: `config.resolved.json`의 `models.codex.default` 사용; 없으면 `gpt-5.3-codex` 폴백
 6. Codex CLI 실행:
    ```bash
    codex exec --full-auto -m {model} -C {working_dir} "{prompt}"                         # 인라인
@@ -73,9 +73,10 @@ working_dir: {작업 디렉토리}
 {stderr 내용, 없으면 이 섹션 생략}
 ```
 
-5. **부모 컨텍스트에는 경로만 반환** (전체 stdout 출력 안 함; 필요 시 Read 도구로 파일 접근):
+5. **부모 컨텍스트에는 아래 형식으로만 반환** (전체 stdout 출력 안 함; 필요 시 Read 도구로 파일 접근).
+   **이 텍스트를 출력한 후 즉시 실행을 종료한다** — 추가 설명, 요약, "제어를 반환합니다" 등 부가 텍스트 출력 절대 금지:
    ```
-   Trace 저장 완료: requests/{REQ-ID}/tasks/{TASK-NUM}/traces/codex-{label}-{timestamp}.md
+   [TRACE_DONE] requests/{REQ-ID}/tasks/{TASK-NUM}/traces/codex-{label}-{timestamp}.md | exit={exit_code}
    ```
 
 > **Exit Code 캡처 (MANDATORY)**: Bash 도구의 exit code를 반드시 확인한다.

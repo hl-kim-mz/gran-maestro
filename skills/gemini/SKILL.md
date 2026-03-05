@@ -67,9 +67,10 @@ files_pattern: {--files 패턴, 없으면 생략}
 {stderr 내용, 없으면 이 섹션 생략}
 ```
 
-5. **부모 컨텍스트에는 경로만 반환** (필요 시 Read 도구로 접근):
+5. **부모 컨텍스트에는 아래 형식으로만 반환** (필요 시 Read 도구로 접근).
+   **이 텍스트를 출력한 후 즉시 실행을 종료한다** — 추가 설명, 요약, "제어를 반환합니다" 등 부가 텍스트 출력 절대 금지:
    ```
-   Trace 저장 완료: requests/{REQ-ID}/tasks/{TASK-NUM}/traces/gemini-{label}-{timestamp}.md
+   [TRACE_DONE] requests/{REQ-ID}/tasks/{TASK-NUM}/traces/gemini-{label}-{timestamp}.md | exit={exit_code}
    ```
 
 > **Exit Code 캡처 (MANDATORY)**: Bash 도구의 exit code를 반드시 확인한다.

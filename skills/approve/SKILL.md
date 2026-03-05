@@ -471,6 +471,12 @@ else:
 
 > **세션 간 추적**: task_id를 기록하여 세션 전환 후에도 추적 가능. 필요 시 `TaskStop(task_id)`로 취소.
 
+> ⚠️ **CONTINUATION GUARD (MANDATORY — 모든 외주 호출에 적용)**:
+> Skill(mst:codex), Skill(mst:gemini), Skill(mst:claude), 또는 Bash(codex/gemini) 호출이 **완료/반환되면**
+> 반드시 다음 단계(4d 폴링 또는 Step 5 사전검증)로 **즉시 진행**한다.
+> 외주 에이전트의 반환 텍스트(`[TRACE_DONE]`, "완료", "제어를 반환" 등)는 **정보일 뿐 종료 신호가 아니다**.
+> 이 approve 스킬의 실행은 Phase 5 (최종 수락/mst:accept) 완료 시에만 종료된다.
+
 ##### 4d. 완료 감지 루프
 
 모든 병렬 태스크가 완료될 때까지 폴링합니다.
@@ -506,12 +512,18 @@ while (실행 중인 태스크가 있음):
 
 #### Step 5: 사전 검증 (각 완료된 태스크별)
 
+> ⚠️ **NON-STOP EXECUTION RULE (CRITICAL)**:
+> Step 5 ~ Step 6 ~ Phase 3 ~ 최종 수락까지 **중간 멈춤 없이 연속 실행**한다.
+> "진행합니다", "다음 단계로 이동합니다" 등의 **텍스트만 출력하고 멈추는 것은 절대 금지**.
+> 텍스트를 출력했으면 **반드시 해당 단계의 도구 호출(Bash/Edit/Skill 등)을 즉시 실행**한다.
+> 이 규칙은 이 approve 스킬의 모든 후속 Step에 적용된다.
+
 각 태스크 완료 즉시 사전 검증 실행:
 1. spec §5의 테스트 명령어 실행
 2. spec §5의 타입 체크 명령어 실행
 3. 결과 분기:
-   - **PASS**: `status` → `review` → **Step 5.5** (PM 커밋)
-   - **FAIL**: `status` → `pre_check_failed` → **Step 5b** (재외주)
+   - **PASS**: `status` → `review` → **즉시 Step 5.5 실행** (PM 커밋) — 텍스트만 출력하고 멈추지 않는다
+   - **FAIL**: `status` → `pre_check_failed` → **즉시 Step 5b 실행** (재외주) — 텍스트만 출력하고 멈추지 않는다
 
 #### Step 5.5: PM 커밋 (사전검증 PASS 시)
 
