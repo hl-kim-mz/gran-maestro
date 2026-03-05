@@ -173,7 +173,7 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
      ```
      Bash(
        run_in_background: true,
-       command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/00/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/{participant.key}.md; exit $EC"
+       command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/00/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/{participant.key}.md; exit $EC"
      )
      ```
    - `provider: "gemini"`:
@@ -198,7 +198,7 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
      ```
      Bash(
        run_in_background: true,
-       command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/critique-{criticKey}.md; exit $EC"
+       command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/critique-{criticKey}.md; exit $EC"
      )
      ```
    - `provider: "gemini"`:
@@ -335,7 +335,7 @@ participant 발송 (`participants` 동적 순회):
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/{participant.key}.md; exit $EC"
+    command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/{participant.key}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:
@@ -360,7 +360,7 @@ critic 동시 발송 (`critics` 동적 순회):
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/critique-{criticKey}.md; exit $EC"
+    command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/critique-{criticKey}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:

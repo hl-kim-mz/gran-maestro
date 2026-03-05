@@ -203,7 +203,7 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" > {absolute_path}/opinion-{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/opinion-{participant.key}.md; exit $EC"
+    command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" > {absolute_path}/opinion-{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/opinion-{participant.key}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:
@@ -229,7 +229,7 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/critique-{criticKey}.md; exit $EC"
+    command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/critique-{criticKey}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:

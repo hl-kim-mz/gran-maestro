@@ -45,7 +45,7 @@ Claude가 탐색 목표 분석 → Codex: 코드 구조/구현 패턴 추적; Ge
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -C $(pwd) \"$(cat {absolute_path}/prompts/explore-{key}-prompt.md)\" > {absolute_path}/explore-{key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/explore-{key}.md; exit $EC"
+    command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/prompts/explore-{key}-prompt.md)\" > {absolute_path}/explore-{key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/explore-{key}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:
