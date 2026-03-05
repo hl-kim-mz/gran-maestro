@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Check } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface TimelineCapture {
   status: 'pending' | 'selected' | 'consumed' | 'done' | 'cancelled' | 'archived';
@@ -53,20 +55,52 @@ const STATUS_ACTIVE_INDEX: Record<TimelineCapture['status'], number> = {
   archived: 3,
 };
 
-const NODE_CLASS_BY_MODE = {
-  done: 'border-green-500 bg-green-500 text-white',
-  cancelled: 'border-red-500 bg-red-500 text-white',
-  active: 'border-blue-500 bg-blue-500 text-white',
-  pending: 'border-amber-500 bg-amber-500 text-white',
-  inactive: 'border-muted-foreground/35 bg-background text-muted-foreground/80',
+const STAGE_COLORS = {
+  0: {
+    bg: 'bg-slate-500 dark:bg-slate-400',
+    border: 'border-slate-500 dark:border-slate-400',
+    text: 'text-slate-600 dark:text-slate-400',
+    line: 'border-t-2 border-slate-500 dark:border-slate-400',
+  },
+  1: {
+    bg: 'bg-blue-500 dark:bg-blue-400',
+    border: 'border-blue-500 dark:border-blue-400',
+    text: 'text-blue-600 dark:text-blue-400',
+    line: 'border-t-2 border-blue-500 dark:border-blue-400',
+  },
+  2: {
+    bg: 'bg-indigo-500 dark:bg-indigo-400',
+    border: 'border-indigo-500 dark:border-indigo-400',
+    text: 'text-indigo-600 dark:text-indigo-400',
+    line: 'border-t-2 border-indigo-500 dark:border-indigo-400',
+  },
+  3: {
+    bg: 'bg-emerald-500 dark:bg-emerald-400',
+    border: 'border-emerald-500 dark:border-emerald-400',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    line: 'border-t-2 border-emerald-500 dark:border-emerald-400',
+  },
+} as const;
+
+const DONE_COLORS = {
+  bg: 'bg-emerald-500 dark:bg-emerald-400',
+  border: 'border-emerald-500 dark:border-emerald-400',
+  text: 'text-emerald-600 dark:text-emerald-400',
+  line: 'border-t-2 border-emerald-500 dark:border-emerald-400',
 };
 
-const TEXT_CLASS_BY_MODE = {
-  done: 'text-green-600',
-  cancelled: 'text-red-600',
-  active: 'text-blue-600',
-  pending: 'text-amber-600',
-  inactive: 'text-muted-foreground/80',
+const CANCELLED_COLORS = {
+  bg: 'bg-red-500 dark:bg-red-400',
+  border: 'border-red-500 dark:border-red-400',
+  text: 'text-red-600 dark:text-red-400',
+  line: 'border-t-2 border-red-500 dark:border-red-400',
+};
+
+const INACTIVE_COLORS = {
+  bg: 'bg-background',
+  border: 'border-muted-foreground/35',
+  text: 'text-muted-foreground/80',
+  line: 'border-t-2 border-dashed border-muted-foreground/30',
 };
 
 function getMode(status: TimelineCapture['status']): 'done' | 'cancelled' | 'active' | 'pending' {
@@ -74,6 +108,13 @@ function getMode(status: TimelineCapture['status']): 'done' | 'cancelled' | 'act
   if (status === 'cancelled') return 'cancelled';
   if (status === 'pending') return 'pending';
   return 'active';
+}
+
+function getColors(index: number, mode: ReturnType<typeof getMode>, isActive: boolean) {
+  if (!isActive) return INACTIVE_COLORS;
+  if (mode === 'done') return DONE_COLORS;
+  if (mode === 'cancelled') return CANCELLED_COLORS;
+  return STAGE_COLORS[index as keyof typeof STAGE_COLORS] ?? STAGE_COLORS[0];
 }
 
 export function LifecycleTimeline({ capture, className = '' }: LifecycleTimelineProps) {
@@ -108,60 +149,58 @@ export function LifecycleTimeline({ capture, className = '' }: LifecycleTimeline
   ] as const;
 
   return (
-    <div className={`rounded-lg border p-4 ${className}`}>
-      <h3 className="mb-4 text-sm font-semibold">Lifecycle Timeline</h3>
-      <div className="flex items-start">
-        {stages.map((stage, index) => {
-          const isActive = index <= activeIndex;
-          const isConnectorActive = index < activeIndex;
-          const nodeClass = isActive ? NODE_CLASS_BY_MODE[mode] : NODE_CLASS_BY_MODE.inactive;
-          const textClass = isActive ? TEXT_CLASS_BY_MODE[mode] : TEXT_CLASS_BY_MODE.inactive;
-          const connectorClass = isConnectorActive
-            ? mode === 'done'
-              ? 'border-t-2 border-green-500'
-              : mode === 'cancelled'
-                ? 'border-t-2 border-red-500'
-              : mode === 'pending'
-                ? 'border-t-2 border-amber-500'
-                : 'border-t-2 border-blue-500'
-            : 'border-t-2 border-dashed border-muted-foreground/40';
+    <Card className={className}>
+      <CardContent className="p-4">
+        <h3 className="mb-4 text-sm font-semibold">Lifecycle Timeline</h3>
+        <div className="flex items-start">
+          {stages.map((stage, index) => {
+            const isActive = index <= activeIndex;
+            const isConnectorActive = index < activeIndex;
+            
+            const nodeColors = getColors(index, mode, isActive);
+            const lineColors = getColors(index, mode, isConnectorActive);
 
-          return (
-            <div key={stage.label} className="flex min-w-0 flex-1 items-start">
-              <div className="flex w-full flex-col items-center text-center">
-                <div className={`relative mx-auto h-4 w-4 rounded-full border-2 ${nodeClass}`} />
-                <div className="mt-2 space-y-1">
-                  <div className={`text-xs font-semibold ${textClass}`}>{stage.label}</div>
-                  {stage.link && index === 1 && (
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/plans/${stage.link}`)}
-                      className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[11px] font-mono text-primary hover:bg-primary/10"
-                    >
-                      {stage.link}
-                    </button>
-                  )}
-                  {stage.link && index === 2 && (
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/workflow/${stage.link}`)}
-                      className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[11px] font-mono text-primary hover:bg-primary/10"
-                    >
-                      {stage.link}
-                    </button>
-                  )}
-                  {isActive && stage.timestamp && (
-                    <div className="text-[11px] text-muted-foreground">{stage.timestamp}</div>
-                  )}
+            return (
+              <div key={stage.label} className="flex min-w-0 flex-1 items-start">
+                <div className="flex w-full flex-col items-center text-center">
+                  <div className={`relative mx-auto flex h-5 w-5 items-center justify-center rounded-full border-2 ${nodeColors.bg} ${nodeColors.border}`}>
+                    {index < activeIndex && (
+                      <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                    )}
+                  </div>
+                  <div className="mt-2 flex w-full flex-col items-center space-y-1 px-1">
+                    <div className={`text-sm font-semibold ${nodeColors.text}`}>{stage.label}</div>
+                    {stage.link && index === 1 && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/plans/${stage.link}`)}
+                        className="inline-flex max-w-[100px] items-center gap-1 rounded-md bg-muted px-2 py-1 text-[11px] font-mono text-primary hover:bg-primary/10"
+                      >
+                        <span className="truncate">{stage.link}</span>
+                      </button>
+                    )}
+                    {stage.link && index === 2 && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/workflow/${stage.link}`)}
+                        className="inline-flex max-w-[100px] items-center gap-1 rounded-md bg-muted px-2 py-1 text-[11px] font-mono text-primary hover:bg-primary/10"
+                      >
+                        <span className="truncate">{stage.link}</span>
+                      </button>
+                    )}
+                    {isActive && stage.timestamp && (
+                      <div className="text-[11px] text-muted-foreground">{stage.timestamp}</div>
+                    )}
+                  </div>
                 </div>
+                {index < stages.length - 1 && (
+                  <div className={`mt-2.5 flex-1 ${lineColors.line}`} />
+                )}
               </div>
-              {index < stages.length - 1 && (
-                <div className={`mt-2 flex-1 ${connectorClass}`} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
