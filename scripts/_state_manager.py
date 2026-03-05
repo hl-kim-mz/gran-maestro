@@ -35,6 +35,41 @@ def set_status(base_dir: Path, id: str, status: str) -> None:
     data["updated_at"] = timestamp_now()
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
+
+def _propagate_to_captures(base_dir: Path, req_id: str, cap_status: str) -> None:
+    """REQ의 linked_captures 대상 캡처들에 상태를 전파."""
+    if not req_id.upper().startswith("REQ-"):
+        return
+    req_path = _find_json_file(base_dir, req_id)
+    if not req_path:
+        return
+    try:
+        req_data = json.loads(req_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+
+    linked_captures = req_data.get("linked_captures")
+    if not isinstance(linked_captures, list) or not linked_captures:
+        return
+
+    now = timestamp_now()
+    captures_dir = base_dir / "captures"
+    for cap_id in linked_captures:
+        if not isinstance(cap_id, str) or not cap_id.upper().startswith("CAP-"):
+            continue
+        cap_path = captures_dir / cap_id / "capture.json"
+        try:
+            if not cap_path.exists():
+                continue
+            cap_data = json.loads(cap_path.read_text(encoding="utf-8"))
+            cap_data["status"] = cap_status
+            cap_data["linked_request"] = req_id
+            cap_data["updated_at"] = now
+            cap_path.write_text(json.dumps(cap_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            continue
+
+
 def complete(base_dir: Path, id: str) -> None:
     """JSON 파일의 status를 completed로 변경하고 completed_at/updated_at 갱신."""
     path = _find_json_file(base_dir, id)
@@ -46,6 +81,7 @@ def complete(base_dir: Path, id: str) -> None:
     data["completed_at"] = now
     data["updated_at"] = now
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    _propagate_to_captures(base_dir, id, "done")
 
 
 def cancel(base_dir: Path, id: str) -> None:
@@ -59,6 +95,7 @@ def cancel(base_dir: Path, id: str) -> None:
     data["cancelled_at"] = now
     data["updated_at"] = now
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    _propagate_to_captures(base_dir, id, "cancelled")
 
 
 def set_field(base_dir: Path, id: str, field: str, value: str) -> None:

@@ -650,7 +650,7 @@ def cmd_capture_ttl_check(args):
                 expired.append(cap_dir.name)
 
         if _capture_linked_requests_done(meta.get("linked_plan")):
-            if meta.get("status") != "done":
+            if meta.get("status") not in ("done", "cancelled"):
                 meta["status"] = "done"
                 changed = True
 
