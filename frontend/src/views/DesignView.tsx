@@ -23,8 +23,15 @@ interface DesignScreen {
   url?: string;
   image_url?: string | null;
   html_file?: string | null;
+  style?: string | null;
   created_at?: string;
   status?: string;
+}
+
+interface DesignStyle {
+  name: string;
+  slug: string;
+  screens: string[];
 }
 
 interface DesignSession {
@@ -35,7 +42,10 @@ interface DesignSession {
   linked_plan?: string | null;
   linked_req?: string | null;
   screens?: DesignScreen[];
+  styles?: DesignStyle[];
   screen_files?: string[];
+  has_styles?: boolean;
+  style_dirs?: string[];
   source?: 'plan_design';
   plan_design?: boolean;
   design_content?: string | null;
@@ -46,6 +56,10 @@ interface DesignSession {
 interface ScreenContent {
   exists: boolean;
   content: string | null;
+}
+
+interface ScreenFilesResponse {
+  screen_files: string[];
 }
 
 function parseScreenContent(content: string) {
@@ -67,12 +81,32 @@ function parseScreenContent(content: string) {
   };
 }
 
+function getStyleNames(session: DesignSession | null): string[] {
+  if (!session) {
+    return [];
+  }
+
+  if (Array.isArray(session.style_dirs) && session.style_dirs.length > 0) {
+    return session.style_dirs;
+  }
+
+  if (!Array.isArray(session.styles) || session.styles.length === 0) {
+    return [];
+  }
+
+  return session.styles
+    .map((style) => style.slug || style.name)
+    .filter((name): name is string => Boolean(name));
+}
+
 export function DesignView() {
   const { projectId, lastSseEvent, navigateTo } = useAppContext();
   const { designId } = useParams();
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<DesignSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<DesignSession | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [styleScreenFiles, setStyleScreenFiles] = useState<string[]>([]);
   const [selectedScreenFile, setSelectedScreenFile] = useState<string | null>(null);
   const [screenContent, setScreenContent] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'image' | 'html'>('html');
@@ -173,6 +207,8 @@ export function DesignView() {
     setViewMode('html');
 
     if (!selectedSession || !projectId) {
+      setSelectedStyle(null);
+      setStyleScreenFiles([]);
       setSelectedScreenFile(null);
       setScreenContent(null);
       setPlanDesignSections([]);
@@ -190,16 +226,32 @@ export function DesignView() {
           const sections = parseDesignSections(data.design_content);
           setPlanDesignSections(sections);
           setSelectedPlanSection(0);
+          setSelectedStyle(null);
+          setStyleScreenFiles([]);
           setSelectedScreenFile(null);
         } else {
           setPlanDesignSections([]);
-          const files = data.screen_files ?? [];
-          setSelectedScreenFile(prev =>
-            prev && files.includes(prev) ? prev : (files.length > 0 ? files[0] : null)
-          );
+
+          if (data.has_styles) {
+            const styleNames = getStyleNames(data);
+            setSelectedStyle((prev) =>
+              prev && styleNames.includes(prev) ? prev : (styleNames[0] ?? null)
+            );
+            setStyleScreenFiles([]);
+            setSelectedScreenFile(null);
+          } else {
+            setSelectedStyle(null);
+            setStyleScreenFiles([]);
+            const files = data.screen_files ?? [];
+            setSelectedScreenFile((prev) =>
+              prev && files.includes(prev) ? prev : (files.length > 0 ? files[0] : null)
+            );
+          }
         }
       })
       .catch(() => {
+        setSelectedStyle(null);
+        setStyleScreenFiles([]);
         setSelectedScreenFile(null);
         setScreenContent(null);
         setPlanDesignSections([]);
@@ -208,7 +260,57 @@ export function DesignView() {
 
   useEffect(() => {
     setViewMode('html');
-  }, [selectedScreenFile]);
+  }, [selectedScreenFile, selectedStyle]);
+
+  useEffect(() => {
+    if (
+      !selectedSession ||
+      !projectId ||
+      selectedSession.source === 'plan_design' ||
+      !selectedSession.has_styles
+    ) {
+      setStyleScreenFiles([]);
+      return;
+    }
+
+    const styleNames = getStyleNames(selectedSession);
+    const styleName = selectedStyle ?? styleNames[0] ?? null;
+    if (!styleName) {
+      setStyleScreenFiles([]);
+      setSelectedScreenFile(null);
+      setScreenContent(null);
+      return;
+    }
+
+    if (selectedStyle !== styleName) {
+      setSelectedStyle(styleName);
+      return;
+    }
+
+    setStyleScreenFiles([]);
+    setSelectedScreenFile(null);
+    setScreenContent(null);
+    apiFetch<ScreenFilesResponse>(
+      `/api/designs/${selectedSession.id}/styles/${encodeURIComponent(styleName)}/screens`,
+      projectId
+    )
+      .then((data) => {
+        const files = data.screen_files ?? [];
+        setStyleScreenFiles(files);
+        setSelectedScreenFile(files.length > 0 ? files[0] : null);
+      })
+      .catch(() => {
+        setStyleScreenFiles([]);
+        setSelectedScreenFile(null);
+        setScreenContent(null);
+      });
+  }, [
+    selectedSession?.id,
+    selectedSession?.has_styles,
+    selectedSession?.source,
+    selectedStyle,
+    projectId,
+  ]);
 
   useEffect(() => {
     if (!selectedSession || !selectedScreenFile || !projectId) {
@@ -216,13 +318,33 @@ export function DesignView() {
       return;
     }
 
+    const isStyleSession = selectedSession.source !== 'plan_design' && Boolean(selectedSession.has_styles);
+    const styleNames = getStyleNames(selectedSession);
+    const styleName = selectedStyle ?? styleNames[0] ?? null;
+
+    if (isStyleSession && !styleName) {
+      setScreenContent(null);
+      return;
+    }
+
+    const screenPath = isStyleSession
+      ? `/api/designs/${selectedSession.id}/styles/${encodeURIComponent(styleName!)}/screens/${selectedScreenFile}`
+      : `/api/designs/${selectedSession.id}/screens/${selectedScreenFile}`;
+
     apiFetch<ScreenContent>(
-      `/api/designs/${selectedSession.id}/screens/${selectedScreenFile}`,
+      screenPath,
       projectId
     )
       .then((data) => setScreenContent(data.exists ? data.content : null))
       .catch(() => setScreenContent(null));
-  }, [selectedSession?.id, selectedScreenFile, projectId]);
+  }, [
+    selectedSession?.id,
+    selectedSession?.has_styles,
+    selectedSession?.source,
+    selectedScreenFile,
+    selectedStyle,
+    projectId,
+  ]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -250,18 +372,148 @@ export function DesignView() {
     );
   }
 
-  const screenFiles = selectedSession?.screen_files ?? [];
+  const isPlanDesign = selectedSession?.source === 'plan_design';
+  const hasStyles = Boolean(selectedSession?.has_styles) && !isPlanDesign;
+  const styleNames = getStyleNames(selectedSession);
+  const activeStyle = hasStyles ? (selectedStyle ?? styleNames[0] ?? null) : null;
+  const screenFiles = hasStyles ? styleScreenFiles : (selectedSession?.screen_files ?? []);
   const parsedScreen = screenContent ? parseScreenContent(screenContent) : null;
   const parsedScreenTitle = parsedScreen?.title ? parsedScreen.title : 'Design 화면';
   const selectedScreenId = selectedScreenFile?.replace(/\.md$/, '');
-  const selectedScreen = selectedSession?.screens?.find((screen) => screen.id === selectedScreenId);
+  const selectedScreen =
+    selectedSession?.screens?.find((screen) => {
+      const screenId = screen.id.replace(/\.md$/, '');
+      if (screenId !== selectedScreenId) {
+        return false;
+      }
+      if (!hasStyles || !activeStyle) {
+        return true;
+      }
+      return screen.style === activeStyle;
+    }) ??
+    selectedSession?.screens?.find((screen) =>
+      screen.id.replace(/\.md$/, '') === selectedScreenId && (!hasStyles || !activeStyle || !screen.style)
+    );
   const hasHtmlPreview = Boolean(selectedScreen?.html_file);
   const htmlPreviewSrc =
     projectId && selectedSession && selectedScreenFile
-      ? `/api/projects/${projectId}/designs/${selectedSession.id}/screens/${selectedScreenFile}/html`
+      ? hasStyles && activeStyle
+        ? `/api/projects/${projectId}/designs/${selectedSession.id}/styles/${encodeURIComponent(activeStyle)}/screens/${selectedScreenFile}/html`
+        : `/api/projects/${projectId}/designs/${selectedSession.id}/screens/${selectedScreenFile}/html`
       : null;
 
-  const isPlanDesign = selectedSession?.source === 'plan_design';
+  const renderScreenTabs = (files: string[], emptyDescription: string) => {
+    if (files.length === 0) {
+      return (
+        <EmptyState
+          icon={<Palette className="h-8 w-8" />}
+          title="스크린 없음"
+          description={emptyDescription}
+        />
+      );
+    }
+
+    return (
+      <Tabs
+        value={selectedScreenFile ?? ''}
+        onValueChange={setSelectedScreenFile}
+        className="flex-1 flex flex-col overflow-hidden"
+      >
+        <div className="px-4 border-b">
+          <TabsList className="bg-transparent h-10 p-0 gap-4 overflow-x-auto">
+            {files.map((file) => (
+              <TabsTrigger
+                key={file}
+                value={file}
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
+              >
+                {file}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+        {files.map((file) => (
+          <TabsContent key={file} value={file} className="flex-1 m-0 p-0">
+            <ScrollArea className="h-full">
+              <div className="p-8">
+                {file === selectedScreenFile ? (
+                  <>
+                    <h3 className="text-lg font-semibold mb-3">{parsedScreenTitle}</h3>
+                    {hasHtmlPreview && (
+                      <div className="flex gap-1 mb-3">
+                        <Button
+                          type="button"
+                          variant={viewMode === 'image' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setViewMode('image')}
+                        >
+                          이미지
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={viewMode === 'html' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setViewMode('html')}
+                        >
+                          HTML 미리보기
+                        </Button>
+                      </div>
+                    )}
+                    {hasHtmlPreview && viewMode === 'html' && htmlPreviewSrc ? (
+                      <iframe
+                        title={`${selectedSession?.id ?? 'design'}-${file}-html-preview`}
+                        src={htmlPreviewSrc}
+                        className="w-full border rounded"
+                        style={{ minHeight: '600px' }}
+                        sandbox="allow-scripts"
+                      />
+                    ) : (
+                      <>
+                        {parsedScreen?.imageUrl && (
+                          <Card className="mb-4 overflow-hidden">
+                            <a
+                              href={parsedScreen.stitchUrl ?? parsedScreen.imageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <img
+                                src={parsedScreen.imageUrl}
+                                alt={parsedScreen.title}
+                                className="max-w-[85%] block mx-auto"
+                              />
+                            </a>
+                            <CardContent className="p-3 pt-2">
+                              {parsedScreen.stitchUrl && (
+                                <a
+                                  href={parsedScreen.stitchUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                >
+                                  <ExternalLink className="h-3 w-3" /> {parsedScreen.stitchLabel}
+                                </a>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )}
+                        {parsedScreen?.description ? (
+                          <MarkdownRenderer content={parsedScreen.description} />
+                        ) : (
+                          <div className="text-sm text-muted-foreground">디자인 상세가 없습니다</div>
+                        )}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-sm text-muted-foreground">선택한 화면을 불러오는 중입니다</div>
+                )}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        ))}
+      </Tabs>
+    );
+  };
 
   return (
     <div className="grid grid-cols-12 gap-0 h-full overflow-hidden">
@@ -419,111 +671,43 @@ export function DesignView() {
                   description="design.md에 --- 구분 섹션이 없습니다"
                 />
               )
-            ) : screenFiles.length > 0 ? (
-              <Tabs
-                value={selectedScreenFile ?? ''}
-                onValueChange={setSelectedScreenFile}
-                className="flex-1 flex flex-col overflow-hidden"
-              >
-                <div className="px-4 border-b">
-                  <TabsList className="bg-transparent h-10 p-0 gap-4 overflow-x-auto">
-                    {screenFiles.map((file) => (
-                      <TabsTrigger
-                        key={file}
-                        value={file}
-                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
-                      >
-                        {file}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </div>
-                {screenFiles.map((file) => (
-                  <TabsContent key={file} value={file} className="flex-1 m-0 p-0">
-                    <ScrollArea className="h-full">
-                      <div className="p-8">
-                        {file === selectedScreenFile ? (
-                          <>
-                            <h3 className="text-lg font-semibold mb-3">{parsedScreenTitle}</h3>
-                            {hasHtmlPreview && (
-                              <div className="flex gap-1 mb-3">
-                                <Button
-                                  type="button"
-                                  variant={viewMode === 'image' ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() => setViewMode('image')}
-                                >
-                                  이미지
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant={viewMode === 'html' ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() => setViewMode('html')}
-                                >
-                                  HTML 미리보기
-                                </Button>
-                              </div>
-                            )}
-                            {hasHtmlPreview && viewMode === 'html' && htmlPreviewSrc ? (
-                              <iframe
-                                title={`${selectedSession.id}-${file}-html-preview`}
-                                src={htmlPreviewSrc}
-                                className="w-full border rounded"
-                                style={{ minHeight: '600px' }}
-                                sandbox="allow-scripts"
-                              />
-                            ) : (
-                              <>
-                                {parsedScreen?.imageUrl && (
-                                  <Card className="mb-4 overflow-hidden">
-                                    <a
-                                      href={parsedScreen.stitchUrl ?? parsedScreen.imageUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                    >
-                                      <img
-                                        src={parsedScreen.imageUrl}
-                                        alt={parsedScreen.title}
-                                        className="max-w-[85%] block mx-auto"
-                                      />
-                                    </a>
-                                    <CardContent className="p-3 pt-2">
-                                      {parsedScreen.stitchUrl && (
-                                        <a
-                                          href={parsedScreen.stitchUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                                        >
-                                          <ExternalLink className="h-3 w-3" /> {parsedScreen.stitchLabel}
-                                        </a>
-                                      )}
-                                    </CardContent>
-                                  </Card>
-                                )}
-                                {parsedScreen?.description ? (
-                                  <MarkdownRenderer content={parsedScreen.description} />
-                                ) : (
-                                  <div className="text-sm text-muted-foreground">디자인 상세가 없습니다</div>
-                                )}
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <div className="text-sm text-muted-foreground">선택한 화면을 불러오는 중입니다</div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </TabsContent>
-                ))}
-              </Tabs>
+            ) : hasStyles ? (
+              styleNames.length > 0 && activeStyle ? (
+                <Tabs
+                  value={activeStyle}
+                  onValueChange={setSelectedStyle}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
+                  <div className="px-4 border-b">
+                    <TabsList className="bg-transparent h-10 p-0 gap-4 overflow-x-auto">
+                      {styleNames.map((styleName) => (
+                        <TabsTrigger
+                          key={styleName}
+                          value={styleName}
+                          className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
+                        >
+                          {styleName}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </div>
+                  {styleNames.map((styleName) => (
+                    <TabsContent key={styleName} value={styleName} className="flex-1 m-0 p-0">
+                      {styleName === activeStyle
+                        ? renderScreenTabs(styleScreenFiles, '선택한 스타일에 화면 파일이 아직 없습니다')
+                        : null}
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              ) : (
+                <EmptyState
+                  icon={<Palette className="h-8 w-8" />}
+                  title="스타일 없음"
+                  description="현재 선택한 세션에 표시할 스타일 폴더가 없습니다"
+                />
+              )
             ) : (
-              <EmptyState
-                icon={<Palette className="h-8 w-8" />}
-                title="스크린 없음"
-                description="현재 선택한 세션에 화면 파일이 아직 없습니다"
-              />
+              renderScreenTabs(screenFiles, '현재 선택한 세션에 화면 파일이 아직 없습니다')
             )}
           </>
         ) : (

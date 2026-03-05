@@ -94,7 +94,7 @@ export interface SSEEvent {
 
 export interface CaptureMeta {
   id: string;
-  status: "pending" | "selected" | "consumed" | "done" | "cancelled" | "archived";
+  status: "pending" | "selected" | "consumed" | "done" | "archived";
   created_at: string;
   url: string;
   selector: string | null;
@@ -142,7 +142,7 @@ export interface CaptureCreatePayload {
 }
 
 export interface CaptureUpdatePayload {
-  status: "pending" | "selected" | "consumed" | "done" | "cancelled";
+  status: "pending" | "selected" | "consumed" | "done";
 }
 
 export interface IdeationSession {
@@ -200,6 +200,12 @@ export interface Registry {
   projects: Project[];
 }
 
+export interface DesignStyle {
+  name: string;
+  slug: string;
+  screens: string[];
+}
+
 export interface DesignScreen {
   id: string;
   stitch_screen_id?: string;
@@ -207,6 +213,7 @@ export interface DesignScreen {
   url?: string;
   image_url?: string | null;
   html_file?: string | null;
+  style?: string | null;
   created_at?: string;
   status?: string;
   [key: string]: unknown;
@@ -220,6 +227,7 @@ export interface DesignSession {
   linked_plan?: string | null;
   linked_req?: string | null;
   screens?: DesignScreen[];
+  styles?: DesignStyle[];
   [key: string]: unknown;
 }
 

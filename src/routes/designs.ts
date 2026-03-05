@@ -4,6 +4,28 @@ import { dirExists, listDirs, readJsonFile, readTextFile } from "../utils.ts";
 import { resolveBaseDir } from "../config.ts";
 
 const projectDesignsApi = new Hono();
+const SAFE_PATH_SEGMENT_PATTERN = /^[a-z0-9-]+$/;
+const SCREEN_MD_FILE_PATTERN = /^screen-\d+\.md$/;
+const SCREEN_MD_OR_HTML_FILE_PATTERN = /^screen-\d+\.(md|html)$/;
+
+function isSafePathSegment(value: string): boolean {
+  return SAFE_PATH_SEGMENT_PATTERN.test(value);
+}
+
+async function listScreenMdFiles(dirPath: string): Promise<string[]> {
+  const screenFiles: string[] = [];
+  try {
+    for await (const entry of Deno.readDir(dirPath)) {
+      if (entry.isFile && SCREEN_MD_FILE_PATTERN.test(entry.name)) {
+        screenFiles.push(entry.name);
+      }
+    }
+  } catch (_error) {
+    // ignore
+  }
+  screenFiles.sort();
+  return screenFiles;
+}
 
 projectDesignsApi.get("/designs", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
@@ -111,21 +133,11 @@ projectDesignsApi.get("/designs/:desId", async (c) => {
     return c.json({ error: "Design not found" }, 404);
   }
 
-  const screenFiles: string[] = [];
-  try {
-    for await (const entry of Deno.readDir(desDir)) {
-      if (entry.isFile && /^screen-\d+\.md$/.test(entry.name)) {
-        screenFiles.push(entry.name);
-      }
-    }
-  } catch (_error) {
-    // ignore
-  }
-  screenFiles.sort();
+  const screenFiles = await listScreenMdFiles(desDir);
 
   const screenFilesSet = new Set(screenFiles);
   const resolveScreenMdFile = (screenId: string): string | null => {
-    if (/^screen-\d+\.md$/.test(screenId)) {
+    if (SCREEN_MD_FILE_PATTERN.test(screenId)) {
       return screenId;
     }
     if (/^screen-\d+\.html$/.test(screenId)) {
@@ -175,13 +187,110 @@ projectDesignsApi.get("/designs/:desId", async (c) => {
     })
     : json.screens;
 
-  return c.json({
+  const response = {
     ...json,
     id: json.id || desId,
     screens,
     screen_files: screenFiles,
     screen_html_files: screenHtmlFiles,
-  });
+  };
+
+  const stylesDir = `${desDir}/styles`;
+  const hasStyles = await dirExists(stylesDir);
+  if (hasStyles) {
+    const styleDirs = (await listDirs(stylesDir)).filter((dir) => isSafePathSegment(dir));
+    return c.json({
+      ...response,
+      has_styles: true,
+      style_dirs: styleDirs,
+    });
+  }
+
+  return c.json(response);
+});
+
+projectDesignsApi.get("/designs/:desId/styles/:styleName/screens", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const desId = c.req.param("desId");
+  if (!/^(DES-\d+|PLN-\d+)$/.test(desId)) {
+    return c.json({ error: "Invalid design ID" }, 400);
+  }
+
+  const styleName = c.req.param("styleName");
+  if (!isSafePathSegment(styleName)) {
+    return c.json({ error: "Invalid style name" }, 400);
+  }
+
+  const styleDir = `${baseDir}/designs/${desId}/styles/${styleName}`;
+  if (!(await dirExists(styleDir))) {
+    return c.json({ error: "Style not found" }, 404);
+  }
+
+  const screenFiles = await listScreenMdFiles(styleDir);
+  return c.json({ screen_files: screenFiles });
+});
+
+projectDesignsApi.get("/designs/:desId/styles/:styleName/screens/:screenFile", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const desId = c.req.param("desId");
+  if (!/^(DES-\d+|PLN-\d+)$/.test(desId)) {
+    return c.json({ error: "Invalid design ID" }, 400);
+  }
+
+  const styleName = c.req.param("styleName");
+  if (!isSafePathSegment(styleName)) {
+    return c.json({ error: "Invalid style name" }, 400);
+  }
+
+  const screenFile = c.req.param("screenFile");
+  if (!SCREEN_MD_FILE_PATTERN.test(screenFile)) {
+    return c.json({ error: "Invalid screen file" }, 400);
+  }
+
+  const content = await readTextFile(`${baseDir}/designs/${desId}/styles/${styleName}/${screenFile}`);
+  if (content === null) {
+    return c.json({ exists: false, content: null });
+  }
+  return c.json({ exists: true, content });
+});
+
+projectDesignsApi.get("/designs/:desId/styles/:styleName/screens/:screenFile/html", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const desId = c.req.param("desId");
+  if (!/^(DES-\d+|PLN-\d+)$/.test(desId)) {
+    return c.json({ error: "Invalid design ID" }, 400);
+  }
+
+  const styleName = c.req.param("styleName");
+  if (!isSafePathSegment(styleName)) {
+    return c.json({ error: "Invalid style name" }, 400);
+  }
+
+  const screenFile = c.req.param("screenFile");
+  if (!SCREEN_MD_OR_HTML_FILE_PATTERN.test(screenFile)) {
+    return c.json({ error: "Invalid screen file" }, 400);
+  }
+
+  const htmlFile = screenFile.endsWith(".md")
+    ? screenFile.replace(/\.md$/, ".html")
+    : screenFile;
+  const content = await readTextFile(`${baseDir}/designs/${desId}/styles/${styleName}/${htmlFile}`);
+  if (content === null) {
+    return c.html("<html><body></body></html>", 404);
+  }
+  return c.html(content);
 });
 
 projectDesignsApi.get("/designs/:desId/screens/:screenFile", async (c) => {
@@ -192,7 +301,7 @@ projectDesignsApi.get("/designs/:desId/screens/:screenFile", async (c) => {
 
   const desId = c.req.param("desId");
   const screenFile = c.req.param("screenFile");
-  if (!/^screen-\d+\.md$/.test(screenFile)) {
+  if (!SCREEN_MD_FILE_PATTERN.test(screenFile)) {
     return c.json({ error: "Invalid screen file" }, 400);
   }
 
@@ -215,7 +324,7 @@ projectDesignsApi.get("/designs/:desId/screens/:screenFile/html", async (c) => {
   }
 
   const screenFile = c.req.param("screenFile");
-  if (!/^screen-\d+\.(md|html)$/.test(screenFile)) {
+  if (!SCREEN_MD_OR_HTML_FILE_PATTERN.test(screenFile)) {
     return c.json({ error: "Invalid screen file" }, 400);
   }
 

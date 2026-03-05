@@ -2,7 +2,7 @@
 name: stitch
 description: "Stitch MCP를 사용해 UI 화면을 설계합니다. 명시적 디자인 요청, 새 화면 추가, 전체 디자인 변경 시 사용."
 user-invocable: true
-argument-hint: "[--auto] [--variants] [--req REQ-NNN] [--model pro|flash] [--redesign SCREEN_ID] {화면 설명}"
+argument-hint: "[--auto] [--variants] [--req REQ-NNN] [--model pro|flash] [--redesign SCREEN_ID] [--multi] [--screens \"화면1,화면2,...\"] {화면 설명}"
 ---
 
 # maestro:stitch
@@ -216,6 +216,9 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 
 `--multi` 플래그 또는 plan Step 4.5 진입 시 이 프로토콜을 실행한다.
 
+> **멀티 스타일 × 멀티 화면**: 이 프로토콜은 복수의 스타일 방향 각각에 대해 복수의 화면을 생성하는 구조를 지원한다.
+> 총 생성 수 = 스타일 수(N) × 화면 수(M). 화면 목록이 1개이면 기존 동작과 동일하다.
+
 -1. **기존 배치 재진입 체크** (Step 0 전 실행):
 
    REQ-NNN이 있을 경우 `request.json`, REQ-NNN 없고 PLN-NNN이 있을 경우 `plan.json`의
@@ -225,24 +228,25 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    발견 시:
    a. `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출 → 현재 screen IDs 확인
    b. diff = 현재 screen IDs − pending 항목의 `baseline_screen_ids`
-   c. diff 크기 판단:
+   c. 기대 화면 수 = `styles` 수 × `screen_list` 수 (screen_list 미존재 시 1로 간주 — 하위호환)
+   d. diff 크기 판단:
 
-      **diff ≥ pending 항목의 `styles` 수 (화면 생성 완료):**
-      - "[Stitch] 이전 세션에서 {N}개 스타일 화면이 생성되었습니다. 선택 화면으로 이동합니다." 출력
-      - diff의 screen_ids(최신 N개)를 `accumulated_screens`로 로드
+      **diff >= 기대 화면 수 (화면 생성 완료):**
+      - "[Stitch] 이전 세션에서 {N}개 스타일 × {M}개 화면이 생성되었습니다. 선택 화면으로 이동합니다." 출력
+      - diff의 screen_ids(최신 N×M개)를 `accumulated_screens`로 로드
       - 각 screen_id에 대해 `get_screen` 호출로 `downloadUrl` 확보 (최대 3회 재시도)
-      - `styles` 배열 순서대로 스타일명 매핑 (인덱스 기반)
+      - `styles` 배열 순서 × `screen_list` 순서로 스타일명+화면명 매핑 (인덱스 기반)
       - 멀티 스타일 프로토콜 **Step 6(사용자 표시) → Q7부터 재개** (새 generation 없음)
       - ⚠️ Step 0~5 전체 skip
 
-      **diff < styles 수 + stale_at(= `created_at` + 15분) 이내 (생성 진행 중):**
+      **diff < 기대 화면 수 + stale_at(= `created_at` + 15분) 이내 (생성 진행 중):**
       - "[Stitch] 이전 배치 생성이 진행 중입니다 — 폴링을 재개합니다." 출력
       - `accumulated_screens` = 이미 수집된 diff 항목들 (부분 완료분)
       - pending 항목의 `baseline_screen_ids`를 현재 baseline으로 재사용 (list_screens 재호출 불필요)
-      - 나머지 스타일 수 = styles 수 − diff 크기 → 폴링 목표로 설정
+      - 나머지 화면 수 = 기대 화면 수 − diff 크기 → 폴링 목표로 설정
       - 멀티 스타일 프로토콜 **Step 4(폴링 루프)부터 재개** (Step 2~3 skip)
 
-      **diff < styles 수 + stale_at 초과 (배치 만료):**
+      **diff < 기대 화면 수 + stale_at 초과 (배치 만료):**
       - "[Stitch] 이전 배치가 만료되었습니다. 새로 생성합니다." 출력
       - 기존 pending 항목 제거 (`stitch_screens` 배열에서 삭제)
       - Step 0부터 정상 실행 (새 배치 생성)
@@ -251,9 +255,26 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    - `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출 → 응답의 `screens[].name`에서 screen ID 추출 → `baseline_screen_ids` Set으로 저장
    - screen ID 추출: `name` 필드에서 마지막 `/` 이후 값
 
+0.5. **화면 목록 사전 정의** (Step 1 전 실행):
+   - `--screens` 옵션이 있으면: 쉼표 구분 문자열을 파싱하여 `screen_list` 배열 생성
+     - 예: `--screens "로그인,대시보드,설정"` → `["로그인", "대시보드", "설정"]`
+   - `--screens` 옵션이 없으면: `AskUserQuestion`으로 화면 목록 입력 요청:
+     ```
+     [Stitch] 각 스타일별로 생성할 화면 목록을 입력해주세요.
+     쉼표로 구분하여 입력하세요 (예: 로그인, 대시보드, 설정).
+     단일 화면이면 Enter만 누르세요.
+     ```
+     - 빈 입력 / 단일 화면: `screen_list = ["{기본 화면 설명}"]` (기존 동작과 동일)
+     - 복수 입력: 파싱하여 `screen_list` 배열 생성
+   - 각 화면명에 대해 slug 생성: 소문자 + 하이픈 변환 (공백→하이픈, 특수문자 제거, 한글은 그대로 유지)
+     - 예: "로그인" → "로그인", "Sign Up Page" → "sign-up-page"
+   - `screen_list`를 이후 Step 3의 중첩 루프에서 사용
+
 1. **스타일 세트 도출** (LLM 자율 판단):
    - 요청 텍스트/화면 설명을 분석해 3~4개 스타일 도출
-   - 각 스타일: 이름(예: "Minimal & Clean") + 차별화 포인트 요약
+   - 각 스타일: 이름(예: "Minimal & Clean") + slug(예: "minimal") + 차별화 포인트 요약
+   - slug 변환 규칙: 소문자 + 하이픈 (공백→하이픈, 특수문자 제거, 영문 기준)
+     - 예: "Minimal & Clean" → "minimal", "Dark & Modern" → "dark-modern", "Vibrant & Colorful" → "vibrant-colorful"
    - 스타일 예시: Minimal & Clean / Dark & Modern / Vibrant & Colorful / Corporate & Professional
    - 맥락에 맞지 않는 스타일은 제외하고 적합한 스타일로 대체
 
@@ -265,6 +286,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
        "type": "multi_style_batch",
        "batch_id": "{uuid}",
        "styles": ["Minimal & Clean", "Dark & Modern", "Vibrant & Colorful"],
+       "screen_list": ["로그인", "대시보드", "설정"],
        "baseline_screen_ids": ["{id1}", "{id2}", "..."],
        "created_at": "{TS}"
      }
@@ -272,25 +294,33 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    - REQ-NNN 없고 PLN-NNN이 있을 경우: `plan.json`의 `stitch_screens`에 동일 형식으로 기록
    - 둘 다 없을 경우: 선기록 생략
 
-3. **스타일별 generate_screen 순차 호출** (N = 스타일 수):
-   - 각 스타일마다:
-     ```
-     mcp__stitch__generate_screen_from_text(
-       projectId: {stitch_project_id},
-       prompt: "{기본 화면 설명}\n\n[스타일 방향] {스타일명}: {스타일 차별화 포인트}",
-       deviceType: "DESKTOP",
-       modelId: {STITCH_MODEL}
-     )
-     ```
-   - 응답 있음(screen_id 포함): screen_id 임시 보관 → **output_components 코드 포함 시** `{PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/screen-{스타일순번:001,002,...}.html` 저장 후 스타일명→html_file_path 맵 보관 → 다음 스타일 호출 계속
-   - 빈 응답/null: 해당 스타일 "pending" 상태로 표시 → 폴링 루프(Step 4)에서 일괄 처리
-   - 명시적 오류: 해당 스타일 실패 기록 후 계속
+3. **스타일 × 화면 중첩 순차 호출** (총 N×M회, N = 스타일 수, M = 화면 수):
+   ```
+   for each style in styles:
+     mkdir {PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/styles/{style_slug}/
+     for each screen in screen_list:
+       mcp__stitch__generate_screen_from_text(
+         projectId: {stitch_project_id},
+         prompt: "{screen 화면 설명}\n\n[스타일 방향] {스타일명}: {스타일 차별화 포인트}",
+         deviceType: "DESKTOP",
+         modelId: {STITCH_MODEL}
+       )
+       - 응답 있음(screen_id 포함):
+         screen_id 임시 보관 → output_components 코드 포함 시
+         `{PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/styles/{style_slug}/screen-{화면순번:001,002,...}.html` 저장
+         → 스타일명+화면명→html_file_path 맵 보관 → 다음 화면/스타일 호출 계속
+       - 빈 응답/null: 해당 화면 "pending" 상태로 표시 → 폴링 루프(Step 4)에서 일괄 처리
+       - 명시적 오류: 해당 화면 실패 기록 후 계속
+   ```
 
-4. **폴링 루프** (즉시 응답 없는 스타일이 있는 경우):
+   > **단일 화면 최적화**: `screen_list`가 1개이면 내부 루프는 1회만 실행되어 기존 동작과 동일.
+
+4. **폴링 루프** (즉시 응답 없는 화면이 있는 경우):
    - 대기 안내 출력:
      ```
-     [Stitch] 멀티 스타일 시안 생성 중... (최대 10분 소요)
+     [Stitch] 멀티 스타일 시안 생성 중... ({N}개 스타일 × {M}개 화면, 최대 10분 소요)
      ```
+   - 수집 목표 수 = 기대 전체 화면 수(N×M) − 이미 수집된 screen_id 수
    - 최대 20회, 30초 간격:
      a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30` (Bash 호출)
      b. `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출
@@ -308,18 +338,62 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
      mcp__stitch__get_screen(name: "projects/{id}/screens/{screen_id}", ...)
      ```
    - `screenshot.downloadUrl` 추출 (없으면 null)
-   - 스타일명과 screen_id, downloadUrl을 매핑하여 보관
+   - 스타일명 + 화면명과 screen_id, downloadUrl을 매핑하여 보관
 
-5.5. **screen-NNN.md 일괄 생성**:
-   - 수집된 각 스크린(screen_id + downloadUrl + 스타일명)에 대해 순차 실행:
-     a. 스크린 번호 산출: `{PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/` 디렉토리 내 기존 `screen-*.md` 및 `screen-*.html` 파일 수 + 1부터 순차 증가 (예: 파일이 없으면 001, screen-003.md까지 있으면 004부터)
-     b. **Step D** 실행: `screen-{NNN}.md` 파일 작성 (「화면 메타데이터 저장」섹션의 Step D 포맷 준수)
-     c. **Step E** 실행: `design.json`의 `screens[]`에 메타데이터 추가 (`style` 필드에 해당 스타일명 기입)
+5.5. **screen-NNN.md 일괄 생성** (스타일 폴더 구조):
+   - 수집된 각 스크린(screen_id + downloadUrl + 스타일명 + 화면명)에 대해 순차 실행:
+     a. 스타일별 폴더 확인/생성: `{PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/styles/{style_slug}/`
+     b. 스크린 번호 산출: 해당 스타일 폴더 내 기존 `screen-*.md` 및 `screen-*.html` 파일 수 + 1부터 순차 증가
+     c. **Step D** 실행: `styles/{style_slug}/screen-{NNN}.md` 파일 작성 (「화면 메타데이터 저장」섹션의 Step D 포맷 준수)
+     d. **Step E** 실행: `design.json`의 `screens[]`에 메타데이터 추가 (`style` 필드에 해당 스타일명, `screen_title` 필드에 화면명 기입)
    - `downloadUrl`이 null인 스크린: screen-NNN.md의 이미지 라인에 "이미지 미확보" 표시, `image_url: null`로 기록
+
+   **파일 구조 예시** (3 스타일 × 2 화면):
+   ```
+   designs/DES-NNN/
+     design.json
+     styles/
+       minimal/
+         screen-001.md    ← 화면 1 (로그인)
+         screen-001.html
+         screen-002.md    ← 화면 2 (대시보드)
+         screen-002.html
+       dark-modern/
+         screen-001.md
+         screen-001.html
+         screen-002.md
+         screen-002.html
+       vibrant-colorful/
+         screen-001.md
+         screen-001.html
+         screen-002.md
+         screen-002.html
+   ```
+
+5.6. **design.json `styles` 배열 갱신**:
+   - `design.json`에 `styles` 배열을 추가/갱신:
+     ```json
+     {
+       "styles": [
+         {
+           "name": "Minimal & Clean",
+           "slug": "minimal",
+           "screens": ["screen-001", "screen-002"]
+         },
+         {
+           "name": "Dark & Modern",
+           "slug": "dark-modern",
+           "screens": ["screen-001", "screen-002"]
+         }
+       ]
+     }
+     ```
+   - 각 스타일의 `screens` 배열은 해당 `styles/{slug}/` 폴더 내 screen ID 목록
+   - `design.json`의 기존 `screens[]` 배열에는 모든 스크린이 플랫하게 나열됨 (Step E에서 추가된 항목들)
 
 6. **사용자에게 표시**:
    ```
-   [Stitch] {N}개 스타일 시안이 생성되었습니다.
+   [Stitch] {N}개 스타일 × {M}개 화면 시안이 생성되었습니다.
 
    대시보드에서 확인: http://{config.server.host}:{config.server.port}/designs/{DES-NNN}
    Stitch 프로젝트: https://stitch.withgoogle.com/projects/{stitch_project_id}
@@ -342,7 +416,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
      ```
      mcp__stitch__generate_variants(
        projectId: {stitch_project_id},
-       selectedScreenIds: [{스타일의 screen_id}],
+       selectedScreenIds: [{스타일의 모든 screen_id}],
        prompt: "선택된 스타일을 유지하면서 레이아웃과 색상을 다양하게 변형",
        variantOptions: { variantCount: {Q2 선택값}, creativeRange: "EXPLORE" },
        modelId: {STITCH_MODEL}
@@ -351,16 +425,19 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    - 생성된 variant screen_id들을 accumulated_screens에 추가
 
 10. **전체 시안 표시 및 탐색 계속 여부** (`AskUserQuestion`):
-    - 지금까지 accumulated_screens에 쌓인 모든 시안을 표시:
+    - 지금까지 accumulated_screens에 쌓인 모든 시안을 스타일별·화면별로 표시:
       ```
-      [Stitch] 현재까지 생성된 시안 ({N}개):
+      [Stitch] 현재까지 생성된 시안 ({N}개 스타일 × {M}개 화면):
 
       ## A. {스타일명1}
-      ![{스타일명1}]({downloadUrl})
+      - {화면명1}: ![{스타일명1}-{화면명1}]({downloadUrl})
+      - {화면명2}: ![{스타일명1}-{화면명2}]({downloadUrl})
         └ variant 1: ![v1]({v1_url})
         └ variant 2: ![v2]({v2_url})
 
       ## B. {스타일명2}
+      - {화면명1}: ![{스타일명2}-{화면명1}]({downloadUrl})
+      - {화면명2}: ![{스타일명2}-{화면명2}]({downloadUrl})
       ...
       ```
     - 선택지:
@@ -368,30 +445,66 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
       - "이대로 완료" → Step 10.5(Q_final)로 진행
 
 10.5. **Q_final: 최종 시안을 선택해주세요** (`AskUserQuestion`, `multiSelect: false`):
-    - accumulated_screens 전체 시안을 선택지로 제시 (스타일명 + variant 번호)
-    - 사용자가 1개 선택 → Step 11로 진행
+    - accumulated_screens 전체 시안을 스타일 단위로 선택지 제시 (스타일명 — 해당 스타일의 모든 화면이 포함됨)
+    - 사용자가 1개 스타일 선택 → Step 11로 진행
 
 11. **메타데이터 갱신**:
-    - 최종 선택된 시안의 배치 pending 항목을 아래 형식으로 갱신 (active):
+    - 최종 선택된 스타일의 배치 pending 항목을 아래 형식으로 갱신 (active):
       ```json
       {
         "stitch_screen_id": "{screen_id}",
         "url": "https://stitch.withgoogle.com/projects/{stitch_project_id}",
         "image_url": "{downloadUrl 또는 null}",
         "style": "{선택된 스타일명}",
+        "screen_title": "{화면명}",
         "status": "active"
       }
       ```
-    - 선택되지 않은 시안의 screen_id들은 `archived` 상태로 각각 기록:
+    - 선택되지 않은 스타일의 screen_id들은 `archived` 상태로 각각 기록:
       ```json
       {
         "stitch_screen_id": "{screen_id}",
         "style": "{스타일명}",
+        "screen_title": "{화면명}",
         "status": "archived"
       }
       ```
     - variants 생성 시: 각 variant를 `status: "variant"` 항목으로 추가 기록
     - design.md 갱신: 선택된 스타일 + variants 항목 기록 (기존 `## PLN 컨텍스트 감지 및 design.md 저장` 프로토콜 준수)
+
+### 하위호환 규칙 (플랫 구조 판별)
+
+기존에 생성된 DES 데이터는 `styles/` 폴더 없이 플랫 구조를 사용한다. 읽기/표시 시 다음 규칙으로 자동 판별:
+
+1. **`styles/` 디렉토리 존재 여부 확인**:
+   - `{PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/styles/` 디렉토리가 **존재하면**: 스타일 폴더 구조 (멀티 스타일 × 멀티 화면)
+   - `styles/` 디렉토리가 **존재하지 않으면**: 기존 플랫 구조 (DES-NNN/ 직하에 screen-NNN.md/html)
+
+2. **플랫 구조 (기존)**:
+   ```
+   designs/DES-NNN/
+     design.json
+     screen-001.md
+     screen-001.html
+     screen-002.md
+     screen-002.html
+   ```
+   - `design.json`에 `styles` 배열 없음
+   - `screens[]`의 각 항목에 `style` 필드가 null 또는 미존재
+
+3. **스타일 폴더 구조 (신규)**:
+   ```
+   designs/DES-NNN/
+     design.json          ← styles[] 배열 포함
+     styles/
+       {style_slug}/
+         screen-NNN.md
+         screen-NNN.html
+   ```
+   - `design.json`에 `styles` 배열 존재
+   - `screens[]`의 각 항목에 `style` 필드 기입
+
+4. **마이그레이션 없음**: 기존 플랫 구조 DES 데이터를 스타일 폴더 구조로 변환하지 않는다. 기존 데이터는 그대로 유지.
 
 ## 메타데이터 기록
 
@@ -589,6 +702,7 @@ variants 생성 시:
 - `--req REQ-NNN`: 특정 REQ에 연결 (메타데이터 기록)
 - `--edit SCREEN_ID`: 기존 화면 수정
 - `--list`: 현재 Stitch 프로젝트의 화면 목록 조회
-- `--multi`: 멀티 스타일 시안 생성 모드. 3~4개 스타일을 자동 도출하여 각각 화면을 생성하고, 사용자가 선택 후 variants 추가 가능.
+- `--multi`: 멀티 스타일 시안 생성 모드. 3~4개 스타일을 자동 도출하여 각 스타일별로 화면을 생성하고, 사용자가 선택 후 variants 추가 가능. `--screens`와 함께 사용하면 스타일당 복수 화면 생성.
+- `--screens "화면1,화면2,..."`: `--multi`와 함께 사용. 각 스타일별로 생성할 화면 목록을 쉼표 구분으로 지정. 미지정 시 사용자에게 입력 요청.
 - `--model pro|flash`: 생성에 사용할 모델 지정. `pro` = GEMINI_3_PRO, `flash` = GEMINI_3_FLASH. 미지정 시 `config.stitch.model_id` 사용.
 - `--redesign SCREEN_ID`: 기존 화면을 근본적으로 재설계 (generate_variants REIMAGINE 모드). variants 수와 변경 aspects를 사용자에게 확인 후 실행.
