@@ -111,6 +111,41 @@ function normalizeRect(raw: unknown): CaptureCreatePayload["rect"] {
   };
 }
 
+function normalizeScreenshotData(raw: string | null): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function extractBase64Payload(raw: string): string {
+  if (!raw.startsWith("data:")) {
+    return raw;
+  }
+
+  const commaIndex = raw.indexOf(",");
+  if (commaIndex < 0) {
+    return "";
+  }
+
+  return raw.slice(commaIndex + 1);
+}
+
+function decodeBase64ToBytes(raw: string): Uint8Array {
+  const normalized = raw.replace(/\s+/g, "");
+  if (normalized.length === 0) {
+    throw new Error("Empty screenshot data");
+  }
+  const binary = atob(normalized);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 function parseStatusFilter(raw: string | undefined): StatusFilterParseResult {
   if (raw === undefined) {
     return { type: "none" };
@@ -257,7 +292,36 @@ projectCapturesApi.get("/captures/:id", async (c) => {
   return c.json({ ...capture, id: capture.id || id });
 });
 
+projectCapturesApi.get("/captures/:id/screenshot", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  const id = c.req.param("id");
+
+  if (isInvalidPathPart(id)) {
+    return c.json({ error: "Invalid capture id" }, 400);
+  }
+
+  const screenshotFile = `${baseDir}/captures/${id}/screenshot.webp`;
+
+  try {
+    const fileContent = await Deno.readFile(screenshotFile);
+    return new Response(fileContent, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/webp",
+        "Cache-Control": "no-cache",
+      },
+    });
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) {
+      return c.json({ error: "Screenshot not found" }, 404);
+    }
+
+    return c.json({ error: "Failed to read screenshot" }, 500);
+  }
+});
+
 projectCapturesApi.post("/captures", async (c) => {
+  const projectId = c.req.param("projectId");
   const baseDir = resolveBaseDir(c.req.param("projectId"));
   const capturesDir = `${baseDir}/captures`;
 
@@ -274,13 +338,28 @@ projectCapturesApi.post("/captures", async (c) => {
   }
 
   let captureId: string;
+  let captureDir: string;
   try {
     await Deno.mkdir(capturesDir, { recursive: true });
     captureId = await nextCaptureId(capturesDir);
-    const captureDir = `${capturesDir}/${captureId}`;
+    captureDir = `${capturesDir}/${captureId}`;
     await Deno.mkdir(captureDir, { recursive: true });
-  } catch (error) {
+  } catch {
     return c.json({ error: "Failed to allocate capture id" }, 500);
+  }
+
+  let screenshotPath: string | null = null;
+  const screenshotData = normalizeScreenshotData(payload.screenshot_data);
+  if (screenshotData) {
+    try {
+      const base64Payload = extractBase64Payload(screenshotData);
+      const screenshotBytes = decodeBase64ToBytes(base64Payload);
+      await Deno.writeFile(`${captureDir}/screenshot.webp`, screenshotBytes);
+      const prefix = projectId ? `/api/projects/${projectId}` : "/api";
+      screenshotPath = `${prefix}/captures/${captureId}/screenshot`;
+    } catch {
+      screenshotPath = null;
+    }
   }
 
   const createdAt = new Date().toISOString();
@@ -291,7 +370,7 @@ projectCapturesApi.post("/captures", async (c) => {
     url: payload.url,
     selector: payload.selector,
     rect: payload.rect,
-    screenshot_path: null,
+    screenshot_path: screenshotPath,
     memo: payload.memo,
     tags: payload.tags,
     html_snapshot: payload.html_snapshot,
