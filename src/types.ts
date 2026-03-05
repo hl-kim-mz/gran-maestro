@@ -206,6 +206,7 @@ export interface DesignScreen {
   title?: string;
   url?: string;
   image_url?: string | null;
+  html_file?: string | null;
   created_at?: string;
   status?: string;
   [key: string]: unknown;

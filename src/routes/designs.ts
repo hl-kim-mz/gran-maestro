@@ -123,7 +123,65 @@ projectDesignsApi.get("/designs/:desId", async (c) => {
   }
   screenFiles.sort();
 
-  return c.json({ ...json, id: json.id || desId, screen_files: screenFiles });
+  const screenFilesSet = new Set(screenFiles);
+  const resolveScreenMdFile = (screenId: string): string | null => {
+    if (/^screen-\d+\.md$/.test(screenId)) {
+      return screenId;
+    }
+    if (/^screen-\d+\.html$/.test(screenId)) {
+      return screenId.replace(/\.html$/, ".md");
+    }
+    if (/^screen-\d+$/.test(screenId)) {
+      return `${screenId}.md`;
+    }
+    return null;
+  };
+
+  const screenHtmlFiles: Record<string, string> = {};
+  for (const mdFile of screenFiles) {
+    const htmlFile = mdFile.replace(/\.md$/, ".html");
+    try {
+      const stat = await Deno.stat(`${desDir}/${htmlFile}`);
+      if (stat.isFile) {
+        screenHtmlFiles[mdFile] = htmlFile;
+      }
+    } catch (_error) {
+      // ignore missing .html files
+    }
+  }
+
+  const screens = Array.isArray(json.screens)
+    ? json.screens.map((screen) => {
+      const existingHtmlFile = typeof screen.html_file === "string" && screen.html_file.length > 0
+        ? screen.html_file
+        : null;
+      const screenMdFile = resolveScreenMdFile(screen.id);
+
+      if (existingHtmlFile) {
+        if (screenMdFile && screenFilesSet.has(screenMdFile)) {
+          screenHtmlFiles[screenMdFile] = existingHtmlFile;
+        }
+        return screen;
+      }
+
+      if (screenMdFile) {
+        const detectedHtmlFile = screenHtmlFiles[screenMdFile];
+        if (detectedHtmlFile) {
+          return { ...screen, html_file: detectedHtmlFile };
+        }
+      }
+
+      return screen;
+    })
+    : json.screens;
+
+  return c.json({
+    ...json,
+    id: json.id || desId,
+    screens,
+    screen_files: screenFiles,
+    screen_html_files: screenHtmlFiles,
+  });
 });
 
 projectDesignsApi.get("/designs/:desId/screens/:screenFile", async (c) => {
@@ -143,6 +201,32 @@ projectDesignsApi.get("/designs/:desId/screens/:screenFile", async (c) => {
     return c.json({ exists: false, content: null });
   }
   return c.json({ exists: true, content });
+});
+
+projectDesignsApi.get("/designs/:desId/screens/:screenFile/html", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const desId = c.req.param("desId");
+  if (!/^(DES-\d+|PLN-\d+)$/.test(desId)) {
+    return c.json({ error: "Invalid design ID" }, 400);
+  }
+
+  const screenFile = c.req.param("screenFile");
+  if (!/^screen-\d+\.(md|html)$/.test(screenFile)) {
+    return c.json({ error: "Invalid screen file" }, 400);
+  }
+
+  const htmlFile = screenFile.endsWith(".md")
+    ? screenFile.replace(/\.md$/, ".html")
+    : screenFile;
+  const content = await readTextFile(`${baseDir}/designs/${desId}/${htmlFile}`);
+  if (content === null) {
+    return c.html("<html><body></body></html>", 404);
+  }
+  return c.html(content);
 });
 
 export { projectDesignsApi };
