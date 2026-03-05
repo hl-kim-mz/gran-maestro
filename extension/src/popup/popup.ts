@@ -371,6 +371,7 @@ function setupListeners(): void {
         }
 
         applyInspectModeUI();
+        window.close();
       } catch {
         showInspectErrorMessage();
       }
