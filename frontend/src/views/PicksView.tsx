@@ -23,7 +23,7 @@ interface CaptureRect {
 
 interface CaptureMeta {
   id: string;
-  status: 'pending' | 'selected' | 'consumed' | 'done' | 'archived' | string;
+  status: 'pending' | 'selected' | 'consumed' | 'done' | 'cancelled' | 'archived' | string;
   created_at?: string;
   selector?: string | null;
   memo?: string | null;
@@ -39,7 +39,7 @@ interface CaptureMeta {
 }
 
 interface FilterOption {
-  value: 'all' | 'pending' | 'selected' | 'consumed' | 'done';
+  value: 'all' | 'pending' | 'selected' | 'consumed' | 'done' | 'cancelled';
   label: string;
 }
 
@@ -49,6 +49,7 @@ const filterOptions: FilterOption[] = [
   { value: 'selected', label: 'Selected' },
   { value: 'consumed', label: 'Consumed' },
   { value: 'done', label: 'Done' },
+  { value: 'cancelled', label: 'Cancelled' },
 ];
 
 const MAX_SNIPPET_LENGTH = 500;
@@ -138,6 +139,7 @@ export function PicksView() {
       selected: 0,
       consumed: 0,
       done: 0,
+      cancelled: 0,
       archived: 0,
     };
 
@@ -146,6 +148,7 @@ export function PicksView() {
       else if (capture.status === 'selected') base.selected += 1;
       else if (capture.status === 'consumed') base.consumed += 1;
       else if (capture.status === 'done') base.done += 1;
+      else if (capture.status === 'cancelled') base.cancelled += 1;
       else if (capture.status === 'archived') base.archived += 1;
     }
 
@@ -471,7 +474,7 @@ export function PicksView() {
                 </section>
 
                 <LifecycleTimeline capture={{
-                  status: selectedCapture.status as 'pending' | 'selected' | 'consumed' | 'done' | 'archived',
+                  status: selectedCapture.status as 'pending' | 'selected' | 'consumed' | 'done' | 'cancelled' | 'archived',
                   linked_plan: selectedCapture.linked_plan ?? null,
                   linked_request: selectedCapture.linked_request ?? null,
                   created_at: selectedCapture.created_at ?? new Date().toISOString(),
@@ -530,6 +533,7 @@ export function PicksView() {
                 <span>Selected: {statusCounts.selected}</span>
                 <span>Consumed: {statusCounts.consumed}</span>
                 <span>Done: {statusCounts.done}</span>
+                <span>Cancelled: {statusCounts.cancelled}</span>
               </div>
             </div>
           </>

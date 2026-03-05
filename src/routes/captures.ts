@@ -28,11 +28,13 @@ function isAllowedCaptureOrigin(origin: string): boolean {
 }
 
 function isSupportedStatus(value: unknown): value is CaptureStatus {
-  return value === "pending" || value === "selected" || value === "consumed" || value === "done" || value === "archived";
+  return value === "pending" || value === "selected" || value === "consumed" || value === "done" ||
+    value === "cancelled" || value === "archived";
 }
 
 function isSupportedStatusForUpdate(value: unknown): value is CaptureStatusUpdate {
-  return value === "pending" || value === "selected" || value === "consumed" || value === "done";
+  return value === "pending" || value === "selected" || value === "consumed" || value === "done" ||
+    value === "cancelled";
 }
 
 function canTransitionStatus(from: CaptureStatus, to: CaptureStatus): boolean {
@@ -41,7 +43,8 @@ function canTransitionStatus(from: CaptureStatus, to: CaptureStatus): boolean {
   return (
     (from === "pending" && to === "selected") ||
     (from === "selected" && to === "consumed") ||
-    (from === "consumed" && to === "done")
+    (from === "consumed" && to === "done") ||
+    (from === "consumed" && to === "cancelled")
   );
 }
 

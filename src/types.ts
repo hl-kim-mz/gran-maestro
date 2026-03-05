@@ -94,7 +94,7 @@ export interface SSEEvent {
 
 export interface CaptureMeta {
   id: string;
-  status: "pending" | "selected" | "consumed" | "done" | "archived";
+  status: "pending" | "selected" | "consumed" | "done" | "cancelled" | "archived";
   created_at: string;
   url: string;
   selector: string | null;
@@ -142,7 +142,7 @@ export interface CaptureCreatePayload {
 }
 
 export interface CaptureUpdatePayload {
-  status: "pending" | "selected" | "consumed" | "done";
+  status: "pending" | "selected" | "consumed" | "done" | "cancelled";
 }
 
 export interface IdeationSession {

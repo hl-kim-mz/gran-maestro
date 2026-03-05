@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface TimelineCapture {
-  status: 'pending' | 'selected' | 'consumed' | 'done' | 'archived';
+  status: 'pending' | 'selected' | 'consumed' | 'done' | 'cancelled' | 'archived';
   linked_plan: string | null;
   linked_request: string | null;
   created_at: string;
@@ -49,11 +49,13 @@ const STATUS_ACTIVE_INDEX: Record<TimelineCapture['status'], number> = {
   selected: 1,
   consumed: 2,
   done: 3,
+  cancelled: 3,
   archived: 3,
 };
 
 const NODE_CLASS_BY_MODE = {
   done: 'border-green-500 bg-green-500 text-white',
+  cancelled: 'border-red-500 bg-red-500 text-white',
   active: 'border-blue-500 bg-blue-500 text-white',
   pending: 'border-amber-500 bg-amber-500 text-white',
   inactive: 'border-muted-foreground/35 bg-background text-muted-foreground/80',
@@ -61,13 +63,15 @@ const NODE_CLASS_BY_MODE = {
 
 const TEXT_CLASS_BY_MODE = {
   done: 'text-green-600',
+  cancelled: 'text-red-600',
   active: 'text-blue-600',
   pending: 'text-amber-600',
   inactive: 'text-muted-foreground/80',
 };
 
-function getMode(status: TimelineCapture['status']): 'done' | 'active' | 'pending' {
+function getMode(status: TimelineCapture['status']): 'done' | 'cancelled' | 'active' | 'pending' {
   if (status === 'done' || status === 'archived') return 'done';
+  if (status === 'cancelled') return 'cancelled';
   if (status === 'pending') return 'pending';
   return 'active';
 }
@@ -96,7 +100,11 @@ export function LifecycleTimeline({ capture, className = '' }: LifecycleTimeline
       link: capture.linked_request,
       timestamp: formatRelativeTime(capture.consumed_at),
     },
-    { label: 'Done', link: null, timestamp: formatRelativeTime(doneTimestamp) },
+    {
+      label: capture.status === 'cancelled' ? 'Cancelled' : 'Done',
+      link: null,
+      timestamp: formatRelativeTime(doneTimestamp),
+    },
   ] as const;
 
   return (
@@ -111,6 +119,8 @@ export function LifecycleTimeline({ capture, className = '' }: LifecycleTimeline
           const connectorClass = isConnectorActive
             ? mode === 'done'
               ? 'border-t-2 border-green-500'
+              : mode === 'cancelled'
+                ? 'border-t-2 border-red-500'
               : mode === 'pending'
                 ? 'border-t-2 border-amber-500'
                 : 'border-t-2 border-blue-500'
