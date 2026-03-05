@@ -112,7 +112,9 @@ export function PicksView() {
 
   const filteredCaptures = useMemo(() => {
     if (filterValue === 'all') {
-      return captures;
+      return captures.filter(
+        (capture) => !['consumed', 'done', 'archived'].includes(capture.status),
+      );
     }
     return captures.filter((capture) => capture.status === filterValue);
   }, [captures, filterValue]);
@@ -187,12 +189,42 @@ export function PicksView() {
 
     if (paramCaptureId) {
       const target = captures.find((capture) => capture.id === paramCaptureId);
-      setSelectedCapture(target || captures[0]);
+
+      if (target) {
+        const isVisibleInCurrentFilter = filteredCaptures.some(
+          (capture) => capture.id === target.id,
+        );
+
+        if (!isVisibleInCurrentFilter) {
+          if (target.status === 'consumed' && filterValue !== 'consumed') {
+            setFilterValue('consumed');
+            return;
+          }
+          if (target.status === 'done' && filterValue !== 'done') {
+            setFilterValue('done');
+            return;
+          }
+          if (target.status === 'archived' && filterValue !== 'all') {
+            setFilterValue('all');
+            return;
+          }
+        }
+
+        setSelectedCapture(target);
+        return;
+      }
+
+      setSelectedCapture(filteredCaptures[0] ?? null);
       return;
     }
 
-    setSelectedCapture(captures[0]);
-  }, [captures, paramCaptureId]);
+    setSelectedCapture((prev) => {
+      if (prev && filteredCaptures.some((capture) => capture.id === prev.id)) {
+        return prev;
+      }
+      return filteredCaptures[0] ?? null;
+    });
+  }, [captures, filteredCaptures, filterValue, paramCaptureId]);
 
   useEffect(() => {
     const nextIds = new Set(captures.map((capture) => capture.id));
@@ -276,7 +308,7 @@ export function PicksView() {
     <div className="flex h-full overflow-hidden">
       <div ref={sidebarRef} style={{ width: sidebarWidth }} className="border-r flex flex-col min-h-0 shrink-0">
         <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
-          <h2 className="font-semibold">Picks ({captures.length})</h2>
+          <h2 className="font-semibold">Picks ({filteredCaptures.length})</h2>
           <div className="flex items-center gap-2">
             <button
               type="button"
