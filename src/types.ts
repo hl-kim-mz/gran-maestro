@@ -221,3 +221,27 @@ export interface DesignSession {
   screens?: DesignScreen[];
   [key: string]: unknown;
 }
+
+export interface PresetMeta {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  tier?: string;
+  providers?: string[];
+  file?: string;
+}
+
+export interface PresetListResponse {
+  builtin: PresetMeta[];
+  user: PresetMeta[];
+  categories: Record<string, { label: string; description: string }>;
+  tiers: Record<string, { label: string; description: string }>;
+}
+
+export interface PresetDiffChange {
+  path: string;
+  from: unknown;
+  to: unknown;
+}
+
