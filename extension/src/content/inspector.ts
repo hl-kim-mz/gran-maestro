@@ -246,6 +246,7 @@ export class Inspector {
     if (isSingleCharacterKey || isCommonTextOrControlKey) {
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation();
     }
   };
 

@@ -113,6 +113,13 @@ export class InlinePanel {
     this.queueButton.addEventListener('click', () => {
       this.handleCapture('batch');
     });
+
+    this.host.addEventListener('keydown', (event: KeyboardEvent): void => {
+      if (!this.isOpen()) {
+        return;
+      }
+      event.stopPropagation();
+    });
   }
 
   public show(target: Element): void {
