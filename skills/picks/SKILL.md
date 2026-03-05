@@ -38,6 +38,20 @@ argument-hint: "[--list] [--all] [{자연어 선택/변경 요청}]"
 
 ### Step 2: 목록 표시
 
+#### 2-0: 대시보드 링크 정보 취득
+
+목록 표시 전에 대시보드 URL 구성에 필요한 정보를 취득합니다:
+
+1. **포트 취득**: `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`을 Read하여 `server.port` 값을 취득합니다. 파일 미존재 또는 `server.port` 미설정 시 기본값 `3847`을 사용합니다.
+2. **프로젝트 ID 취득**: 대시보드 API를 호출하여 현재 프로젝트의 ID를 취득합니다:
+   ```bash
+   curl -s "http://127.0.0.1:<port>/api/projects"
+   ```
+   응답 JSON 배열에서 `path`가 `{PROJECT_ROOT}/.gran-maestro`와 일치하는 항목의 `id`를 사용합니다.
+   - API 호출 실패 또는 매칭 프로젝트 없음: 프로젝트 ID 없이 진행 (링크에서 `?project=` 파라미터 생략)
+
+#### 2-1: 테이블 출력
+
 캡처 목록을 요약 테이블로 표시합니다:
 
 | ID | URL | Selector | Memo | Tags | Status | Age |
@@ -47,6 +61,21 @@ argument-hint: "[--list] [--all] [{자연어 선택/변경 요청}]"
 - **Status**: pending / selected / consumed / archived / done
 - `ttl_warned_at`이 non-null인 항목: Status 옆에 `[⚠ 24h]` 표시 (TTL 경고)
 - URL은 발췌 표시 (도메인 + 경로 앞부분)
+
+#### 2-2: 대시보드 링크 표시
+
+테이블 하단에 각 캡처의 대시보드 직접 링크를 표시합니다:
+
+```
+📎 Dashboard links:
+  CAP-001 → http://localhost:<port>/picks/CAP-001?project=<project-id>
+  CAP-002 → http://localhost:<port>/picks/CAP-002?project=<project-id>
+  ...
+```
+
+- URL 형식: `http://localhost:<port>/picks/<CAP-ID>?project=<project-id>`
+- 프로젝트 ID 취득 실패 시: `?project=<project-id>` 파라미터를 생략하여 `http://localhost:<port>/picks/<CAP-ID>` 형식으로 출력
+- 대시보드 서버 미실행(2-0 API 호출 실패) 시에도 링크는 표시 (서버 시작 후 사용 가능)
 
 **`--list` 옵션 시**: 목록만 표시 후 종료 (사용자 입력 대기 없음)
 
