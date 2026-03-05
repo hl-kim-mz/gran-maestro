@@ -2,7 +2,7 @@
 name: settings
 description: "Gran Maestro 설정을 조회하거나 변경합니다. 사용자가 '설정', '설정 변경', '환경 설정'을 말하거나 /mst:settings를 호출할 때 사용. 모드 전환에는 /mst:on 또는 /mst:off를 사용."
 user-invocable: true
-argument-hint: "[{key} [{value}]]"
+argument-hint: "[{key} [{value}] | preset {list|apply|diff|save|wizard} [id]]"
 ---
 
 # maestro:config
@@ -80,6 +80,42 @@ argument-hint: "[{key} [{value}]]"
 - 프로바이더별 상한 없음
 - 누락 시 기본값: `codex: 1`, `gemini: 1`, `claude: 0`
 
+### preset 하위 명령
+
+`/mst:settings preset <subcommand>` 형식으로 프리셋을 관리합니다.
+
+#### preset list
+
+프리셋 목록을 표시합니다.
+- 실행: `python3 {PLUGIN_ROOT}/scripts/mst.py preset list`
+- 출력: 내장 프리셋 12종 + 사용자 프리셋 목록
+
+#### preset apply <preset_id>
+
+프리셋을 현재 config에 적용합니다.
+1. `python3 {PLUGIN_ROOT}/scripts/mst.py preset diff <preset_id>` 실행하여 변경 미리보기
+2. AskUserQuestion으로 적용 확인
+3. 확인 시 `python3 {PLUGIN_ROOT}/scripts/mst.py preset apply <preset_id>` 실행
+4. 결과 표시
+
+#### preset diff <preset_id>
+
+프리셋 적용 시 변경될 항목을 미리 표시합니다 (적용하지 않음).
+- 실행: `python3 {PLUGIN_ROOT}/scripts/mst.py preset diff <preset_id>`
+
+#### preset save <preset_id>
+
+현재 config를 사용자 프리셋으로 저장합니다.
+- 실행: `python3 {PLUGIN_ROOT}/scripts/mst.py preset save <preset_id>`
+
+#### preset wizard
+
+대화형 위저드로 프리셋을 선택·적용합니다.
+1. AskUserQuestion — AI 프로바이더 조합 선택 (Full / Codex Only / Gemini Only / Claude Only)
+2. AskUserQuestion — 모델 등급 선택 (성능 / 효율 / 절약)
+3. AskUserQuestion — 보조 도구 활성화 (multiSelect: Stitch 등)
+→ 조합된 preset ID로 `preset apply` 실행
+
 ## 예시
 
 ```
@@ -90,6 +126,11 @@ argument-hint: "[{key} [{value}]]"
 /mst:settings workflow.auto_accept_result false       # 최종 수락 수동 모드로 전환
 /mst:settings workflow.auto_approve_on_unblock true  # 의존 체인 자동 실행 활성화
 /mst:settings workflow.default_agent gemini-dev       # 기본 에이전트를 Gemini로 변경
+/mst:settings preset list                            # 프리셋 목록
+/mst:settings preset apply full-performance          # 프리셋 적용
+/mst:settings preset diff codex-only-budget          # 변경 미리보기
+/mst:settings preset save my-config                  # 현재 설정 저장
+/mst:settings preset wizard                          # 대화형 위저드
 ```
 
 ## 문제 해결
