@@ -11,7 +11,7 @@ interface UseResizableSidebarReturn {
   sidebarWidth: number;
   isResizing: boolean;
   startResizing: (e: React.MouseEvent) => void;
-  sidebarRef: React.RefObject<HTMLDivElement>;
+  sidebarRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function useResizableSidebar({
