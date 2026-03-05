@@ -23,7 +23,6 @@ interface DesignScreen {
   image_url?: string | null;
   created_at?: string;
   status?: string;
-  style?: string;
 }
 
 interface DesignSession {
@@ -76,7 +75,6 @@ export function DesignView() {
   const [screenContent, setScreenContent] = useState<string | null>(null);
   const [planDesignSections, setPlanDesignSections] = useState<ReturnType<typeof parseDesignSections>>([]);
   const [selectedPlanSection, setSelectedPlanSection] = useState<number>(0);
-  const [selectedStyleTab, setSelectedStyleTab] = useState('');
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -222,69 +220,6 @@ export function DesignView() {
     fetchSessions();
   };
 
-  const screenFiles = selectedSession?.screen_files ?? [];
-  const screens = selectedSession?.screens ?? [];
-  const parsedScreen = screenContent ? parseScreenContent(screenContent) : null;
-  const parsedScreenTitle = parsedScreen?.title ? parsedScreen.title : 'Design 화면';
-
-  const isPlanDesign = selectedSession?.source === 'plan_design';
-  const hasStyles = screens.some((screen) => Boolean(screen.style?.trim()));
-  const styleGroups = hasStyles
-    ? Object.entries(
-        screens.reduce((acc, screen) => {
-          const styleName = screen.style?.trim() || '기타';
-          (acc[styleName] ??= []).push(screen);
-          return acc;
-        }, Object.create(null) as Record<string, DesignScreen[]>)
-      )
-    : [];
-  const fallbackScreens = !hasStyles && screenFiles.length === 0 ? screens : [];
-  const validStyleTab = styleGroups.some(([styleName]) => styleName === selectedStyleTab)
-    ? selectedStyleTab
-    : styleGroups[0]?.[0] ?? '';
-
-  useEffect(() => {
-    if (selectedStyleTab !== validStyleTab) {
-      setSelectedStyleTab(validStyleTab);
-    }
-  }, [selectedStyleTab, validStyleTab]);
-
-  const ScreenGalleryCard = ({ screen }: { screen: DesignScreen }) => (
-    <Card className="overflow-hidden">
-      {screen.image_url ? (
-        <a
-          href={screen.url ?? screen.image_url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img
-            src={screen.image_url}
-            alt={screen.title ?? screen.id}
-            loading="lazy"
-            className="w-full max-h-[400px] object-contain bg-muted/20"
-          />
-        </a>
-      ) : (
-        <div className="h-56 flex items-center justify-center text-sm text-muted-foreground bg-muted/20">
-          이미지 미확보
-        </div>
-      )}
-      <CardContent className="p-3 space-y-1">
-        <p className="text-sm font-medium">{screen.title || screen.id}</p>
-        {screen.url && (
-          <a
-            href={screen.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-          >
-            <ExternalLink className="h-3 w-3" /> Stitch에서 보기
-          </a>
-        )}
-      </CardContent>
-    </Card>
-  );
-
   if (!projectId) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -305,6 +240,12 @@ export function DesignView() {
       </div>
     );
   }
+
+  const screenFiles = selectedSession?.screen_files ?? [];
+  const parsedScreen = screenContent ? parseScreenContent(screenContent) : null;
+  const parsedScreenTitle = parsedScreen?.title ? parsedScreen.title : 'Design 화면';
+
+  const isPlanDesign = selectedSession?.source === 'plan_design';
 
   return (
     <div className="grid grid-cols-12 gap-0 h-full overflow-hidden">
@@ -462,37 +403,6 @@ export function DesignView() {
                   description="design.md에 --- 구분 섹션이 없습니다"
                 />
               )
-            ) : hasStyles ? (
-              <Tabs
-                value={validStyleTab}
-                onValueChange={setSelectedStyleTab}
-                className="flex-1 flex flex-col overflow-hidden"
-              >
-                <div className="px-4 border-b">
-                  <TabsList className="bg-transparent h-10 p-0 gap-4 overflow-x-auto">
-                    {styleGroups.map(([styleName]) => (
-                      <TabsTrigger
-                        key={styleName}
-                        value={styleName}
-                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
-                      >
-                        {styleName}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </div>
-                {styleGroups.map(([styleName, groupedScreens]) => (
-                  <TabsContent key={styleName} value={styleName} className="flex-1 m-0 p-0">
-                    <ScrollArea className="h-full">
-                      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {groupedScreens.map((screen) => (
-                          <ScreenGalleryCard key={screen.id} screen={screen} />
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </TabsContent>
-                ))}
-              </Tabs>
             ) : screenFiles.length > 0 ? (
               <Tabs
                 value={selectedScreenFile ?? ''}
@@ -560,14 +470,6 @@ export function DesignView() {
                   </TabsContent>
                 ))}
               </Tabs>
-            ) : fallbackScreens.length > 0 ? (
-              <ScrollArea className="h-full">
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {fallbackScreens.map((screen) => (
-                    <ScreenGalleryCard key={screen.id} screen={screen} />
-                  ))}
-                </div>
-              </ScrollArea>
             ) : (
               <EmptyState
                 icon={<Palette className="h-8 w-8" />}

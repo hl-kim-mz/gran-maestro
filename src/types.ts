@@ -228,7 +228,8 @@ export interface PresetMeta {
   name: string;
   description?: string;
   category?: string;
-  tier?: string;
+  wizardCategory?: "claude" | "claude-codex" | "claude-gemini" | "full-team";
+  tier?: "performance" | "efficient" | "budget";
   providers?: string[];
   file?: string;
 }
@@ -245,4 +246,3 @@ export interface PresetDiffChange {
   from: unknown;
   to: unknown;
 }
-

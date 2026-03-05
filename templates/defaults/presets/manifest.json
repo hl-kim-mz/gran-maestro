@@ -17,91 +17,101 @@
   },
   "presets": [
     {
-      "id": "full-performance",
-      "name": "Full (성능)",
-      "description": "Codex + Gemini 전체 활용, 최고 성능 모델",
+      "id": "full-team-performance",
+      "name": "Full Team (성능)",
+      "description": "Claude + Codex + Gemini 전체 팀 구성, 최고 성능 모델",
       "category": "provider",
+      "wizardCategory": "full-team",
       "tier": "performance",
       "providers": ["codex", "gemini", "claude"],
-      "file": "provider/full-performance.json"
+      "file": "provider/full-team-performance.json"
     },
     {
-      "id": "full-efficient",
-      "name": "Full (효율)",
-      "description": "Codex + Gemini 전체 활용, 균형 잡힌 모델",
+      "id": "full-team-efficient",
+      "name": "Full Team (효율)",
+      "description": "Claude + Codex + Gemini 전체 팀 구성, 균형 잡힌 모델",
       "category": "provider",
+      "wizardCategory": "full-team",
       "tier": "efficient",
       "providers": ["codex", "gemini", "claude"],
-      "file": "provider/full-efficient.json"
+      "file": "provider/full-team-efficient.json"
     },
     {
-      "id": "full-budget",
-      "name": "Full (절약)",
-      "description": "Codex + Gemini 전체 활용, 경량 모델, 최소 에이전트",
+      "id": "full-team-budget",
+      "name": "Full Team (절약)",
+      "description": "Claude + Codex + Gemini 전체 팀 구성, 경량 모델, 최소 에이전트",
       "category": "provider",
+      "wizardCategory": "full-team",
       "tier": "budget",
       "providers": ["codex", "gemini", "claude"],
-      "file": "provider/full-budget.json"
+      "file": "provider/full-team-budget.json"
     },
     {
-      "id": "codex-only-performance",
-      "name": "Codex Only (성능)",
-      "description": "Codex 단독 사용, 최고 성능 모델",
+      "id": "claude-codex-performance",
+      "name": "Claude + Codex (성능)",
+      "description": "Claude 기본 + Codex 활용, 최고 성능 모델",
       "category": "provider",
+      "wizardCategory": "claude-codex",
       "tier": "performance",
       "providers": ["codex", "claude"],
-      "file": "provider/codex-only-performance.json"
+      "file": "provider/claude-codex-performance.json"
     },
     {
-      "id": "codex-only-efficient",
-      "name": "Codex Only (효율)",
-      "description": "Codex 단독 사용, 균형 잡힌 모델",
+      "id": "claude-codex-efficient",
+      "name": "Claude + Codex (효율)",
+      "description": "Claude 기본 + Codex 활용, 균형 잡힌 모델",
       "category": "provider",
+      "wizardCategory": "claude-codex",
       "tier": "efficient",
       "providers": ["codex", "claude"],
-      "file": "provider/codex-only-efficient.json"
+      "file": "provider/claude-codex-efficient.json"
     },
     {
-      "id": "codex-only-budget",
-      "name": "Codex Only (절약)",
-      "description": "Codex 단독 사용, 경량 모델, 최소 에이전트",
+      "id": "claude-codex-budget",
+      "name": "Claude + Codex (절약)",
+      "description": "Claude 기본 + Codex 활용, 경량 모델, 최소 에이전트",
       "category": "provider",
+      "wizardCategory": "claude-codex",
       "tier": "budget",
       "providers": ["codex", "claude"],
-      "file": "provider/codex-only-budget.json"
+      "file": "provider/claude-codex-budget.json"
     },
     {
-      "id": "gemini-only-performance",
-      "name": "Gemini Only (성능)",
-      "description": "Gemini 단독 사용, 최고 성능 모델",
+      "id": "claude-gemini-performance",
+      "name": "Claude + Gemini (성능)",
+      "description": "Claude 기본 + Gemini 활용, 최고 성능 모델",
       "category": "provider",
+      "wizardCategory": "claude-gemini",
       "tier": "performance",
       "providers": ["gemini", "claude"],
-      "file": "provider/gemini-only-performance.json"
+      "file": "provider/claude-gemini-performance.json"
     },
     {
-      "id": "gemini-only-efficient",
-      "name": "Gemini Only (효율)",
-      "description": "Gemini 단독 사용, 균형 잡힌 모델",
+      "id": "claude-gemini-efficient",
+      "name": "Claude + Gemini (효율)",
+      "description": "Claude 기본 + Gemini 활용, 균형 잡힌 모델",
       "category": "provider",
+      "wizardCategory": "claude-gemini",
       "tier": "efficient",
       "providers": ["gemini", "claude"],
-      "file": "provider/gemini-only-efficient.json"
+      "file": "provider/claude-gemini-efficient.json"
     },
     {
-      "id": "gemini-only-budget",
-      "name": "Gemini Only (절약)",
-      "description": "Gemini 단독 사용, 경량 모델, 최소 에이전트",
+      "id": "claude-gemini-budget",
+      "name": "Claude + Gemini (절약)",
+      "description": "Claude 기본 + Gemini 활용, 경량 모델, 최소 에이전트",
       "category": "provider",
+      "wizardCategory": "claude-gemini",
       "tier": "budget",
       "providers": ["gemini", "claude"],
-      "file": "provider/gemini-only-budget.json"
+      "file": "provider/claude-gemini-budget.json"
     },
     {
       "id": "claude-only-performance",
       "name": "Claude Only (성능)",
       "description": "Claude 단독 사용, 최고 성능 모델",
       "category": "provider",
+      "wizardCategory": "claude",
       "tier": "performance",
       "providers": ["claude"],
       "file": "provider/claude-only-performance.json"
@@ -111,6 +121,7 @@
       "name": "Claude Only (효율)",
       "description": "Claude 단독 사용, 균형 잡힌 모델",
       "category": "provider",
+      "wizardCategory": "claude",
       "tier": "efficient",
       "providers": ["claude"],
       "file": "provider/claude-only-efficient.json"
@@ -120,6 +131,7 @@
       "name": "Claude Only (절약)",
       "description": "Claude 단독 사용, 경량 모델, 최소 에이전트",
       "category": "provider",
+      "wizardCategory": "claude",
       "tier": "budget",
       "providers": ["claude"],
       "file": "provider/claude-only-budget.json"

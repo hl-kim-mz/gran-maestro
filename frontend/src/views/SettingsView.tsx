@@ -8,12 +8,11 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
-import { RefreshCcw, Replace, Save } from 'lucide-react';
+import { RefreshCcw, Replace, Save, Wand2 } from 'lucide-react';
 import { SETTING_DESCRIPTIONS } from '@/config/settingDescriptions';
 import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
 import { TagInput } from '@/components/shared/TagInput';
-import { PresetSection } from '@/components/shared/PresetSection';
-import { Separator } from '@/components/ui/separator';
+import { SetupWizardModal } from '@/components/shared/SetupWizardModal';
 import { deepSet, getNestedValue, deepRemove } from '@/lib/utils';
 
 type FieldCardProps = {
@@ -114,6 +113,7 @@ export function SettingsView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   useEffect(() => {
     if (!projectId) {
@@ -281,6 +281,9 @@ export function SettingsView() {
                 <Button variant="outline" onClick={fetchConfig} disabled={saving}>
                   <RefreshCcw className="h-4 w-4 mr-2" /> Reload
                 </Button>
+                <Button variant="outline" onClick={() => setWizardOpen(true)} disabled={saving}>
+                  <Wand2 className="h-4 w-4 mr-2" /> 설정 마법사
+                </Button>
                 <Button onClick={() => handleSave()} disabled={saving} variant={isDirty ? 'default' : 'outline'}>
                   <Save className="h-4 w-4 mr-2" />
                   {saving ? 'Saving...' : isDirty ? 'Save Changes *' : 'Save Changes'}
@@ -289,11 +292,6 @@ export function SettingsView() {
             </div>
 
             <div className="space-y-8">
-              <section>
-                <PresetSection projectId={projectId} onApplied={fetchConfig} />
-              </section>
-              <Separator className="my-6" />
-
               {topLevelPrimitives.length > 0 && (
                 <section>
                   <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">Plugin Info</h3>
@@ -325,6 +323,12 @@ export function SettingsView() {
           <SettingsFindReplace config={merged} onReplace={handlePanelReplace} onClose={() => setPanelOpen(false)} />
         </div>
       </div>
+      <SetupWizardModal
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        projectId={projectId}
+        onApplied={fetchConfig}
+      />
     </div>
   );
 }
