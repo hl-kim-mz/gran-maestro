@@ -22,4 +22,21 @@ export const INSPECT_OVERLAY_STYLES = `
     box-sizing: border-box;
     pointer-events: none;
   }
+
+  .gm-inspector-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    max-width: 400px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: ${INSPECT_OVERLAY_BORDER_COLOR};
+    color: #ffffff;
+    box-sizing: border-box;
+    font: 12px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
 `;
