@@ -230,25 +230,25 @@ mcp__stitch__edit_screens(...)                     ← 사용 금지
 
 | 에이전트 | 모델 (config.json 참조) | 역할 |
 |---------|------------------------|------|
-| PM Conductor | `models.claude.pm_conductor` | 팀 리더, 스펙 작성 |
-| `/mst:codex` | `models.developer.primary` | 코드 구조 분석 + 정밀 심볼 추적 + 요구사항 갭 분석 |
-| `/mst:gemini` | `models.developer.fallback` | 대규모 컨텍스트 분석 + 광역 코드베이스 탐색 |
+| PM Conductor | `models.roles.pm_conductor` → `providers.claude[premium]` | 팀 리더, 스펙 작성 |
+| `/mst:codex` | `models.roles.developer[]` → `providers.codex[tier]` | 코드 구조 분석 + 정밀 심볼 추적 + 요구사항 갭 분석 |
+| `/mst:gemini` | `models.roles.developer[]` → `providers.gemini[tier]` | 대규모 컨텍스트 분석 + 광역 코드베이스 탐색 |
 
 ### Design Wing (Phase 1 — 조건부 소환)
 
 | 에이전트 | 모델 (config.json 참조) | 소환 조건 |
 |---------|------------------------|----------|
-| Architect | `models.claude.architect` | 새 모듈/서비스 추가, 구조 변경 |
-| Schema Designer | `models.claude.architect` | 데이터 모델 변경 |
-| UI Designer | `models.claude.architect` | 프론트엔드 UI 작업 |
+| Architect | `models.roles.architect` → `providers.claude[premium]` | 새 모듈/서비스 추가, 구조 변경 |
+| Schema Designer | `models.roles.architect` → `providers.claude[premium]` | 데이터 모델 변경 |
+| UI Designer | `models.roles.architect` → `providers.claude[premium]` | 프론트엔드 UI 작업 |
 
 ### Review Squad (Phase 3)
 
 | 에이전트 | 모델 (config.json 참조) | 역할 |
 |---------|------------------------|------|
-| PM Conductor | `models.claude.pm_conductor` | 팀 리더, 리뷰 종합 |
-| `/mst:codex` | `models.reviewer.primary` | 코드 정확성 + 보안 + 품질 + 수락 조건 검증 |
-| `/mst:gemini` | `models.reviewer.fallback` | 전체 일관성 검토 (대규모 변경 시) |
+| PM Conductor | `models.roles.pm_conductor` → `providers.claude[premium]` | 팀 리더, 리뷰 종합 |
+| `/mst:codex` | `models.roles.reviewer[]` → `providers.codex[tier]` | 코드 정확성 + 보안 + 품질 + 수락 조건 검증 |
+| `/mst:gemini` | `models.roles.reviewer[]` → `providers.gemini[tier]` | 전체 일관성 검토 (대규모 변경 시) |
 
 </agent_team>
 

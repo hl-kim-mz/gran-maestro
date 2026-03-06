@@ -67,7 +67,7 @@ ModuleA → ModuleB → ModuleC
 
 ## Model
 
-- **Recommended**: config.json `models.claude.architect` 참조 (opus / sonnet)
+- **Recommended**: config.json `models.roles.architect` → `providers.claude[tier]` 참조 (opus / sonnet)
 - **Role**: System Architect (Design Wing)
 
 ## Tools
