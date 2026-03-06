@@ -27,7 +27,10 @@ You can also edit it through the dashboard **Settings** tab with a web UI.
 - [discussion / ideation](#discussion--ideation)
 - [collaborative_debug](#collaborative-debug)
 - [debug.agents](#debugagents)
+- [explore.agents](#exploreagents)
 - [models](#models)
+- [prereview](#prereview)
+- [phase1_exploration](#phase1_exploration)
 - [notifications / realtime / debug / cleanup](#notifications--realtime--debug--cleanup)
 - [Example setting presets](#example-setting-presets)
 
@@ -131,12 +134,23 @@ Controls discussion and ideation rounds.
 
 | Key | Default | Description |
 |----|--------|------|
+| `discussion.agents.codex` | `{ count: 1, tier: "premium" }` | Discussion Codex agent (0 to exclude) |
+| `discussion.agents.gemini` | `{ count: 1, tier: "premium" }` | Discussion Gemini agent (0 to exclude) |
+| `discussion.agents.claude` | `{ count: 1, tier: "economy" }` | Discussion Claude agent (0 to exclude) |
 | `discussion.response_char_limit` | `2000` | Discussion response character limit |
 | `discussion.critique_char_limit` | `2000` | Discussion critique character limit |
 | `discussion.default_max_rounds` | `5` | default max number of rounds |
 | `discussion.max_rounds_upper_limit` | `10` | maximum rounds upper limit |
+| `ideation.agents.codex` | `{ count: 1, tier: "premium" }` | Ideation Codex agent (0 to exclude) |
+| `ideation.agents.gemini` | `{ count: 1, tier: "premium" }` | Ideation Gemini agent (0 to exclude) |
+| `ideation.agents.claude` | `{ count: 1, tier: "economy" }` | Ideation Claude agent (0 to exclude) |
 | `ideation.opinion_char_limit` | `2000` | Ideation opinion character limit |
 | `ideation.critique_char_limit` | `2000` | Ideation critique character limit |
+
+Agent pool common rules:
+- Each agent is specified as a `{ count, tier }` object
+- When `tier` is omitted, the provider's `models.providers.<provider>.default_tier` is used
+- Backward compatible: integer values (`"codex": 1`) are also accepted and interpreted as `{ count: 1 }`
 
 ---
 
@@ -154,56 +168,154 @@ Settings for collaborative debug mode.
 
 ## debug.agents
 
-Controls the number of agents participating in debug investigation.
+Agent pool for debug investigation. Each agent is specified as a `{ count, tier }` object.
 
 | Key | Default | Description |
 |----|--------|------|
-| `debug.agents.codex` | `1` | number of Codex agents in debug investigation (0 to exclude) |
-| `debug.agents.gemini` | `1` | number of Gemini agents in debug investigation (0 to exclude) |
-| `debug.agents.claude` | `0` | number of Claude agents in debug investigation (0 to exclude) |
+| `debug.agents.codex` | `{ count: 1, tier: "premium" }` | Debug Codex agent (0 to exclude) |
+| `debug.agents.gemini` | `{ count: 1, tier: "premium" }` | Debug Gemini agent (0 to exclude) |
+| `debug.agents.claude` | `{ count: 0 }` | Debug Claude agent (0 to exclude) |
 
 Participation rules:
 - total: 1 to 6
 - defaults when omitted: `codex: 1`, `gemini: 1`, `claude: 0`
+- When `tier` is omitted, the provider's `models.providers.<provider>.default_tier` is used
+- Backward compatible: integer values (`"codex": 1`) are also accepted and interpreted as `{ count: 1 }`
+
+---
+
+## explore.agents
+
+Agent pool for codebase exploration (`/mst:explore`). Each agent is specified as a `{ count, tier }` object.
+
+| Key | Default | Description |
+|----|--------|------|
+| `explore.agents.codex` | `{ count: 1, tier: "premium" }` | Explore Codex agent (0 to exclude) |
+| `explore.agents.gemini` | `{ count: 1, tier: "premium" }` | Explore Gemini agent (0 to exclude) |
+| `explore.agents.claude` | `{ count: 0 }` | Explore Claude agent (0 to exclude) |
+
+- When `tier` is omitted, the provider's `models.providers.<provider>.default_tier` is used
+- Backward compatible: integer values (`"codex": 1`) are also accepted and interpreted as `{ count: 1 }`
 
 ---
 
 ## models
 
-Models used for each role.
+Configures models for each role. Composed of two sub-sections: `providers` and `roles`.
+
+### models.providers
+
+Defines model tiers (premium/economy) per provider.
 
 | Key | Default | Description |
 |----|--------|------|
-| `models.claude.pm_conductor` | `sonnet` | PM conductor for Phase 1, 3 |
-| `models.claude.architect` | `sonnet` | architect (Design Wing) |
-| `models.claude.ideation` | `sonnet` | ideation participant |
-| `models.claude.discussion` | `sonnet` | discussion participant |
-| `models.claude.debug` | `sonnet` | debug participant |
-| `models.developer.primary` | `codex / gpt-5.3-codex` | primary developer (provider/model) |
-| `models.developer.fallback` | `gemini / gemini-3-pro-preview` | fallback developer |
-| `models.reviewer.primary` | `codex / gpt-5.3-codex` | primary reviewer |
-| `models.reviewer.fallback` | `gemini / gemini-3-pro-preview` | fallback reviewer |
+| `models.providers.codex.premium` | `"gpt-5.3-codex"` | Codex premium model |
+| `models.providers.codex.economy` | `"codex-mini"` | Codex economy model |
+| `models.providers.codex.default_tier` | `"premium"` | Codex default tier |
+| `models.providers.gemini.premium` | `"gemini-3.1-pro-preview"` | Gemini premium model |
+| `models.providers.gemini.economy` | `"gemini-2.5-flash"` | Gemini economy model |
+| `models.providers.gemini.default_tier` | `"premium"` | Gemini default tier |
+| `models.providers.claude.premium` | `"opus"` | Claude premium model |
+| `models.providers.claude.economy` | `"sonnet"` | Claude economy model |
+| `models.providers.claude.default_tier` | `"economy"` | Claude default tier |
 
-Example config:
+### models.roles
+
+Specifies the provider and tier for each role. Use an array to assign multiple agents in order.
+
+| Key | Default | Description |
+|----|--------|------|
+| `models.roles.pm_conductor` | `{ provider: "claude", tier: "premium" }` | PM conductor (Phase 1, 3) |
+| `models.roles.architect` | `{ provider: "claude", tier: "premium" }` | architect (Design Wing) |
+| `models.roles.developer` | `[codex/premium, gemini/premium]` | developer (array — multiple agents) |
+| `models.roles.developer_claude` | `{ provider: "claude", tier: "premium" }` | Claude developer |
+| `models.roles.reviewer` | `[codex/premium, gemini/premium]` | reviewer (array — multiple agents) |
+
+### Model resolve rules
+
+When a role specifies a `tier`, the actual model name is resolved from the provider's `providers` definition.
+
+Example: `{ provider: "codex", tier: "premium" }` → `providers.codex.premium` → `"gpt-5.3-codex"`
+
+If `tier` is omitted, the provider's `default_tier` is used.
+
+> **Terminology note: model tier vs preset tier**
+>
+> - **model tier** (`premium` / `economy`): Differentiates model grades per provider in `models.providers`.
+> - **preset tier** (`performance` / `efficient` / `budget`): A separate system used in example setting presets to express overall system performance levels.
+>
+> These two tier systems are independent and should not be confused.
+
+### Example config
+
 ```json
 "models": {
-  "claude": {
-    "pm_conductor": "sonnet",
-    "architect": "sonnet",
-    "ideation": "sonnet",
-    "discussion": "sonnet",
-    "debug": "sonnet"
+  "providers": {
+    "codex": {
+      "premium": "gpt-5.3-codex",
+      "economy": "codex-mini",
+      "default_tier": "premium"
+    },
+    "gemini": {
+      "premium": "gemini-3.1-pro-preview",
+      "economy": "gemini-2.5-flash",
+      "default_tier": "premium"
+    },
+    "claude": {
+      "premium": "opus",
+      "economy": "sonnet",
+      "default_tier": "economy"
+    }
   },
-  "developer": {
-    "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
-    "fallback": { "provider": "gemini", "model": "gemini-3-pro-preview" }
-  },
-  "reviewer": {
-    "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
-    "fallback": { "provider": "gemini", "model": "gemini-3-pro-preview" }
+  "roles": {
+    "pm_conductor": { "provider": "claude", "tier": "premium" },
+    "architect": { "provider": "claude", "tier": "premium" },
+    "developer": [
+      { "provider": "codex", "tier": "premium" },
+      { "provider": "gemini", "tier": "premium" }
+    ],
+    "developer_claude": { "provider": "claude", "tier": "premium" },
+    "reviewer": [
+      { "provider": "codex", "tier": "premium" },
+      { "provider": "gemini", "tier": "premium" }
+    ]
   }
 }
 ```
+
+---
+
+## prereview
+
+Agent pool for Spec Pre-review Pass.
+Referenced when dispatching Pre-review agents in the `request` skill's Step h-2.
+
+| Key | Default | Description |
+|----|--------|------|
+| `prereview.agents.codex` | `{ count: 1, tier: "premium" }` | Pre-review Codex agent (0 to exclude) |
+| `prereview.agents.gemini` | `{ count: 0 }` | Pre-review Gemini agent (0 to exclude) |
+| `prereview.agents.claude` | `{ count: 1, tier: "economy" }` | Pre-review Claude agent (0 to exclude) |
+
+Defaults are based on `templates/defaults/config.json`.
+
+- When `tier` is omitted, the provider's `models.providers.<provider>.default_tier` is used
+- Backward compatible: integer values (`"codex": 1`) are also accepted and interpreted as `{ count: 1 }`
+
+---
+
+## phase1_exploration
+
+Agent role settings for Phase 1 codebase exploration.
+In `/mst:request` Step 4.c, the PM reads `config.phase1_exploration.roles` and dispatches only roles with `enabled: true` in the background.
+
+| Key | Default | Description |
+|----|--------|------|
+| `phase1_exploration.roles.symbol_tracing.agent` | `"codex"` | precise symbol tracing agent |
+| `phase1_exploration.roles.symbol_tracing.enabled` | `true` | enable symbol tracing role |
+| `phase1_exploration.roles.symbol_tracing.tier` | `"premium"` | model tier for symbol tracing (resolved from `models.providers`) |
+| `phase1_exploration.roles.broad_scan.agent` | `"gemini"` | broad scan agent |
+| `phase1_exploration.roles.broad_scan.enabled` | `true` | enable broad scan role |
+| `phase1_exploration.roles.broad_scan.tier` | `"premium"` | model tier for broad scan (resolved from `models.providers`) |
 
 ---
 
