@@ -71,23 +71,48 @@
     "log_level": "info",
     "log_prompts": false,
     "agents": {
-      "codex": 1,
-      "gemini": 1,
-      "claude": 0
+      "codex": {
+        "count": 1,
+        "tier": "premium"
+      },
+      "gemini": {
+        "count": 1,
+        "tier": "premium"
+      },
+      "claude": {
+        "count": 0
+      }
     }
   },
   "explore": {
     "agents": {
-      "codex": 1,
-      "gemini": 1,
-      "claude": 0
+      "codex": {
+        "count": 1,
+        "tier": "premium"
+      },
+      "gemini": {
+        "count": 1,
+        "tier": "premium"
+      },
+      "claude": {
+        "count": 0
+      }
     }
   },
   "discussion": {
     "agents": {
-      "codex": 1,
-      "gemini": 1,
-      "claude": 1
+      "codex": {
+        "count": 1,
+        "tier": "premium"
+      },
+      "gemini": {
+        "count": 1,
+        "tier": "premium"
+      },
+      "claude": {
+        "count": 1,
+        "tier": "economy"
+      }
     },
     "response_char_limit": 2000,
     "critique_char_limit": 2000,
@@ -96,9 +121,18 @@
   },
   "ideation": {
     "agents": {
-      "codex": 1,
-      "gemini": 1,
-      "claude": 1
+      "codex": {
+        "count": 1,
+        "tier": "premium"
+      },
+      "gemini": {
+        "count": 1,
+        "tier": "premium"
+      },
+      "claude": {
+        "count": 1,
+        "tier": "economy"
+      }
     },
     "opinion_char_limit": 2000,
     "critique_char_limit": 2000
@@ -110,40 +144,79 @@
   },
   "prereview": {
     "agents": {
-      "codex": 1,
-      "gemini": 0,
-      "claude": 1
+      "codex": {
+        "count": 1,
+        "tier": "premium"
+      },
+      "gemini": {
+        "count": 0
+      },
+      "claude": {
+        "count": 1,
+        "tier": "economy"
+      }
     }
   },
   "models": {
-    "codex": {
-      "default": "gpt-5.3-codex"
+    "providers": {
+      "codex": {
+        "premium": "gpt-5.3-codex",
+        "economy": "codex-mini",
+        "default_tier": "premium"
+      },
+      "gemini": {
+        "premium": "gemini-3.1-pro-preview",
+        "economy": "gemini-2.5-flash",
+        "default_tier": "premium"
+      },
+      "claude": {
+        "premium": "opus",
+        "economy": "sonnet",
+        "default_tier": "economy"
+      }
     },
-    "claude": {
-      "pm_conductor": "sonnet",
-      "architect": "sonnet",
-      "ideation": "sonnet",
-      "discussion": "sonnet",
-      "debug": "sonnet",
-      "prereview": "sonnet"
-    },
-    "gemini": {
-      "default": "gemini-3.1-pro-preview"
-    },
-    "developer": {
-      "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
-      "fallback": { "provider": "gemini", "model": "gemini-3.1-pro-preview" },
-      "claude_dev": { "provider": "claude", "model": "sonnet" }
-    },
-    "reviewer": {
-      "primary": { "provider": "codex", "model": "gpt-5.3-codex" },
-      "fallback": { "provider": "gemini", "model": "gemini-3.1-pro-preview" }
+    "roles": {
+      "pm_conductor": {
+        "provider": "claude",
+        "tier": "premium"
+      },
+      "architect": {
+        "provider": "claude",
+        "tier": "premium"
+      },
+      "developer": [
+        {
+          "provider": "codex",
+          "tier": "premium"
+        },
+        {
+          "provider": "gemini",
+          "tier": "premium"
+        }
+      ],
+      "developer_claude": {
+        "provider": "claude",
+        "tier": "premium"
+      },
+      "reviewer": [
+        {
+          "provider": "codex",
+          "tier": "premium"
+        },
+        {
+          "provider": "gemini",
+          "tier": "premium"
+        }
+      ]
     }
   },
   "code_review": {
     "enabled": true,
     "agents": 1,
-    "agent_roster": ["codex", "gemini"],
+    "agent_roster": [
+      "codex",
+      "gemini"
+    ],
     "parallel": true
   },
   "cleanup": {
@@ -162,8 +235,34 @@
     "model_id": "GEMINI_3_PRO",
     "failure_policy": "skip",
     "ui_keywords": {
-      "whitelist": ["화면", "페이지", "UI", "레이아웃", "컴포넌트", "모달", "폼", "버튼", "스크린", "디자인", "목업", "시안", "screen", "layout", "component", "modal"],
-      "blacklist": ["API", "DB", "데이터베이스", "테스트", "배포", "알고리즘", "스키마", "백엔드"]
+      "whitelist": [
+        "화면",
+        "페이지",
+        "UI",
+        "레이아웃",
+        "컴포넌트",
+        "모달",
+        "폼",
+        "버튼",
+        "스크린",
+        "디자인",
+        "목업",
+        "시안",
+        "screen",
+        "layout",
+        "component",
+        "modal"
+      ],
+      "blacklist": [
+        "API",
+        "DB",
+        "데이터베이스",
+        "테스트",
+        "배포",
+        "알고리즘",
+        "스키마",
+        "백엔드"
+      ]
     }
   },
   "plan_review": {
@@ -201,10 +300,25 @@
       "pm_direct_fix_max_files": 1,
       "pm_direct_fix_max_diff_lines": 20,
       "security_override_keywords": [
-        "인증", "인가", "인젝션", "시크릿", "XSS", "CSRF",
-        "SQL injection", "권한 우회", "authentication", "authorization",
-        "injection", "secret", "token", "경로 탐색", "path traversal",
-        "코드 인젝션", "code injection", "자격 증명", "API 키"
+        "인증",
+        "인가",
+        "인젝션",
+        "시크릿",
+        "XSS",
+        "CSRF",
+        "SQL injection",
+        "권한 우회",
+        "authentication",
+        "authorization",
+        "injection",
+        "secret",
+        "token",
+        "경로 탐색",
+        "path traversal",
+        "코드 인젝션",
+        "code injection",
+        "자격 증명",
+        "API 키"
       ]
     },
     "roles": {
@@ -224,12 +338,12 @@
       "symbol_tracing": {
         "agent": "codex",
         "enabled": true,
-        "model": "gpt-5.3-codex"
+        "tier": "premium"
       },
       "broad_scan": {
         "agent": "gemini",
         "enabled": true,
-        "model": "gemini-3.1-pro-preview"
+        "tier": "premium"
       }
     }
   }

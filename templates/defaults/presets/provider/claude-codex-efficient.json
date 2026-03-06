@@ -1,35 +1,136 @@
 {
   "models": {
-    "claude": {
-      "pm_conductor": "sonnet",
-      "architect": "sonnet",
-      "ideation": "sonnet",
-      "discussion": "sonnet",
-      "debug": "sonnet",
-      "prereview": "sonnet"
-    },
-    "gemini": { "default": "gemini-3.1-pro-preview" },
-    "developer": {
-      "primary": { "provider": "codex", "model": "gpt-5.3-codex-spark" },
-      "fallback": { "provider": "claude", "model": "sonnet" },
-      "claude_dev": { "provider": "claude", "model": "sonnet" }
-    },
-    "reviewer": {
-      "primary": { "provider": "codex", "model": "gpt-5.3-codex-spark" },
-      "fallback": { "provider": "gemini", "model": "gemini-3.1-pro-preview" }
+    "roles": {
+      "pm_conductor": {
+        "provider": "claude",
+        "tier": "economy"
+      },
+      "architect": {
+        "provider": "claude",
+        "tier": "economy"
+      },
+      "developer": [
+        {
+          "provider": "codex",
+          "tier": "economy"
+        },
+        {
+          "provider": "claude",
+          "tier": "economy"
+        }
+      ],
+      "developer_claude": {
+        "provider": "claude",
+        "tier": "economy"
+      },
+      "reviewer": [
+        {
+          "provider": "codex",
+          "tier": "economy"
+        },
+        {
+          "provider": "gemini",
+          "tier": "economy"
+        }
+      ]
     }
   },
-  "ideation": { "agents": { "codex": 1, "gemini": 0, "claude": 1 } },
-  "discussion": { "agents": { "codex": 1, "gemini": 0, "claude": 1 } },
-  "debug": { "agents": { "codex": 1, "gemini": 0, "claude": 0 } },
-  "explore": { "agents": { "codex": 1, "gemini": 0, "claude": 0 } },
-  "prereview": { "agents": { "codex": 1, "gemini": 0, "claude": 1 } },
-  "code_review": { "agents": 1, "agent_roster": ["codex", "gemini"] },
-  "plan_review": { "enabled": true, "parallel": true },
+  "ideation": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 0
+      },
+      "claude": {
+        "count": 1,
+        "tier": "economy"
+      }
+    }
+  },
+  "discussion": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 0
+      },
+      "claude": {
+        "count": 1,
+        "tier": "economy"
+      }
+    }
+  },
+  "debug": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 0
+      },
+      "claude": {
+        "count": 0
+      }
+    }
+  },
+  "explore": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 0
+      },
+      "claude": {
+        "count": 0
+      }
+    }
+  },
+  "prereview": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 0
+      },
+      "claude": {
+        "count": 1,
+        "tier": "economy"
+      }
+    }
+  },
+  "code_review": {
+    "agents": 1,
+    "agent_roster": [
+      "codex",
+      "gemini"
+    ]
+  },
+  "plan_review": {
+    "enabled": true,
+    "parallel": true
+  },
   "phase1_exploration": {
     "roles": {
-      "symbol_tracing": { "agent": "codex", "enabled": true },
-      "broad_scan": { "agent": "gemini", "enabled": true }
+      "symbol_tracing": {
+        "agent": "codex",
+        "enabled": true,
+        "tier": "economy"
+      },
+      "broad_scan": {
+        "agent": "gemini",
+        "enabled": true,
+        "tier": "economy"
+      }
     }
   }
 }

@@ -1,36 +1,146 @@
 {
   "models": {
-    "claude": {
-      "pm_conductor": "sonnet",
-      "architect": "sonnet",
-      "ideation": "sonnet",
-      "discussion": "sonnet",
-      "debug": "sonnet",
-      "prereview": "sonnet"
-    },
-    "gemini": { "default": "gemini-3.1-pro-preview" },
-    "developer": {
-      "primary": { "provider": "codex", "model": "gpt-5.3-codex-spark" },
-      "fallback": { "provider": "gemini", "model": "gemini-3.1-pro-preview" },
-      "claude_dev": { "provider": "claude", "model": "sonnet" }
-    },
-    "reviewer": {
-      "primary": { "provider": "codex", "model": "gpt-5.3-codex-spark" },
-      "fallback": { "provider": "gemini", "model": "gemini-3.1-pro-preview" }
+    "roles": {
+      "pm_conductor": {
+        "provider": "claude",
+        "tier": "economy"
+      },
+      "architect": {
+        "provider": "claude",
+        "tier": "economy"
+      },
+      "developer": [
+        {
+          "provider": "codex",
+          "tier": "economy"
+        },
+        {
+          "provider": "gemini",
+          "tier": "economy"
+        }
+      ],
+      "developer_claude": {
+        "provider": "claude",
+        "tier": "economy"
+      },
+      "reviewer": [
+        {
+          "provider": "codex",
+          "tier": "economy"
+        },
+        {
+          "provider": "gemini",
+          "tier": "economy"
+        }
+      ]
     }
   },
-  "ideation": { "agents": { "codex": 1, "gemini": 1, "claude": 1 }, "opinion_char_limit": 1500 },
-  "discussion": { "agents": { "codex": 1, "gemini": 1, "claude": 1 }, "default_max_rounds": 2, "response_char_limit": 1500 },
-  "debug": { "agents": { "codex": 1, "gemini": 1, "claude": 0 } },
-  "explore": { "agents": { "codex": 1, "gemini": 1, "claude": 0 } },
-  "prereview": { "agents": { "codex": 1, "gemini": 0, "claude": 1 } },
-  "code_review": { "agents": 1, "agent_roster": ["codex", "gemini"] },
-  "plan_review": { "enabled": false, "parallel": true },
-  "workflow": { "spec_prereview": false },
+  "ideation": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "claude": {
+        "count": 1,
+        "tier": "economy"
+      }
+    },
+    "opinion_char_limit": 1500
+  },
+  "discussion": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "claude": {
+        "count": 1,
+        "tier": "economy"
+      }
+    },
+    "default_max_rounds": 2,
+    "response_char_limit": 1500
+  },
+  "debug": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "claude": {
+        "count": 0
+      }
+    }
+  },
+  "explore": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "claude": {
+        "count": 0
+      }
+    }
+  },
+  "prereview": {
+    "agents": {
+      "codex": {
+        "count": 1,
+        "tier": "economy"
+      },
+      "gemini": {
+        "count": 0
+      },
+      "claude": {
+        "count": 1,
+        "tier": "economy"
+      }
+    }
+  },
+  "code_review": {
+    "agents": 1,
+    "agent_roster": [
+      "codex",
+      "gemini"
+    ]
+  },
+  "plan_review": {
+    "enabled": false,
+    "parallel": true
+  },
+  "workflow": {
+    "spec_prereview": false
+  },
   "phase1_exploration": {
     "roles": {
-      "symbol_tracing": { "agent": "codex", "enabled": true },
-      "broad_scan": { "agent": "gemini", "enabled": true }
+      "symbol_tracing": {
+        "agent": "codex",
+        "enabled": true,
+        "tier": "economy"
+      },
+      "broad_scan": {
+        "agent": "gemini",
+        "enabled": true,
+        "tier": "economy"
+      }
     }
   }
 }
