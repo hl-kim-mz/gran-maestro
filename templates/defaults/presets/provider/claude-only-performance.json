@@ -114,7 +114,21 @@
   },
   "plan_review": {
     "enabled": true,
-    "parallel": true
+    "parallel": true,
+    "roles": {
+      "architect": {
+        "tier": "premium"
+      },
+      "devils_advocate": {
+        "tier": "premium"
+      },
+      "completeness": {
+        "tier": "premium"
+      },
+      "ux_reviewer": {
+        "tier": "premium"
+      }
+    }
   },
   "phase1_exploration": {
     "roles": {
@@ -126,6 +140,19 @@
       "broad_scan": {
         "agent": "gemini",
         "enabled": true,
+        "tier": "premium"
+      }
+    }
+  },
+  "review": {
+    "roles": {
+      "code_reviewer": {
+        "tier": "premium"
+      },
+      "arch_reviewer": {
+        "tier": "premium"
+      },
+      "ui_reviewer": {
         "tier": "premium"
       }
     }

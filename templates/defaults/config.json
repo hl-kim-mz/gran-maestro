@@ -274,19 +274,23 @@
     "roles": {
       "architect": {
         "enabled": true,
-        "agent": "codex"
+        "agent": "codex",
+        "tier": "premium"
       },
       "devils_advocate": {
         "enabled": true,
-        "agent": "gemini"
+        "agent": "gemini",
+        "tier": "premium"
       },
       "completeness": {
         "enabled": true,
-        "agent": "codex"
+        "agent": "codex",
+        "tier": "premium"
       },
       "ux_reviewer": {
         "enabled": true,
-        "agent": "gemini"
+        "agent": "gemini",
+        "tier": "premium"
       }
     }
   },
@@ -323,13 +327,16 @@
     },
     "roles": {
       "code_reviewer": {
-        "agent": "codex"
+        "agent": "codex",
+        "tier": "premium"
       },
       "arch_reviewer": {
-        "agent": "gemini"
+        "agent": "gemini",
+        "tier": "premium"
       },
       "ui_reviewer": {
-        "agent": "gemini"
+        "agent": "gemini",
+        "tier": "premium"
       }
     }
   },

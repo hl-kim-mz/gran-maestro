@@ -30,6 +30,8 @@ You can also edit it through the dashboard **Settings** tab with a web UI.
 - [explore.agents](#exploreagents)
 - [models](#models)
 - [prereview](#prereview)
+- [plan_review](#plan_review)
+- [review](#review)
 - [phase1_exploration](#phase1_exploration)
 - [notifications / realtime / debug / cleanup](#notifications--realtime--debug--cleanup)
 - [Example setting presets](#example-setting-presets)
@@ -300,6 +302,57 @@ Defaults are based on `templates/defaults/config.json`.
 
 - When `tier` is omitted, the provider's `models.providers.<provider>.default_tier` is used
 - Backward compatible: integer values (`"codex": 1`) are also accepted and interpreted as `{ count: 1 }`
+
+---
+
+## plan_review
+
+Settings for the Plan Review Pass.
+Referenced in `/mst:plan` Step 3.8 when running pre-review on the execution plan.
+
+| Key | Default | Description |
+|----|--------|------|
+| `plan_review.enabled` | `true` | enable/disable Plan Review Pass |
+| `plan_review.parallel` | `true` | run review agents in parallel |
+| `plan_review.max_iterations` | `2` | maximum review-fix iterations |
+| `plan_review.escalation_trigger` | `"major"` | escalation trigger (`critical` / `major` / `minor`) |
+| `plan_review.minor_escalation_threshold` | `3` | escalate when MINOR issue count reaches threshold |
+| `plan_review.roles.architect.enabled` | `true` | enable architect reviewer |
+| `plan_review.roles.architect.agent` | `"codex"` | architect reviewer agent |
+| `plan_review.roles.architect.tier` | `"premium"` | architect reviewer model tier (resolved from `models.providers`) |
+| `plan_review.roles.devils_advocate.enabled` | `true` | enable devil's advocate reviewer |
+| `plan_review.roles.devils_advocate.agent` | `"gemini"` | devil's advocate reviewer agent |
+| `plan_review.roles.devils_advocate.tier` | `"premium"` | devil's advocate reviewer model tier (resolved from `models.providers`) |
+| `plan_review.roles.completeness.enabled` | `true` | enable completeness reviewer |
+| `plan_review.roles.completeness.agent` | `"codex"` | completeness reviewer agent |
+| `plan_review.roles.completeness.tier` | `"premium"` | completeness reviewer model tier (resolved from `models.providers`) |
+| `plan_review.roles.ux_reviewer.enabled` | `true` | enable UX reviewer |
+| `plan_review.roles.ux_reviewer.agent` | `"gemini"` | UX reviewer agent |
+| `plan_review.roles.ux_reviewer.tier` | `"premium"` | UX reviewer model tier (resolved from `models.providers`) |
+
+---
+
+## review
+
+Settings for implementation review (`/mst:review`).
+Used in Phase 3 for AC verification and parallel code/architecture/UI reviews.
+
+| Key | Default | Description |
+|----|--------|------|
+| `review.auto_review` | `true` | auto-invoke `mst:review` in Phase 3 |
+| `review.max_iterations` | `3` | maximum review-fix iterations |
+| `review.roles.code_reviewer.agent` | `"codex"` | code reviewer agent |
+| `review.roles.code_reviewer.tier` | `"premium"` | code reviewer model tier (resolved from `models.providers`) |
+| `review.roles.arch_reviewer.agent` | `"gemini"` | architecture reviewer agent |
+| `review.roles.arch_reviewer.tier` | `"premium"` | architecture reviewer model tier (resolved from `models.providers`) |
+| `review.roles.ui_reviewer.agent` | `"gemini"` | UI reviewer agent |
+| `review.roles.ui_reviewer.tier` | `"premium"` | UI reviewer model tier (resolved from `models.providers`) |
+| `review.severity_auto_fix.enabled` | `true` | enable severity-based auto-fix |
+| `review.severity_auto_fix.minor_skip_threshold` | `3` | MINOR issue skip threshold |
+| `review.severity_auto_fix.pm_direct_fix_enabled` | `true` | enable PM direct fix |
+| `review.severity_auto_fix.pm_direct_fix_max_files` | `1` | max files for PM direct fix |
+| `review.severity_auto_fix.pm_direct_fix_max_diff_lines` | `20` | max diff lines for PM direct fix |
+| `review.severity_auto_fix.security_override_keywords` | `["authentication", "authorization", ...]` | security override keyword list |
 
 ---
 

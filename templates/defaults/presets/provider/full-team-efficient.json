@@ -121,7 +121,21 @@
   },
   "plan_review": {
     "enabled": true,
-    "parallel": true
+    "parallel": true,
+    "roles": {
+      "architect": {
+        "tier": "economy"
+      },
+      "devils_advocate": {
+        "tier": "economy"
+      },
+      "completeness": {
+        "tier": "economy"
+      },
+      "ux_reviewer": {
+        "tier": "economy"
+      }
+    }
   },
   "phase1_exploration": {
     "roles": {
@@ -133,6 +147,19 @@
       "broad_scan": {
         "agent": "gemini",
         "enabled": true,
+        "tier": "economy"
+      }
+    }
+  },
+  "review": {
+    "roles": {
+      "code_reviewer": {
+        "tier": "economy"
+      },
+      "arch_reviewer": {
+        "tier": "economy"
+      },
+      "ui_reviewer": {
         "tier": "economy"
       }
     }
