@@ -14,6 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
 import { TagInput } from '@/components/shared/TagInput';
 import { SetupWizardModal } from '@/components/shared/SetupWizardModal';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+
+const HIDDEN_FIELDS = ['version', 'plugin_name', 'branding'];
 
 type FieldCardProps = {
   fieldKey: string;
@@ -431,8 +434,33 @@ export function SettingsView() {
 
   if (!merged) return <div className="p-8 text-center">Failed to load config.</div>;
 
-  const topLevelPrimitives = Object.entries(merged).filter(([, value]) => !isObject(value));
-  const sections = Object.entries(merged).filter(([, value]) => isObject(value));
+  const getSectionCounts = (sectionKey: string, sectionData: any) => {
+    let fieldCount = 0;
+    let modifiedCount = 0;
+
+    const traverse = (data: any, path: string[]) => {
+      if (Array.isArray(data)) {
+        fieldCount++;
+        const status = getFieldStatus(path);
+        if (status === 'modified' || status === 'custom') modifiedCount++;
+        return;
+      }
+      if (isObject(data)) {
+        for (const [k, v] of Object.entries(data)) {
+          traverse(v, [...path, k]);
+        }
+        return;
+      }
+      fieldCount++;
+      const status = getFieldStatus(path);
+      if (status === 'modified' || status === 'custom') modifiedCount++;
+    };
+
+    traverse(sectionData, [sectionKey]);
+    return { fieldCount, modifiedCount };
+  };
+
+  const visibleSections = Object.entries(merged).filter(([key]) => !HIDDEN_FIELDS.includes(key));
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -467,26 +495,41 @@ export function SettingsView() {
               </div>
             </div>
 
-            <div className="space-y-8">
-              {topLevelPrimitives.length > 0 && (
-                <section>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">Plugin Info</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    {topLevelPrimitives.map(([key, value]) => renderField([], key, value))}
-                  </div>
-                </section>
-              )}
+            <div className="space-y-4">
+              <Accordion type="multiple" defaultValue={["workflow"]} className="w-full space-y-4">
+                {visibleSections.map(([sectionKey, sectionData]) => {
+                  const { fieldCount, modifiedCount } = getSectionCounts(sectionKey, sectionData);
 
-              {sections.map(([section, values]: [string, any]) => (
-                <section key={section}>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 px-1">
-                    {section}
-                  </h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    {Object.entries(values).map(([key, value]: [string, any]) => renderField([section], key, value))}
-                  </div>
-                </section>
-              ))}
+                  return (
+                    <AccordionItem key={sectionKey} value={sectionKey} className="border rounded-md bg-card shadow-sm">
+                      <AccordionTrigger className="py-2 px-3 text-sm font-bold uppercase tracking-wider hover:no-underline">
+                        <div className="flex items-center gap-2">
+                          {sectionKey}
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                            {fieldCount}
+                          </Badge>
+                          {modifiedCount > 0 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-orange-600 border-orange-400 dark:text-orange-400 dark:border-orange-500">
+                              {modifiedCount} modified
+                            </Badge>
+                          )}
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="p-3 pt-0 border-t">
+                        <div className="grid grid-cols-1 gap-2 mt-3">
+                          {isObject(sectionData) ? (
+                            Object.entries(sectionData as object).map(([key, value]) =>
+                              renderField([sectionKey], key, value)
+                            )
+                          ) : (
+                            renderField([], sectionKey, sectionData)
+                          )}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
             </div>
           </div>
         </ScrollArea>
