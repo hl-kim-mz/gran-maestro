@@ -13,7 +13,6 @@ import { SETTING_DESCRIPTIONS } from '@/config/settingDescriptions';
 import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
 import { TagInput } from '@/components/shared/TagInput';
 import { SetupWizardModal } from '@/components/shared/SetupWizardModal';
-import { deepSet, getNestedValue, deepRemove } from '@/lib/utils';
 
 type FieldCardProps = {
   fieldKey: string;
@@ -67,10 +66,14 @@ const FieldCard = React.memo(function FieldCard({
             </Button>
           )}
           {Array.isArray(value) ? (
-            <TagInput
-              tags={value.map(String)}
-              onChange={(tags) => onValueChange(fullPath, tags)}
-            />
+            value.every((entry) => !isObject(entry) && !Array.isArray(entry)) ? (
+              <TagInput
+                tags={value.map(String)}
+                onChange={(tags) => onValueChange(fullPath, tags)}
+              />
+            ) : (
+              <Input value={JSON.stringify(value)} readOnly className="text-left font-mono" />
+            )
           ) : value === null ? (
             <Input
               value=""
@@ -102,6 +105,120 @@ const FieldCard = React.memo(function FieldCard({
 
 function isObject(v: any) {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function isNumericIndex(key: string) {
+  return /^\d+$/.test(key);
+}
+
+function getNestedValueWithArrays(obj: any, path: string[]): any {
+  let current = obj;
+
+  for (const key of path) {
+    if (current === undefined || current === null) {
+      return undefined;
+    }
+
+    if (Array.isArray(current)) {
+      const index = Number(key);
+      if (!Number.isInteger(index) || index < 0 || index >= current.length) {
+        return undefined;
+      }
+      current = current[index];
+      continue;
+    }
+
+    if (typeof current !== 'object' || !(key in current)) {
+      return undefined;
+    }
+
+    current = current[key];
+  }
+
+  return current;
+}
+
+function deepSetWithArrays(obj: any, path: string[], value: any): any {
+  if (path.length === 0) return value;
+
+  const [head, ...rest] = path;
+
+  if (Array.isArray(obj)) {
+    const index = Number(head);
+    if (!Number.isInteger(index) || index < 0) return obj;
+
+    const clone = [...obj];
+    clone[index] = deepSetWithArrays(clone[index], rest, value);
+    return clone;
+  }
+
+  if (obj && typeof obj === 'object') {
+    return {
+      ...obj,
+      [head]: deepSetWithArrays(obj[head], rest, value),
+    };
+  }
+
+  if (isNumericIndex(head)) {
+    const index = Number(head);
+    const clone: any[] = [];
+    clone[index] = deepSetWithArrays(undefined, rest, value);
+    return clone;
+  }
+
+  return {
+    [head]: deepSetWithArrays(undefined, rest, value),
+  };
+}
+
+function deepRemoveWithArrays(obj: any, path: string[]): any {
+  if (!obj || typeof obj !== 'object' || path.length === 0) {
+    return obj;
+  }
+
+  const [head, ...rest] = path;
+
+  if (Array.isArray(obj)) {
+    const index = Number(head);
+    if (!Number.isInteger(index) || index < 0 || index >= obj.length) {
+      return obj;
+    }
+
+    const clone = [...obj];
+    if (rest.length === 0) {
+      clone.splice(index, 1);
+      return clone;
+    }
+
+    clone[index] = deepRemoveWithArrays(clone[index], rest);
+    if (isObject(clone[index]) && Object.keys(clone[index]).length === 0) {
+      clone.splice(index, 1);
+    }
+    return clone;
+  }
+
+  if (!(head in obj)) {
+    return obj;
+  }
+
+  const clone = { ...obj };
+  if (rest.length === 0) {
+    delete clone[head];
+    return clone;
+  }
+
+  clone[head] = deepRemoveWithArrays(obj[head], rest);
+  if (isObject(clone[head]) && Object.keys(clone[head]).length === 0) {
+    delete clone[head];
+  }
+
+  return clone;
+}
+
+function getRoleSlotLabel(index: number) {
+  if (index === 0) return 'primary';
+  if (index === 1) return 'fallback';
+  return `slot_${index + 1}`;
 }
 
 export function SettingsView() {
@@ -175,40 +292,70 @@ export function SettingsView() {
   }
 
   function getFieldStatus(path: string[]): 'modified' | 'custom' | null {
-    const hasOverride = getNestedValue(overrides, path) !== undefined;
+    const hasOverride = getNestedValueWithArrays(overrides, path) !== undefined;
     if (!hasOverride) return null;
-    const hasDefault = getNestedValue(defaults, path) !== undefined;
+    const hasDefault = getNestedValueWithArrays(defaults, path) !== undefined;
     return hasDefault ? 'modified' : 'custom';
   }
 
   function handleResetField(path: string[]) {
     if (!defaults) return;
-    const defaultValue = getNestedValue(defaults, path);
-    setMerged((current: any) => deepSet(current ?? {}, path, defaultValue));
-    setOverrides((current: any) => deepRemove(current, path));
+    const defaultValue = getNestedValueWithArrays(defaults, path);
+    setMerged((current: any) => deepSetWithArrays(current ?? {}, path, defaultValue));
+    setOverrides((current: any) => deepRemoveWithArrays(current, path));
     setIsDirty(true);
   }
 
   function handleDeleteField(path: string[]) {
-    setMerged((current: any) => deepRemove(current, path));
-    setOverrides((current: any) => deepRemove(current, path));
+    setMerged((current: any) => deepRemoveWithArrays(current, path));
+    setOverrides((current: any) => deepRemoveWithArrays(current, path));
     setIsDirty(true);
   }
 
   function handleFieldChange(path: string[], value: any) {
-    setMerged((current: any) => deepSet(current, path, value));
+    setMerged((current: any) => deepSetWithArrays(current, path, value));
     setIsDirty(true);
   }
 
-  function renderField(path: string[], key: string, value: any, depth = 0) {
+  function renderField(path: string[], key: string, value: any, depth = 0, label = key) {
     const indent = depth * 16;
+    const fullPath = [...path, key];
+    const description = SETTING_DESCRIPTIONS[fullPath.join('.')];
+
+    if (
+      path.join('.') === 'models.roles' &&
+      (key === 'developer' || key === 'reviewer') &&
+      Array.isArray(value) &&
+      value.every(isObject)
+    ) {
+      return (
+        <div key={fullPath.join('.')}>
+          <div style={{ paddingLeft: indent }} className="text-xs font-semibold text-muted-foreground py-1 mt-2">
+            {label}
+          </div>
+          {description && (
+            <div style={{ paddingLeft: indent }} className="text-xs text-muted-foreground pb-2">
+              {description}
+            </div>
+          )}
+          <div className="space-y-4">
+            {value.map((item, index) => renderField(fullPath, String(index), item, depth + 1, getRoleSlotLabel(index)))}
+          </div>
+        </div>
+      );
+    }
 
     if (isObject(value)) {
       return (
-        <div key={key}>
+        <div key={fullPath.join('.')}>
           <div style={{ paddingLeft: indent }} className="text-xs font-semibold text-muted-foreground py-1 mt-2">
-            {key}
+            {label}
           </div>
+          {description && (
+            <div style={{ paddingLeft: indent }} className="text-xs text-muted-foreground pb-2">
+              {description}
+            </div>
+          )}
           <div className="space-y-4">
             {Object.entries(value).map(([subKey, subVal]) => renderField([...path, key], subKey, subVal, depth + 1))}
           </div>
@@ -216,14 +363,12 @@ export function SettingsView() {
       );
     }
 
-    const fullPath = [...path, key];
-    const description = SETTING_DESCRIPTIONS[fullPath.join('.')];
     const fieldStatus = getFieldStatus(fullPath);
 
     return (
       <FieldCard
-        key={key}
-        fieldKey={key}
+        key={fullPath.join('.')}
+        fieldKey={label}
         fullPath={fullPath}
         value={value}
         indent={indent}
