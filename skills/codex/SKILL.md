@@ -21,7 +21,7 @@ Codex CLI 호출의 단일 진입점. request 워크플로우(--trace 모드 포
 2. **프롬프트 소스**: `--prompt-file` 있으면 파일 우선 (미존재 시 에러 중단); 없으면 인라인 사용
 3. `--dir` 지정 시 디렉토리 존재 확인 (없으면 에러 중단); 상대경로는 cwd 기준
 4. `--trace` 모드 판별 (아래 섹션 참조)
-5. **기본 모델**: `config.resolved.json`의 `models.codex.default` 사용; 없으면 `gpt-5.3-codex` 폴백
+5. **기본 모델**: `config.resolved.json`의 `models.providers.codex[default_tier]`로 resolve; 없으면 `gpt-5.3-codex` 폴백. tier resolve 순서: `providers.codex[default_tier]`
 6. Codex CLI 실행:
    ```bash
    codex exec --full-auto -m {model} -C {working_dir} "{prompt}"                         # 인라인

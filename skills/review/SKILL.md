@@ -81,11 +81,11 @@ ui-reviewer (bg):     UI 설계 검토 (조건부)            ─┘
 
 background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니다 (approve SKILL.md Step 4d 완료 감지 패턴 동일 적용).
 
-| 역할 키 | 검토 관점 | config 키 |
-|---------|-----------|-----------|
-| `code_reviewer` | 누락 로직, 버그, 엣지케이스, 테스트 누락 | `review.roles.code_reviewer.agent` |
-| `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 | `review.roles.arch_reviewer.agent` |
-| `ui_reviewer` | Stitch 시안 vs 실제 UI, UX 흐름 일관성 | `review.roles.ui_reviewer.agent` |
+| 역할 키 | 검토 관점 | config 키 | 모델 resolve |
+|---------|-----------|-----------|-------------|
+| `code_reviewer` | 누락 로직, 버그, 엣지케이스, 테스트 누락 | `review.roles.code_reviewer.agent` | `providers[agent][review.roles.code_reviewer.tier \|\| default_tier]`로 resolve |
+| `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
+| `ui_reviewer` | Stitch 시안 vs 실제 UI, UX 흐름 일관성 | `review.roles.ui_reviewer.agent` | `providers[agent][review.roles.ui_reviewer.tier \|\| default_tier]`로 resolve |
 
 각 리뷰어(code_reviewer, arch_reviewer, ui_reviewer)는 발견한 이슈에 반드시 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 등급을 태깅해야 한다 (`templates/review-request.md`의 등급 판별 가이드 및 보안 오버라이드 규칙 적용).
 

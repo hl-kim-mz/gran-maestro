@@ -166,28 +166,28 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
 
 2. **participant Task() + critic Task() 동시 발송** (단일 응답):
 
-   > **모델 결정**: config.resolved.json `models.claude.discussion` 참조 (opus / sonnet)
+   > **모델 결정**: config.resolved.json `models.providers.claude[discussion.agents.claude.tier || default_tier]`로 resolve (opus / sonnet)
 
    participant 발송 (`participants` 동적 순회):
    - `provider: "codex"`:
      ```
      Bash(
        run_in_background: true,
-       command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/00/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/{participant.key}.md; exit $EC"
+       command: "codex exec --full-auto -m {config.models.providers.codex[discussion.agents.codex.tier || default_tier]} -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/00/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/{participant.key}.md; exit $EC"
      )
      ```
    - `provider: "gemini"`:
      ```
      Bash(
        run_in_background: true,
-       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/rounds/00/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/{participant.key}.md; exit $EC"
+       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/rounds/00/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/{participant.key}.md; exit $EC"
      )
      ```
    - `provider: "claude"`:
      ```
      Task(
        subagent_type: "general-purpose",
-       model: "{config.models.claude.discussion}",
+       model: "{config.models.providers.claude[discussion.agents.claude.tier || default_tier]}",
        run_in_background: true,
        prompt: "{absolute_path}/rounds/00/prompts/{participant.key}-prompt.md 파일을 Read하고 지시에 따라 분석. 결과를 {absolute_path}/rounds/00/{participant.key}.md에 Write. 완료 후 '완료'"
      )
@@ -198,21 +198,21 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
      ```
      Bash(
        run_in_background: true,
-       command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/critique-{criticKey}.md; exit $EC"
+       command: "codex exec --full-auto -m {config.models.providers.codex[discussion.agents.codex.tier || default_tier]} -C $(pwd) \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/critique-{criticKey}.md; exit $EC"
      )
      ```
    - `provider: "gemini"`:
      ```
      Bash(
        run_in_background: true,
-       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/critique-{criticKey}.md; exit $EC"
+       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/critique-{criticKey}.md; exit $EC"
      )
      ```
    - `provider: "claude"`:
      ```
      Task(
        subagent_type: "general-purpose",
-       model: "{config.models.claude.discussion}",
+       model: "{config.models.providers.claude[discussion.agents.claude.tier || default_tier]}",
        run_in_background: true,
        prompt: "{absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md 파일을 Read하고 비판적 시각으로 분석. 결과를 {absolute_path}/rounds/00/critique-{criticKey}.md에 Write. 완료 후 '완료'"
      )
@@ -335,21 +335,21 @@ participant 발송 (`participants` 동적 순회):
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/{participant.key}.md; exit $EC"
+    command: "codex exec --full-auto -m {config.models.providers.codex[discussion.agents.codex.tier || default_tier]} -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/{participant.key}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:
   ```
   Bash(
     run_in_background: true,
-    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/{participant.key}.md; exit $EC"
+    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/{participant.key}.md; exit $EC"
   )
   ```
 - `provider: "claude"`:
   ```
   Task(
     subagent_type: "general-purpose",
-    model: "{config.models.claude.discussion}",
+    model: "{config.models.providers.claude[discussion.agents.claude.tier || default_tier]}",
     run_in_background: true,
     prompt: "{absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md 파일을 Read하고 지시에 따라 분석. 결과를 {absolute_path}/rounds/NN/{participant.key}.md에 Write. 완료 후 '완료'"
   )
@@ -360,21 +360,21 @@ critic 동시 발송 (`critics` 동적 순회):
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/critique-{criticKey}.md; exit $EC"
+    command: "codex exec --full-auto -m {config.models.providers.codex[discussion.agents.codex.tier || default_tier]} -C $(pwd) \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/critique-{criticKey}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:
   ```
   Bash(
     run_in_background: true,
-    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/critique-{criticKey}.md; exit $EC"
+    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/critique-{criticKey}.md; exit $EC"
   )
   ```
 - `provider: "claude"`:
   ```
   Task(
     subagent_type: "general-purpose",
-    model: "{config.models.claude.discussion}",
+    model: "{config.models.providers.claude[discussion.agents.claude.tier || default_tier]}",
     run_in_background: true,
     prompt: "{absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md 파일을 Read하고 비판적 시각으로 분석. 결과를 {absolute_path}/rounds/NN/critique-{criticKey}.md에 Write. 완료 후 '완료'"
   )

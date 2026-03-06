@@ -195,7 +195,7 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
 > - 각 응답은 파일로 직접 쓰기, 프롬프트도 파일로 저장 후 `--prompt-file` 사용
 > - agent는 프롬프트 파일 실행 전 반드시 공유 컨텍스트 파일을 Read해야 합니다
 
-> **모델 결정**: `config.resolved.json`의 `models.claude.ideation` 참조 (opus / sonnet)
+> **모델 결정**: `config.resolved.json`의 `models.providers.claude[ideation.agents.claude.tier || default_tier]`로 resolve (opus / sonnet)
 
 2. **participant Task() 발송** (`participants` 동적 순회):
 
@@ -203,21 +203,21 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" > {absolute_path}/opinion-{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/opinion-{participant.key}.md; exit $EC"
+    command: "codex exec --full-auto -m {config.models.providers.codex[ideation.agents.codex.tier || default_tier]} -C $(pwd) \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" > {absolute_path}/opinion-{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/opinion-{participant.key}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:
   ```
   Bash(
     run_in_background: true,
-    command: "gemini -p \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/opinion-{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/opinion-{participant.key}.md; exit $EC"
+    command: "gemini -p \"$(cat {absolute_path}/prompts/{participant.key}-prompt.md)\" --model {config.models.providers.gemini[ideation.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/opinion-{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/opinion-{participant.key}.md; exit $EC"
   )
   ```
 - `provider: "claude"`:
   ```
   Task(
     subagent_type: "general-purpose",
-    model: "{config.models.claude.ideation}",
+    model: "{config.models.providers.claude[ideation.agents.claude.tier || default_tier]}",
     run_in_background: true,
     prompt: "{absolute_path}/prompts/{participant.key}-prompt.md 파일을 Read하고 지시에 따라 분석. 결과를 opinion-{participant.key}.md에 Write. 완료 후 '완료'"
   )
@@ -229,21 +229,21 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
   ```
   Bash(
     run_in_background: true,
-    command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/critique-{criticKey}.md; exit $EC"
+    command: "codex exec --full-auto -m {config.models.providers.codex[ideation.agents.codex.tier || default_tier]} -C $(pwd) \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" > {absolute_path}/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/critique-{criticKey}.md; exit $EC"
   )
   ```
 - `provider: "gemini"`:
   ```
   Bash(
     run_in_background: true,
-    command: "gemini -p \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.gemini.default} --approval-mode yolo > {absolute_path}/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/critique-{criticKey}.md; exit $EC"
+    command: "gemini -p \"$(cat {absolute_path}/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.providers.gemini[ideation.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/critique-{criticKey}.md; exit $EC"
   )
   ```
 - `provider: "claude"`:
   ```
   Task(
     subagent_type: "general-purpose",
-    model: "{config.models.claude.ideation}",
+    model: "{config.models.providers.claude[ideation.agents.claude.tier || default_tier]}",
     run_in_background: true,
     prompt: "prompts/critique-{criticKey}-prompt.md 파일을 Read하고 비판 관점에서 분석. 결과를 critique-{criticKey}.md에 Write. 완료 후 '완료'"
   )

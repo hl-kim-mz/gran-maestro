@@ -279,16 +279,16 @@ stdout에 생성된 파일 경로 목록이 출력된다.
 **[동시 dispatch]** 모든 활성 역할을 단일 응답 내 동시 실행:
 
 에이전트 선택 (`config.plan_review.roles.{role}.agent` 기반):
-- `"codex"` → `Bash(run_in_background: true, command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" > {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log; exit $EC")`
-- `"gemini"` → `Bash(run_in_background: true, command: "gemini -p \"$(cat {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" --model {config.models.gemini.default} --approval-mode yolo > {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log; exit $EC")`
+- `"codex"` → `Bash(run_in_background: true, command: "codex exec --full-auto -m {config.models.providers.codex[plan_review.roles.{role}.tier || default_tier]} -C $(pwd) \"$(cat {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" > {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log; exit $EC")`
+- `"gemini"` → `Bash(run_in_background: true, command: "gemini -p \"$(cat {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" --model {config.models.providers.gemini[plan_review.roles.{role}.tier || default_tier]} --approval-mode yolo > {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log; exit $EC")`
 - `"claude"` → `Task(subagent_type: "general-purpose", run_in_background: true, prompt: {사전 단계에서 보관한 파일 내용})`
 
 각 Task 호출의 반환값에서 task_id를 추출하여 역할명과 함께 메모리에 보관 (결과 추적용).
 예: `{ architect: "task-abc123", completeness: "task-def456", ... }`
 
 `config.plan_review.parallel == false`이면 역할 순서대로 순차 실행:
-- codex 역할: `Bash(command: "codex exec --full-auto -m {config.models.codex.default} -C $(pwd) \"$(cat {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" > {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log; exit $EC")` → 완료 후 Read(.log) → 다음 역할 진행
-- gemini 역할: `Bash(command: "gemini -p \"$(cat {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" --model {config.models.gemini.default} --approval-mode yolo > {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log; exit $EC")` → 완료 후 Read(.log) → 다음 역할 진행
+- codex 역할: `Bash(command: "codex exec --full-auto -m {config.models.providers.codex[plan_review.roles.{role}.tier || default_tier]} -C $(pwd) \"$(cat {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" > {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log; exit $EC")` → 완료 후 Read(.log) → 다음 역할 진행
+- gemini 역할: `Bash(command: "gemini -p \"$(cat {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)\" --model {config.models.providers.gemini[plan_review.roles.{role}.tier || default_tier]} --approval-mode yolo > {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.log; exit $EC")` → 완료 후 Read(.log) → 다음 역할 진행
 - claude 역할: `Read({PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/prompts/review-{role}.md)` 후 → `Task(subagent_type: "general-purpose", prompt: {파일 내용})` (블로킹) → 반환값 직접 사용 → 다음 역할 진행
 (순차 실행 시 task_id 불필요, TaskOutput 호출 없음)
 
