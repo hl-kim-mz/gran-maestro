@@ -434,6 +434,10 @@ Write -> {PROJECT_ROOT}/.gran-maestro/requests/{REQ-ID}/tasks/{NN}/prompts/phase
 
 {task_dir} = {PROJECT_ROOT}/.gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/
 
+> ⚠️ **gemini-dev Bash 강제 (MANDATORY)**: gemini-dev는 단건/병렬 무관하게 **항상** `Bash(run_in_background: true)`로 실행한다.
+> claude-dev 단건의 `Skill()` 패턴을 gemini-dev에 유추 적용하는 것은 금지 — `Skill(mst:gemini)` 전환 불가.
+> trace는 `running.log`로 대체된다 (codex-dev와 동일 패턴).
+
 ```bash
 # codex-dev인 경우
 Bash(
