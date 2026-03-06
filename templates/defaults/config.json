@@ -161,12 +161,12 @@
     "providers": {
       "codex": {
         "premium": "gpt-5.3-codex",
-        "economy": "codex-mini",
+        "economy": "gpt-5.3-codex-spark",
         "default_tier": "premium"
       },
       "gemini": {
         "premium": "gemini-3.1-pro-preview",
-        "economy": "gemini-2.5-flash",
+        "economy": "gemini-3-flash-preview",
         "default_tier": "premium"
       },
       "claude": {
