@@ -261,7 +261,7 @@ When assembling agent teams, consider:
 Present team composition to user in spec document with rationale.
 
 Analysis Squad: /mst:gemini (codebase exploration + context analysis) + /mst:codex (code structure + req decomposition + precision symbol tracing + requirements gap analysis)
-  + Design Wing (conditional): Architect({config.models.claude.architect}) + /mst:codex(schema-designer template) + /mst:gemini(ui-designer template)
+  + Design Wing (conditional): Architect({config.models.roles.architect} -> providers.claude[tier]) + /mst:codex(schema-designer template) + /mst:gemini(ui-designer template)
     - Schema Designer: `agents/schema-designer.md` 템플릿 → `/mst:codex --prompt-file` (대규모 시 `/mst:gemini` 보조)
     - UI Designer: `agents/ui-designer.md` 템플릿 → `/mst:gemini --prompt-file` (1M 컨텍스트로 전체 UI 일관성 확보, 정밀 코드 구현 시 `/mst:codex` 보조)
 Review Squad: /mst:codex (quality-precheck + code-review + security-scan + consistency-review:default + security-review + quality-review + acceptance-verification)
@@ -419,9 +419,12 @@ Skill(skill: "mst:codex", args: "--prompt-file .gran-maestro/requests/REQ-001/ta
 
 ## Model
 
-- **Recommended**: config.json `models.claude.pm_conductor` 참조 (opus / sonnet)
-- **Developer routing**: config.json `models.developer.primary` → provider + model
-- **Reviewer routing**: config.json `models.reviewer.primary` → provider + model
+- **Recommended**: config.json `models.roles.pm_conductor` 참조 → `providers.claude[tier]` resolve (opus / sonnet)
+- **Developer routing**:
+  - `models.roles.developer[0]` = primary, `models.roles.developer[1]` = fallback (순서 고정)
+  - `models.roles.developer_claude` for Claude-only developer fallback
+  - resolve rule: `roles.developer[0].provider + roles.developer[0].tier → providers[provider][tier]`
+- **Reviewer routing**: config.json `models.roles.reviewer[0..N]` 순회 → 각 항목 `provider + tier`로 `providers[provider][tier]` resolve
 - **Role**: Team Leader (Phase 1 & 3)
 
 ## Tools
