@@ -3,6 +3,7 @@ import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { readJsonFile, writeJsonFile, deepMerge, diffFromBase } from "../utils.ts";
 import { DEFAULTS_PATH, PLUGIN_ROOT, resolveBaseDir } from "../config.ts";
 import type { PresetMeta, PresetListResponse, PresetDiffChange, GranMaestroConfig } from "../types.ts";
+import { loadSettingOptions, validateConfigValues } from "../validation.ts";
 
 const PRESETS_DIR = join(PLUGIN_ROOT, "templates", "defaults", "presets");
 const MANIFEST_PATH = join(PRESETS_DIR, "manifest.json");
@@ -157,6 +158,16 @@ projectPresetsApi.post("/presets/:presetId/apply", async (c) => {
   const nextMerged = deepMerge(merged, preset.data) as Record<string, unknown>;
 
   const changes = flatDiff(merged, nextMerged);
+
+  const settingOptions = await loadSettingOptions(PLUGIN_ROOT);
+  if (!settingOptions) {
+    console.warn("[presets] Failed to load setting-options.json; skipping validation");
+  } else {
+    const { warnings } = validateConfigValues(nextMerged, settingOptions);
+    if (warnings.length > 0) {
+      console.warn("[presets] Invalid values:", warnings);
+    }
+  }
   
   const nextOverrides = diffFromBase(defaults, nextMerged);
   const writeConfigOk = await writeJsonFile(join(baseDir, "config.json"), nextOverrides);

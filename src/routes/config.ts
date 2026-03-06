@@ -1,7 +1,8 @@
 import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 import { readJsonFile, writeJsonFile, diffFromBase, deepMerge } from "../utils.ts";
-import { DEFAULTS_PATH, resolveBaseDir } from "../config.ts";
+import { DEFAULTS_PATH, PLUGIN_ROOT, resolveBaseDir } from "../config.ts";
 import type { ConfigResponse, GranMaestroConfig } from "../types.ts";
+import { loadSettingOptions, validateConfigValues } from "../validation.ts";
 
 const projectConfigApi = new Hono();
 
@@ -33,6 +34,17 @@ projectConfigApi.put("/config", async (c) => {
     if (typeof body !== "object" || body === null || Array.isArray(body)) {
       return c.json({ error: "Config body must be a JSON object" }, 400);
     }
+
+    const settingOptions = await loadSettingOptions(PLUGIN_ROOT);
+    if (!settingOptions) {
+      console.warn("[config] Failed to load setting-options.json; skipping validation");
+    } else {
+      const { warnings } = validateConfigValues(body as Record<string, unknown>, settingOptions);
+      if (warnings.length > 0) {
+        console.warn("[config] Invalid values:", warnings);
+      }
+    }
+
     const defaults = await readJsonFile<GranMaestroConfig>(DEFAULTS_PATH) ?? {};
     const overrides = diffFromBase(defaults, body);
     const success = await writeJsonFile(`${baseDir}/config.json`, overrides);

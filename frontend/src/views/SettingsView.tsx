@@ -9,7 +9,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { RefreshCcw, Replace, Save, Wand2 } from 'lucide-react';
-import { SETTING_DESCRIPTIONS } from '@/config/settingDescriptions';
+import { SETTING_DESCRIPTIONS, getDescription, getOptions } from '@/config/settingDescriptions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
 import { TagInput } from '@/components/shared/TagInput';
 import { SetupWizardModal } from '@/components/shared/SetupWizardModal';
@@ -20,6 +21,7 @@ type FieldCardProps = {
   value: any;
   indent: number;
   description?: string;
+  options?: string[];
   fieldStatus: 'modified' | 'custom' | null;
   onResetField: (path: string[]) => void;
   onDeleteField: (path: string[]) => void;
@@ -32,11 +34,14 @@ const FieldCard = React.memo(function FieldCard({
   value,
   indent,
   description,
+  options,
   fieldStatus,
   onResetField,
   onDeleteField,
   onValueChange,
 }: FieldCardProps) {
+  const isInvalidOption = options && options.length > 0 && typeof value === 'string' && !options.includes(value);
+
   return (
     <Card style={{ marginLeft: indent }}>
       <CardContent className="p-4 flex items-center justify-between gap-4">
@@ -53,6 +58,11 @@ const FieldCard = React.memo(function FieldCard({
           {fieldStatus === 'custom' && (
             <Badge variant="outline" className="text-[10px] text-orange-600 border-orange-400 dark:text-orange-400 dark:border-orange-500">
               Custom
+            </Badge>
+          )}
+          {isInvalidOption && (
+            <Badge variant="outline" className="text-[10px] text-red-600 border-red-400 dark:text-red-400 dark:border-red-500">
+              Invalid
             </Badge>
           )}
           {fieldStatus === 'modified' && (
@@ -86,6 +96,24 @@ const FieldCard = React.memo(function FieldCard({
             />
           ) : typeof value === 'boolean' ? (
             <Switch checked={value} onCheckedChange={(checked) => onValueChange(fullPath, checked)} />
+          ) : options && options.length > 0 && typeof value === 'string' && value !== '' ? (
+            <Select value={value} onValueChange={(val) => onValueChange(fullPath, val)}>
+              <SelectTrigger className="w-[180px] h-9 font-mono text-left">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {isInvalidOption && (
+                  <SelectItem value={value} className="text-red-500 font-mono">
+                    {value} (invalid)
+                  </SelectItem>
+                )}
+                {options.map((opt) => (
+                  <SelectItem key={opt} value={opt} className="font-mono">
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : (
             <Input
               value={value}
@@ -320,7 +348,9 @@ export function SettingsView() {
   function renderField(path: string[], key: string, value: any, depth = 0, label = key) {
     const indent = depth * 16;
     const fullPath = [...path, key];
-    const description = SETTING_DESCRIPTIONS[fullPath.join('.')];
+    const descEntry = SETTING_DESCRIPTIONS[fullPath.join('.')];
+    const description = getDescription(descEntry);
+    const options = getOptions(descEntry);
 
     if (
       path.join('.') === 'models.roles' &&
@@ -373,6 +403,7 @@ export function SettingsView() {
         value={value}
         indent={indent}
         description={description}
+        options={options}
         fieldStatus={fieldStatus}
         onResetField={handleResetField}
         onDeleteField={handleDeleteField}
