@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
-import { RefreshCcw, Replace, Save, Wand2 } from 'lucide-react';
+import { Globe, RefreshCcw, Replace, Save, Wand2 } from 'lucide-react';
 import { SETTING_DESCRIPTIONS, getDescription, getOptions } from '@/config/settingDescriptions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
@@ -317,6 +317,44 @@ export function SettingsView() {
     }
   }
 
+  async function handleApplyAll() {
+    if (!projectId || !merged) return;
+
+    const confirmed = window.confirm('Apply current settings to all registered projects? This will overwrite project configs.');
+    if (!confirmed) return;
+
+    setSaving(true);
+    try {
+      const result = await apiFetch<{
+        ok: boolean;
+        applied: number;
+        failed: Array<{ id: string; name: string; error: string }>;
+      }>('/api/config/apply-all', projectId, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(merged),
+      });
+
+      await fetchConfig();
+
+      if (Array.isArray(result.failed) && result.failed.length > 0) {
+        const failedSummary = result.failed
+          .map((item) => `- ${item.name} (${item.id}): ${item.error}`)
+          .join('\n');
+        alert(`Applied to ${result.applied} project(s).\nFailed projects:\n${failedSummary}`);
+      } else {
+        alert(`Successfully applied to ${result.applied} project(s).`);
+      }
+    } catch (err) {
+      console.error('Failed to apply config to all projects:', err);
+      alert(`Failed to apply config to all projects: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function handlePanelReplace(newConfig: any) {
     setMerged(newConfig);
     void handleSave(newConfig);
@@ -487,6 +525,9 @@ export function SettingsView() {
                 </Button>
                 <Button variant="outline" onClick={() => setWizardOpen(true)} disabled={saving}>
                   <Wand2 className="h-4 w-4 mr-2" /> 설정 마법사
+                </Button>
+                <Button variant="outline" onClick={handleApplyAll} disabled={saving || !merged}>
+                  <Globe className="h-4 w-4 mr-2" /> Apply to All
                 </Button>
                 <Button onClick={() => handleSave()} disabled={saving} variant={isDirty ? 'default' : 'outline'}>
                   <Save className="h-4 w-4 mr-2" />
