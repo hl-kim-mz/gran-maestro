@@ -44,7 +44,7 @@ Phase 2 상태(`pending`/`queued`/`executing`/`pre_check_failed`/`feedback`)는 
 3. 외주 실행:
    ```
    Skill(skill: "mst:codex", args: "{프롬프트} --dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase2-impl")
-   Skill(skill: "mst:gemini", args: "{프롬프트} --files {worktree_path}/**/* --trace {REQ-ID}/{TASK-NUM}/phase2-impl")
+   Skill(skill: "mst:gemini", args: "{프롬프트} --dir {worktree_path} --files {worktree_path}/**/* --trace {REQ-ID}/{TASK-NUM}/phase2-impl")
    ```
 4. `feedback` 상태: feedback-RN.md 수정 요청을 프롬프트에 포함
 5. 완료 후 사전 검증 (테스트+타입 체크) → Phase 3

@@ -509,7 +509,7 @@ Single entry point for Codex CLI calls. Every Codex call inside and outside Gran
 
 **One-line description**: call Gemini CLI for large-context jobs.
 
-**Arguments**: `{prompt} [--prompt-file {path}] [--files {pattern}] [--trace {REQ/TASK/label}]`
+**Arguments**: `{prompt} [--prompt-file {path}] [--dir {path}] [--files {pattern}] [--trace {REQ/TASK/label}]`
 
 #### Purpose
 
