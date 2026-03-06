@@ -54,31 +54,39 @@ argument-hint: "[{key} [{value}] | preset {list|apply|diff|save|wizard} [id]]"
 | `retry.backoff_base_ms` | 재시도 백오프 기준 (ms) | `1000` | number |
 | `history.retention_days` | 이력 보존 기간 (일) | `30` | number |
 | `history.auto_archive` | 자동 아카이브 | `true` | boolean |
-| `ideation.agents.codex` | 1 | Ideation Codex 참여 인원수 (0=제외) | number |
-| `ideation.agents.gemini` | 1 | Ideation Gemini 참여 인원수 (0=제외) | number |
-| `ideation.agents.claude` | 1 | Ideation Claude 참여 인원수 (0=제외) | number |
-| `discussion.agents.codex` | 1 | Discussion Codex 참여 인원수 (0=제외) | number |
-| `discussion.agents.gemini` | 1 | Discussion Gemini 참여 인원수 (0=제외) | number |
-| `discussion.agents.claude` | 1 | Discussion Claude 참여 인원수 (0=제외) | number |
+| `ideation.agents.codex` | `{ count: 1, tier: "premium" }` | Ideation Codex 참여 설정 (0=제외) | object |
+| `ideation.agents.gemini` | `{ count: 1, tier: "premium" }` | Ideation Gemini 참여 설정 (0=제외) | object |
+| `ideation.agents.claude` | `{ count: 1, tier: "economy" }` | Ideation Claude 참여 설정 (0=제외) | object |
+| `discussion.agents.codex` | `{ count: 1, tier: "premium" }` | Discussion Codex 참여 설정 (0=제외) | object |
+| `discussion.agents.gemini` | `{ count: 1, tier: "premium" }` | Discussion Gemini 참여 설정 (0=제외) | object |
+| `discussion.agents.claude` | `{ count: 1, tier: "economy" }` | Discussion Claude 참여 설정 (0=제외) | object |
 | `notifications.terminal` | 터미널 알림 활성화 | `true` | boolean |
 | `notifications.dashboard` | 대시보드 알림 활성화 | `true` | boolean |
 | `debug.enabled` | 디버그 모드 | `false` | boolean |
 | `debug.log_level` | 로그 레벨 | `info` | string |
 | `debug.log_prompts` | 프롬프트 로깅 | `false` | boolean |
-| `explore.agents.codex` | `1` | Explore Codex 탐색 에이전트 수 (0=제외) | number |
-| `explore.agents.gemini` | `1` | Explore Gemini 탐색 에이전트 수 (0=제외) | number |
-| `explore.agents.claude` | `0` | Explore Claude 탐색 에이전트 수 (0=제외, Claude는 PM 종합자로만 사용) | number |
+| `explore.agents.codex` | `{ count: 1, tier: "premium" }` | Explore Codex 탐색 에이전트 설정 (0=제외) | object |
+| `explore.agents.gemini` | `{ count: 1, tier: "premium" }` | Explore Gemini 탐색 에이전트 설정 (0=제외) | object |
+| `explore.agents.claude` | `{ count: 0 }` | Explore Claude 탐색 에이전트 설정 (0=제외, Claude는 PM 종합자로만 사용) | object |
 
 ### debug.agents
 | 키 | 기본값 | 설명 |
 |---|---|---|
-| `debug.agents.codex` | 1 | Debug 조사에 참여하는 Codex 에이전트 수 (0=제외) |
-| `debug.agents.gemini` | 1 | Debug 조사에 참여하는 Gemini 에이전트 수 (0=제외) |
-| `debug.agents.claude` | 0 | Debug 조사에 참여하는 Claude 에이전트 수 (0=제외) |
+| `debug.agents.codex` | `{ count: 1, tier: "premium" }` | Debug 조사에 참여하는 Codex 에이전트 설정 (0=제외) |
+| `debug.agents.gemini` | `{ count: 1, tier: "premium" }` | Debug 조사에 참여하는 Gemini 에이전트 설정 (0=제외) |
+| `debug.agents.claude` | `{ count: 0 }` | Debug 조사에 참여하는 Claude 에이전트 설정 (0=제외) |
 
 - 총합: 1명 이상 6명 이하
 - 프로바이더별 상한 없음
-- 누락 시 기본값: `codex: 1`, `gemini: 1`, `claude: 0`
+- 누락 시 기본값: `codex: { count: 1, tier: "premium" }`, `gemini: { count: 1, tier: "premium" }`, `claude: { count: 0 }`
+
+### config 마이그레이션
+
+구 포맷(숫자) 설정을 신 포맷(객체)으로 변환:
+```
+python3 scripts/mst.py config migrate          # 변경 미리보기
+python3 scripts/mst.py config migrate --apply   # 실제 적용
+```
 
 ### preset 하위 명령
 
