@@ -49,9 +49,22 @@ mst:feedback 실행 시 아래 정보를 반드시 제공해야 합니다:
 1. `$ARGUMENTS`에서 REQ ID + 피드백 내용 파싱
 2. Feedback Composer 활성화 → 구조화된 피드백 문서 변환 → `tasks/NN/feedback-RN.md` 저장
 3. 실패 유형 분류 및 라우팅:
-   - **구현 오류 → Phase 2 재실행** (아래 외주 재실행 프로토콜 참조)
-   - **스펙 불충분 → Phase 1 보완** (spec.md 보완 후 승인 대기)
-   - **설계 재검토 (PM 판단)**: 아래 3종 failure_class로 분류하기 어렵거나 AC 자체의 설계 방향이 잘못된 경우 PM이 명시적으로 판단하여 `/mst:ideation` 호출 → 스펙 재작성 (예: 아키텍처 변경, 기술 스택 교체, 성능/보안 구조 재설계). 이 분기는 자동 라우팅되지 않으며, 반드시 PM의 명시적 판단에 의해서만 트리거됨.
+
+   **failure_class 3종 판단 기준**:
+   - `ac_unclear` (스펙 불충분): AC 자체가 모호한 경우 → **Phase 1 보완** (spec.md 보완 후 승인 대기)
+     - 판단 예: Given/When/Then 중 하나라도 비어있거나 "빠르게", "충분히"처럼 측정 불가한 표현 포함
+     - 판단 예: PM도 테스트 통과 여부를 판단할 수 없을 때
+   - `interpretation` (구현 오류 - 의도 불일치): 구현 의도 불일치 → **Phase 2 재실행** (아래 외주 재실행 프로토콜 참조)
+     - 판단 예: 코드는 에러 없이 실행되나 AC Then 조건과 다른 동작
+     - 판단 예: "사용자 이름이 표시돼야 함" → "이메일이 표시됨"
+   - `implementation` (구현 오류 - 실행 오류): 실행 오류 → **Phase 2 재실행** (아래 외주 재실행 프로토콜 참조)
+     - 판단 예: 예외(Exception), TypeError, 빌드 실패, tsc 에러 발생
+     - 판단 예: 테스트 코드 실행 시 assertion 실패
+
+   - **설계 재검토 (PM 판단)**: failure_class 3종 중 어느 것도 아닌 경우에만 해당. PM이 명시적으로 판단하여 `/mst:ideation` 호출 → 스펙 재작성. 이 분기는 자동 라우팅되지 않으며, 반드시 PM의 명시적 판단에 의해서만 트리거됨.
+     - 해당 사례: 요구사항 자체가 변경됨 (failure_class 3종으로 분류 불가)
+     - 해당 사례: 동일 태스크 재작업을 반복해도 AC를 충족할 수 없는 구조적 한계
+     - 해당 사례: 기술 스택 변경 또는 아키텍처 전면 재설계가 필요한 경우 (예: 아키텍처 변경, 기술 스택 교체, 성능/보안 구조 재설계)
 4. 피드백 라운드 카운터 증가; 최대 횟수(기본 5회) 초과 시 사용자 개입 요청
 
 ### 외주 재실행 프로토콜 (구현 오류 시)
@@ -61,9 +74,9 @@ mst:feedback 실행 시 아래 정보를 반드시 제공해야 합니다:
 1. spec.md에서 `Assigned Agent` 확인
 2. 수정 프롬프트 구성: spec.md §3 수락 조건 + feedback-RN.md 수정 요청 + §5 테스트 명령
 3. 외주 실행:
-   - codex-dev → `Skill("mst:codex", "--dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase4-fix-RN")`
-   - gemini-dev → `Skill("mst:gemini", "--dir {worktree_path} --files {worktree_path}/**/* --trace ...")`
-   - claude-dev → `Skill("mst:claude", "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase2-fix-R{N}")`
+   - codex-dev → `Skill("mst:codex", "--dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase4-fix-R{N}")`
+   - gemini-dev → `Skill("mst:gemini", "--dir {worktree_path} --files {worktree_path}/**/* --trace {REQ-ID}/{TASK-NUM}/phase4-fix-R{N}")`
+   - claude-dev → `Skill("mst:claude", "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase4-fix-R{N}")`
 4. **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 2 phase2_execution`; 실패 시 fallback으로 `current_phase`=2, `status`=`phase2_execution` 직접 업데이트 → 완료 후 사전 검증 → Phase 3
 5. **외주 재실행 완료 후 Phase 3 복귀**:
    - **자동 실행 경로**: approve 스킬이 활성 상태(approve 루프)인 경우, Phase 3(mst:review)은 approve 루프에서 자동으로 재트리거됨
