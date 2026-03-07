@@ -9,6 +9,35 @@ argument-hint: "{REQ-ID} {피드백 내용}"
 
 사용자가 직접 피드백을 제공하여 Phase 4(피드백 루프)를 트리거합니다.
 
+## 필수 입력 스키마
+
+mst:feedback 실행 시 아래 정보를 반드시 제공해야 합니다:
+
+- `failure_class`: `ac_unclear | interpretation | implementation` 중 하나 (필수)
+  - `ac_unclear`: AC/spec 자체가 모호하거나 불완전한 경우
+  - `interpretation`: 구현 의도와 실제 결과가 불일치한 경우
+  - `implementation`: 올바른 의도로 구현했으나 실행 오류가 발생한 경우
+- `evidence`: AC-ID 매핑 배열 (최소 1개 필수). 각 항목은 아래 필드를 포함해야 함:
+  - `ac_id`: 관련 AC ID (예: `AC-01`). `spec.md`의 AC-ID와 일치해야 함. 불일치 시 경고를 표시하고 PM이 확인하도록 안내함 (차단은 아님). `ac_id`가 누락된 경우 경고를 표시하며 차단 여부는 PM이 판단함.
+  - `type`: `log | screenshot | metric | manual`
+  - `ref`: 증거 경로 또는 설명
+  - `summary`: 실패 내용 요약
+- `next_action`: 재작업 지시 내용 (구현 방법을 지시하지 않고, 어느 AC/기준을 복구해야 하는지만 명시)
+
+**스키마 검증 규칙 (차단):**
+- `failure_class`가 제공되지 않았거나 허용값(`ac_unclear | interpretation | implementation`) 외의 값이면 → 오류를 반환하고 피드백 저장 및 전파를 차단함
+- `evidence` 배열이 비어 있거나 제공되지 않았으면 → "evidence가 없으면 판정 불가" 오류를 반환하고 차단함
+
+## 실패 분류별 자동 라우팅
+
+`failure_class` 값에 따라 아래 라우팅을 자동으로 수행합니다:
+
+| failure_class | 라우팅 동작 |
+|---|---|
+| `ac_unclear` | AC/spec 자체가 모호함 → **PM이 spec 재정의 태스크를 생성**하여 AC를 명확화한다. Dev Agent 재작업 지시 전에 spec을 먼저 수정함. |
+| `interpretation` | 구현 의도 불일치 → **Dev Agent 재작업 지시**. 의도 보강 설명(어느 AC를 충족해야 하는지)을 포함하여 외주를 실행함. |
+| `implementation` | 실행 오류 → **Dev Agent 버그 수정 지시**. 실패 로그(`evidence`)를 첨부하여 외주를 실행함. |
+
 ## 실행 프로토콜
 
 > **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
