@@ -190,6 +190,25 @@ mcp__stitch__edit_screens(...)                     ← 사용 금지
 
 ---
 
+<skill_authoring_rules>
+
+## 사용자 입력 규칙
+
+스킬에서 사용자에게 입력을 요청할 때는 반드시 `AskUserQuestion` 도구를 사용합니다.
+
+- **평문 텍스트 출력 후 입력 대기 방식은 사용 금지**: 코드블록이나 일반 텍스트 끝에
+  "입력하세요:", "선택하세요:" 등으로 입력을 기다리는 방식은 구조화된 선택지를 제공하지 않음
+- **Other 자유 입력 자동 보장**: `AskUserQuestion`은 시스템 수준에서 "Other" 자유 입력을
+  자동으로 추가하므로, options 필드에 선택지가 있어도 자유 텍스트 입력이 항상 가능
+- **동적 목록 옵션 구성**: REQ 목록, 화면 목록 등 동적으로 결정되는 옵션은
+  최대 3개 항목 + 공통 옵션(전체 선택 등) 구조 사용, 나머지는 Other 자유 입력 유도
+- **options 필드 필수**: `AskUserQuestion` 호출 시 options 배열에 반드시 2개 이상의
+  구체적 선택지를 포함 (Other는 자동 추가이므로 별도 작성 불필요)
+
+</skill_authoring_rules>
+
+---
+
 <workflow_phases>
 
 ## 워크플로우 Phase
