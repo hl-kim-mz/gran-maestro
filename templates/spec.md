@@ -15,21 +15,26 @@ Step 0: config 기본값 확인
 Step 1: agent_assignments 읽기
   config.resolved.json의 `agent_assignments`를 Read한다.
   구조: { "에이전트명": ["도메인1", "도메인2", ...], ... }
-  (예: { "codex-dev": ["backend", "skill", "test", "infra"], "claude-dev": ["docs", "config"], "gemini-dev": ["frontend", "ui"] })
 
 Step 2: 도메인 추론
   태스크 설명(§1 요약, §2 변경 범위, §4 기술 설계)을 읽어
   어떤 에이전트의 도메인 목록과 가장 잘 맞는지 LLM이 판단한다.
-  파일 목록이 있으면 추론의 힌트로 함께 활용한다 (하위 호환).
+  파일 목록이 있으면 추론 힌트로 활용한다. 충돌 시 태스크 설명 기반 추론이 우선이다 (하위 호환).
   추론 예시:
     "API 엔드포인트 추가" → backend → codex-dev
-    "버튼 컴포넌트 수정" → frontend → gemini-dev
+    "버튼 컴포넌트 수정" → ui → gemini-dev       (개별 컴포넌트)
+    "페이지 라우팅 추가" → frontend → gemini-dev  (페이지/라우팅 레벨)
+    "CI/CD 설정 변경" → infra → codex-dev
     "SKILL.md 로직 업데이트" → skill → codex-dev
     "README 업데이트" → docs → claude-dev
     "config.json 필드 추가" → config → claude-dev
+  도메인 참고:
+    frontend: 페이지, 라우팅, 앱 수준 레이아웃
+    ui: 개별 컴포넌트, 버튼, 입력 필드 등
 
 Step 3: 에이전트 확정
   매칭된 에이전트 확정. 매칭 불가 시 DEFAULT_AGENT 사용 (fallback).
+  approve 스킬은 `최종:` 이후 에이전트명을 사용합니다.
 
 ⚠️ 컨텍스트 보유를 이유로 한 claude-dev 선택은 유효하지 않다.
    외주 에이전트는 worktree를 직접 탐색하므로 컨텍스트 보유는 이점이 아님.
