@@ -51,7 +51,7 @@ mst:feedback 실행 시 아래 정보를 반드시 제공해야 합니다:
 3. 실패 유형 분류 및 라우팅:
    - **구현 오류 → Phase 2 재실행** (아래 외주 재실행 프로토콜 참조)
    - **스펙 불충분 → Phase 1 보완** (spec.md 보완 후 승인 대기)
-   - **설계 재검토 (LLM 판단)**: 근본적 설계 방향 전환 시사 시 `/mst:ideation` 호출 → 스펙 재작성 (예: 아키텍처 변경, 기술 스택 교체, 성능/보안 구조 재설계)
+   - **설계 재검토 (PM 판단)**: 아래 3종 failure_class로 분류하기 어렵거나 AC 자체의 설계 방향이 잘못된 경우 PM이 명시적으로 판단하여 `/mst:ideation` 호출 → 스펙 재작성 (예: 아키텍처 변경, 기술 스택 교체, 성능/보안 구조 재설계). 이 분기는 자동 라우팅되지 않으며, 반드시 PM의 명시적 판단에 의해서만 트리거됨.
 4. 피드백 라운드 카운터 증가; 최대 횟수(기본 5회) 초과 시 사용자 개입 요청
 
 ### 외주 재실행 프로토콜 (구현 오류 시)
@@ -60,8 +60,14 @@ mst:feedback 실행 시 아래 정보를 반드시 제공해야 합니다:
 
 1. spec.md에서 `Assigned Agent` 확인
 2. 수정 프롬프트 구성: spec.md §3 수락 조건 + feedback-RN.md 수정 요청 + §5 테스트 명령
-3. 외주 실행: codex-dev → `Skill("mst:codex", "--dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase4-fix-RN")`; gemini-dev → `Skill("mst:gemini", "--dir {worktree_path} --files {worktree_path}/**/* --trace ...")`
+3. 외주 실행:
+   - codex-dev → `Skill("mst:codex", "--dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase4-fix-RN")`
+   - gemini-dev → `Skill("mst:gemini", "--dir {worktree_path} --files {worktree_path}/**/* --trace ...")`
+   - claude-dev → `Skill("mst:claude", "--prompt-file {prompt_path} --dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase2-fix-R{N}")`
 4. **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 2 phase2_execution`; 실패 시 fallback으로 `current_phase`=2, `status`=`phase2_execution` 직접 업데이트 → 완료 후 사전 검증 → Phase 3
+5. **외주 재실행 완료 후 Phase 3 복귀**:
+   - **자동 실행 경로**: approve 스킬이 활성 상태(approve 루프)인 경우, Phase 3(mst:review)은 approve 루프에서 자동으로 재트리거됨
+   - **수동 실행 경로**: feedback이 독립 호출된 경우, 재작업 완료 후 `/mst:approve REQ-NNN`을 수동으로 호출해 Phase 3을 재시작해야 함
 
 ## 문제 해결
 
