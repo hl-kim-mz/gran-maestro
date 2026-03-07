@@ -390,21 +390,15 @@ Wave 3: {...}
 
 #### Step 3: 실행 에이전트 결정
 
-spec.md의 `Assigned Agent` 필드와 `§8 에이전트 팀 구성`을 읽어 에이전트를 결정합니다. `agents.json`의 capabilities 기준:
+spec.md의 `Assigned Agent` 필드(§8 에이전트 팀 구성)를 읽어 에이전트를 결정합니다.
+`Assigned Agent` 값은 request 스킬이 config의 `agent_assignments`와 태스크 설명을 기반으로
+도메인 추론을 거쳐 결정한 결과입니다. (`agent_assignments` 구조: `{ "에이전트명": ["도메인1", ...] }`)
 
-| 태스크 유형 | 에이전트 | capabilities |
-|------------|---------|-------------|
-| 백엔드, 리팩토링, 테스트 | `codex-dev` → `/mst:codex` | code, refactor, test |
-| **신규 `.ts` 파일 생성, 단순 리팩토링·보일러플레이트, 독립 테스트 작성, 소규모 `.ts` 인라인 수정** | **`codex-dev` → `/mst:codex`** | **code, refactor, test** |
-| **프론트엔드, 문서, 대용량 컨텍스트** | **`gemini-dev` → `/mst:gemini`** | **frontend, docs, large-context** |
-| **`.md` 문서, `.json`/`.env` config, `*.config.ts`, 기존 `.ts` 인라인 수정(신규 `.ts` 생성 없음)** | **`claude-dev` → `/mst:claude`** | **code, docs, config, small-inline** |
+spec.md에 에이전트가 지정되어 있으면 그대로 사용. 미지정 시 `config.resolved.json`의 `workflow.default_agent` 사용.
 
-> **경계 케이스 기본값**: 태스크 유형이 모호한 경우 → `config.resolved.json`의 `workflow.default_agent` 값 사용 (`claude-dev` 하드코딩 금지).
 > **CLI guard**: Phase 2 진입 전 Codex CLI 설치 확인 필요. `codex-dev` 배정 시 `codex` 명령어 사용 가능 여부를 사전 확인할 것.
 
 `claude`와 `claude-dev`는 동일하게 처리됩니다 (하위 호환).
-
-spec.md에 에이전트가 지정되어 있으면 그대로 사용. 미지정 시 `config.resolved.json`의 `workflow.default_agent` 사용.
 
 **`Assigned Agent: claude`/`claude-dev`인 경우**: Step 4 외주 디스패치를 통해 `/mst:claude` 서브에이전트에게 위임. PM은 직접 구현하지 않습니다.
 
