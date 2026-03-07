@@ -363,5 +363,10 @@
     "review": false,
     "confidence_threshold": 0.7,
     "max_review_iterations": 3
+  },
+  "agent_assignments": {
+    "codex-dev": ["backend", "skill", "test", "infra"],
+    "claude-dev": ["docs", "config"],
+    "gemini-dev": ["frontend", "ui"]
   }
 }
