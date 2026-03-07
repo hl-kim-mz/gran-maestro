@@ -58,6 +58,7 @@ Maestro 모드 비활성 시 자동 활성화:
 > 이 단계 없이 spec.md 작성 금지.
 
 Read(`{PROJECT_ROOT}/.gran-maestro/config.resolved.json`) → `workflow.default_agent` 추출 → DEFAULT_AGENT 변수 보관.
+파일이 없으면 `templates/defaults/config.json`에서 `workflow.default_agent`와 `agent_assignments`를 Read하여 DEFAULT_AGENT 및 도메인 추론 기준으로 사용한다.
 
 이후 모든 spec.md의 Assigned Agent 필드는 반드시
 `[config: {DEFAULT_AGENT}] → ...` 형식으로 DEFAULT_AGENT를 명시해야 한다.
@@ -207,7 +208,7 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         반드시 `Skill(skill: "mst:stitch", args: "--req REQ-NNN {요청 내용}")` 스킬을 통해서만 호출합니다.
         → Stitch 완료 후 spec.md 작성 계속
       - 그 외(새 화면 추가/약한 신호): approve Phase 2.5에서 제안, 이 단계 skip
-   h-0.5. **Assigned Agent 기본값 보관**: spec.md 작성 직전, `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `workflow.default_agent` 값을 읽어 Assigned Agent 필드의 기본값으로 설정한다. `templates/spec.md`의 Decision Tree(0~3단계)는 이 기본값의 override 조건으로만 동작한다. config 미참조 시 `claude-dev` 자동 선택은 금지.
+   h-0.5. **Assigned Agent 기본값 보관**: spec.md 작성 직전, `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `workflow.default_agent` 값을 읽어 Assigned Agent 필드의 기본값으로 설정한다. `templates/spec.md`의 Decision Tree(0~3단계)는 이 기본값의 override 조건으로만 동작한다. config 미참조 시 `claude-dev` 자동 선택은 금지. `config.resolved.json`이 없으면 `templates/defaults/config.json`의 `agent_assignments`를 fallback으로 Read한다. 이때 `workflow.default_agent`도 `templates/defaults/config.json`에서 함께 Read하여 DEFAULT_AGENT로 사용한다.
    h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용); `--plan` 없으면 `## 가정 사항` 섹션 포함
    h-1. **다중 태스크 분해 처리** (plan 기반 우선, 없으면 PM 자율 판단):
       - [--plan]: `## 태스크 분해` 섹션 파싱 → 2개 이상 시 동일 절차 (아래 스텝 0~2 수행)
