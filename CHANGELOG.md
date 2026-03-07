@@ -4,6 +4,33 @@
 
 ---
 
+## [0.50.0] — 2026-03-08
+
+### 새 기능
+
+- **Pass A/B 2패스 리뷰 구조**: `review` → `approve` → `feedback` 스킬 전반에 걸쳐 Pass A(MUST AC 검증)와 Pass B(코드·아키텍처·UI 품질) 이중 검증 체계 도입. `pass-a-result.md` 스키마로 결과 공유
+- **자율 실행 모드 (`-a` / `--auto` 플래그)**: 사용자 개입 없이 approve 루프를 끝까지 자동 실행하는 AUTO_MODE 지원
+- **에이전트 배정 도메인 추론**: 파일 타입 표 대신 `agent_assignments` 도메인 추론 방식으로 에이전트 자동 배정. `config.json`에 기본값 추가
+- **`request set-phase` 커맨드**: CLI에서 요청의 Phase를 직접 전환하는 서브커맨드 추가
+- **설정 UI Dropdown**: 설정 항목에 선택값 제한(Select/Dropdown) 위젯 지원 추가
+- **대시보드 Settings Accordion**: 설정 UI를 아코디언 패널로 재구성, 전체 프로젝트 일괄 적용 버튼 추가
+
+### 개선
+
+- **스킬 AC 형식 강화**: `spec.md` 인수 기준(AC)에 Lite/Standard/High-Risk 분기 및 Test Scenarios 섹션 추가. `plan.md`에 AC 초안 섹션 추가
+- **`failure_class` 기반 자동 라우팅**: `feedback` 스킬에서 실패 유형(`failure_class` + `evidence`)을 기반으로 설계 재검토 vs. 재구현 분기 자동화
+- **`pass_a_failed` 처리 단일화**: approve 루프 내 Pass A 실패 태스크 선별 및 재진입 로직 통일
+- **Stitch·Recover 스킬 UX**: 항상 `AskUserQuestion` 옵션을 제공하도록 개선
+- **Gemini CLI `--dir` 옵션**: 워크트리 디렉토리 전환 지원으로 멀티-리포 환경 호환성 향상
+- **README What's New**: Extension Pick→Plan 흐름 신규 섹션 추가
+
+### 버그 수정
+
+- **Custom 배지 미표시**: `count=0` 에이전트 설정 시 tier 기본값 누락으로 Custom 배지가 표시되지 않던 문제 수정
+- **Stitch HTML 미추출**: 비동기 응답 시 HTML이 추출되지 않던 버그 수정
+
+---
+
 ## [0.49.1] — 2026-03-06
 
 ### 개선
