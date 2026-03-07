@@ -146,6 +146,9 @@ ui-reviewer (bg):     UI 설계 검토 (조건부)            ─┘
   | AC-2 | ❌ FAIL | ... |
   ```
 
+**MUST AC 실패 감지 트리거**: AC 검증 완료 후, 판정=FAIL이고 등급=[MUST]인 항목이 1개 이상이면
+→ **Step 5(e) Pass A 실패 분기로 즉시 진입**. SHOULD AC 실패는 경고만 기록하며 Pass B 진입 허용.
+
 #### Background 에이전트 dispatch
 
 background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니다 (approve SKILL.md Step 4d 완료 감지 패턴 동일 적용).
@@ -286,17 +289,41 @@ AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 5개 분기로 
   - `[현재 상태로 수락]`: Phase 5 진행. `review.json.status = "passed"` (강제 수락).
   - `[중단]`: 워크플로우 중단.
 
-#### (e) Pass A MUST AC 실패
+#### (e) Pass A 실패 (MUST AC 실패 감지)
 
-Pass A(필수 인수락 조건) 검증에서 MUST 등급 AC가 1건 이상 실패한 경우.
+Step 3 AC 검증에서 MUST 등급 AC가 1개 이상 FAIL 판정된 경우 진입합니다.
 
-- `review.json.status = "pass_a_failed"` 기록.
-- `request.json.review_summary = { "iteration": N, "status": "pass_a_failed" }` 업데이트.
-- `pass-a-result.md`는 `reviews/RV-NNN/pass-a-result.md`에 저장 (이후 approve가 참조).
-- review는 `mst:feedback`을 직접 호출하지 않고 **종료**합니다.
-- approve가 이 상태를 수신하면 해당 태스크를 re-outsource 트리거합니다.
+1. `review.json.status = "pass_a_failed"` 기록.
+2. `request.json.review_summary = { "iteration": N, "status": "pass_a_failed" }` 업데이트.
+3. **pass-a-result.md 저장**: `reviews/RV-NNN/pass-a-result.md`에 아래 스키마로 저장.
+4. review는 `mst:feedback`을 직접 호출하지 않고 **종료**합니다.
+5. approve에 `pass_a_failed` 상태 반환 → approve가 재외주 대상 태스크를 선별하여 Phase 2 재실행.
 
-> **안내 (approve 처리)**: approve가 `review.json.status = "pass_a_failed"`를 읽으면, PM에게 피드백을 요청하거나 해당 태스크를 재외주(re-outsource)하는 루프를 트리거합니다. approve/SKILL.md Phase 3 결과 처리 섹션에서 `pass_a_failed` 분기를 참조하세요.
+##### pass-a-result.md 스키마
+
+저장 경로: `reviews/RV-NNN/pass-a-result.md`
+
+```yaml
+pass_a_result: fail
+failed_ac_ids:
+  - AC-XX
+  - AC-YY
+failure_class: ac_unclear | interpretation | implementation
+evidence:
+  - ac_id: AC-XX
+    type: log | screenshot | metric | manual
+    ref: "실패 증거 경로 또는 설명"
+    summary: "실패 내용 요약"
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `pass_a_result` | string | 항상 `"fail"` (Pass A 실패를 나타냄). |
+| `failed_ac_ids` | string[] | FAIL 판정된 MUST 등급 AC ID 목록. |
+| `failure_class` | string | 실패 원인 분류: `ac_unclear`(AC 기준 불명확) \| `interpretation`(해석 차이) \| `implementation`(구현 누락/오류). |
+| `evidence` | array | 각 실패 AC의 증거 목록. 각 항목: `{ ac_id, type, ref, summary }`. |
+
+approve는 이 파일에서 `failed_ac_ids`와 `failure_class`를 파싱하여 재외주 대상 태스크를 선별한다.
 
 ## 수동 호출 모드 (/mst:review REQ-NNN)
 
