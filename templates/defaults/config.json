@@ -356,5 +356,12 @@
         "tier": "premium"
       }
     }
+  },
+  "auto_mode": {
+    "plan": false,
+    "request": false,
+    "review": false,
+    "confidence_threshold": 0.7,
+    "max_review_iterations": 3
   }
 }

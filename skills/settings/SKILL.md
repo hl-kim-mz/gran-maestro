@@ -68,6 +68,11 @@ argument-hint: "[{key} [{value}] | preset {list|apply|diff|save|wizard} [id]]"
 | `explore.agents.codex` | `{ count: 1, tier: "premium" }` | Explore Codex 탐색 에이전트 설정 (0=제외) | object |
 | `explore.agents.gemini` | `{ count: 1, tier: "premium" }` | Explore Gemini 탐색 에이전트 설정 (0=제외) | object |
 | `explore.agents.claude` | `{ count: 0 }` | Explore Claude 탐색 에이전트 설정 (0=제외, Claude는 PM 종합자로만 사용) | object |
+| `auto_mode.plan` | `/mst:plan` Q&A 단계 자율 실행 (config 레벨 -a 활성화) | `false` | boolean |
+| `auto_mode.request` | `/mst:request` 스펙 승인 자동 실행 (config 레벨 -a 활성화) | `false` | boolean |
+| `auto_mode.review` | `/mst:review` fix 루프 자율 실행 (config 레벨 --auto 활성화) | `false` | boolean |
+| `auto_mode.confidence_threshold` | PM 자율 판단 vs discussion 실행 경계값 (0.0~1.0) | `0.7` | number |
+| `auto_mode.max_review_iterations` | 자율 review fix 루프 최대 반복 횟수 | `3` | number |
 
 ### debug.agents
 | 키 | 기본값 | 설명 |
@@ -134,6 +139,11 @@ python3 scripts/mst.py config migrate --apply   # 실제 적용
 /mst:settings workflow.auto_accept_result false       # 최종 수락 수동 모드로 전환
 /mst:settings workflow.auto_approve_on_unblock true  # 의존 체인 자동 실행 활성화
 /mst:settings workflow.default_agent gemini-dev       # 기본 에이전트를 Gemini로 변경
+/mst:settings auto_mode.plan true           # 플랜 Q&A 자율 실행 활성화
+/mst:settings auto_mode.request true        # 스펙 승인 자동 실행 활성화
+/mst:settings auto_mode.review true         # 리뷰 fix 루프 자율 실행 활성화
+/mst:settings auto_mode.confidence_threshold 0.8  # PM 판단 신뢰도 임계값 상향
+/mst:settings auto_mode.max_review_iterations 5   # 최대 리뷰 반복 5회로 변경
 /mst:settings preset list                            # 프리셋 목록
 /mst:settings preset apply full-performance          # 프리셋 적용
 /mst:settings preset diff codex-only-budget          # 변경 미리보기

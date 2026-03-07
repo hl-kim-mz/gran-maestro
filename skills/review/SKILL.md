@@ -49,8 +49,17 @@ argument-hint: "[REQ-ID] [--auto]"
 1. **AC 목록 수집**: 모든 `tasks/NN/spec.md` Read → `## 3. 수락 조건` 섹션에서 AC 항목 추출.
 2. **변경 파일 목록 수집**: `git log --name-only` 또는 `git diff <base>..HEAD --name-only` 기반으로 REQ 관련 변경 파일 목록 작성.
 3. **AC별 파일 매핑 준비**: 각 AC 항목과 관련 변경 파일 연결.
-4. **config 로드**: `config.resolved.json`에서 `review.roles.*` 에이전트 키, `review.max_iterations` 값 확인.
-   - `review.max_iterations` 키 경로: `config.review.max_iterations` (T02에서 config에 추가됨. 미정의 시 기본값 3 사용).
+4. **config 로드**: `config.resolved.json`에서 아래 값을 확인.
+   - `review.roles.*` 에이전트 키
+   - `review.max_iterations` 키 경로: `config.review.max_iterations` (미정의 시 기본값 3 사용)
+   - `auto_mode.review` 키 경로: `config.auto_mode.review` (true이면 `AUTO_MODE=true`, `--auto` 플래그와 동일 동작)
+   - `auto_mode.max_review_iterations` 키 경로: `config.auto_mode.max_review_iterations`
+     - `AUTO_MODE=true` 이고 값이 설정되어 있으며 `> 0`이면 `max_iterations`를 이 값으로 override
+     - `0` 이하이면 무시하고 `config.review.max_iterations` 값을 사용
+   - 우선순위:
+     - `AUTO_MODE`: CLI `--auto` 플래그 > `config.auto_mode.review` > 기본값(false)
+     - `max_iterations`: (`AUTO_MODE=true`일 때) `config.auto_mode.max_review_iterations` > `config.review.max_iterations` > 기본값(3)
+   - 이후 문서의 "**`--auto` 모드**" 분기는 `AUTO_MODE=true`일 때 동일하게 적용.
 
 ### Step 3: 병렬 실행 시작
 

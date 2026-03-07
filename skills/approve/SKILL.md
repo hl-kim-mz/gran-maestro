@@ -2,7 +2,7 @@
 name: approve
 description: "스펙을 승인하고 실행을 시작합니다. 사용자가 '승인', '진행해', 'OK 진행'을 말하거나 /mst:approve를 호출할 때 사용. Gran Maestro 워크플로우 내에서만 의미 있으며, 일반적인 확인 응답에는 사용하지 않음."
 user-invocable: true
-argument-hint: "[REQ-ID...] [--stop-on-fail | --continue] [--parallel] [--priority <level>]"
+argument-hint: "[REQ-ID...] [--auto] [--stop-on-fail | --continue] [--parallel] [--priority <level>]"
 ---
 
 # maestro:approve
@@ -129,6 +129,10 @@ PM이 작성한 구현 스펙을 승인하고 Phase 2 실행을 시작합니다.
 
 ### 단건 승인 프로토콜
 
+**AUTO_MODE 초기화** (단건 프로토콜 진입 즉시):
+`AUTO_MODE = ($ARGUMENTS에 --auto 포함) OR (request.json.auto_approve == true)`
+이후 모든 Step에서 이 변수를 사용한다.
+
 REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토콜을 실행합니다.
 
 1. `{PROJECT_ROOT}/.gran-maestro/requests/{REQ-ID}/tasks/` 하위 spec.md 확인
@@ -136,6 +140,7 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
 2. 스펙 요약을 사용자에게 표시
 2.3. **체인 자동 실행 제안** (조건: `dependencies.blocks` 비어있지 않음 AND `workflow.auto_approve_on_unblock == false`):
   - 조건 미충족 시 이 단계 skip, Step 2.5로 진행
+  - `AUTO_MODE=true` 또는 `request.json.auto_approve=true`이면 AskUserQuestion 없이 기본값("아니오, 각 단계마다 수동 approve") 적용 후 즉시 Step 2.5로 진행 (현재 요청만 진행, 설정 변경 없음) (* auto_approve_on_unblock=false 전제, config 변경 없음)
   - 조건 충족 시 blocks 체인 시각화:
     ```
     이 REQ가 완료되면 아래 REQ들이 순서대로 실행 가능해집니다:
@@ -658,14 +663,16 @@ Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_pat
 모든 태스크가 `committed` 상태에 도달하고 `current_phase`가 3으로 전환된 후:
 
 1. `review.auto_review` 설정 확인 (`{PROJECT_ROOT}/.gran-maestro/config.resolved.json` 읽기):
+   - `request.json.auto_approve` 값도 함께 확인하여 `AUTO_MODE = (CLI --auto 전달) OR (request.json.auto_approve == true)`로 판단
    - `false` (기본): 기존 Phase 3 → Phase 5 흐름 유지 (mst:review 미호출), "최종 수락" 섹션으로 직행
-   - `true` 또는 `--auto` 모드: mst:review 호출 진행
+   - `true` 또는 `AUTO_MODE=true`이면 mst:review 호출 진행
 
 2. mst:review 호출:
    ```
-   Skill(skill: "mst:review", args: "{REQ_ID}")
+   AUTO_MODE=true  -> Skill(skill: "mst:review", args: "{REQ_ID} --auto")
+   AUTO_MODE=false -> Skill(skill: "mst:review", args: "{REQ_ID}")
    ```
-   (`--auto` 모드에서는 `review.auto_review=false`이더라도 항상 호출)
+   (`AUTO_MODE=true`에서는 `review.auto_review=false`이더라도 항상 호출)
 
 3. review 결과 처리:
 
