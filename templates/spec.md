@@ -4,34 +4,35 @@
 - Task ID: {TASK_ID}
 - Created: {DATE}
 - Status: pending | queued | executing | pre_check | pre_check_failed | review | feedback | merging | merge_conflict | done | failed | cancelled
-- Assigned Agent: [config: {DEFAULT_AGENT}] → [파일유형: {.ts/.tsx/.md 등}] → 최종: {에이전트}
+- Assigned Agent: [config: {DEFAULT_AGENT}] → [도메인: {추론된 도메인}] → 최종: {에이전트}
 - Assigned Team: {에이전트 팀 구성 설명}
 
-<!-- Decision Tree — 에이전트 선택 플로우
-확정형 IF-THEN: 각 Q에서 YES면 해당 에이전트로 확정(이하 건너뜀), NO면 다음 Q로 진행.
-
+<!-- Agent Assignment — 도메인 추론 방식
 Step 0: config 기본값 확인
-  Assigned Agent 필드는 "[config: {DEFAULT_AGENT}]"로 시작한다.
-  config.json `workflow.default_agent`를 Read해 DEFAULT_AGENT를 취득한다.
+  config.resolved.json의 `workflow.default_agent`를 Read해 DEFAULT_AGENT를 취득한다.
   이 단계 없이 에이전트를 결정하는 것은 에러다.
 
-Q1: .tsx 또는 .jsx 파일이 1개라도 있는가?
-  YES → gemini-dev ✅ (확정, Q2·Q3 건너뜀)
-  NO  → Q2
+Step 1: agent_assignments 읽기
+  config.resolved.json의 `agent_assignments`를 Read한다.
+  구조: { "에이전트명": ["도메인1", "도메인2", ...], ... }
+  (예: { "codex-dev": ["backend", "skill", "test", "infra"], "claude-dev": ["docs", "config"], "gemini-dev": ["frontend", "ui"] })
 
-Q2: .ts / .py / .js / .go / .sh 등 코드 파일이 있거나,
-     신규 코드 파일 생성이 포함되는가?
-  YES → codex-dev ✅ (확정, Q3 건너뜀)
-  NO  → Q3
+Step 2: 도메인 추론
+  태스크 설명(§1 요약, §2 변경 범위, §4 기술 설계)을 읽어
+  어떤 에이전트의 도메인 목록과 가장 잘 맞는지 LLM이 판단한다.
+  파일 목록이 있으면 추론의 힌트로 함께 활용한다 (하위 호환).
+  추론 예시:
+    "API 엔드포인트 추가" → backend → codex-dev
+    "버튼 컴포넌트 수정" → frontend → gemini-dev
+    "SKILL.md 로직 업데이트" → skill → codex-dev
+    "README 업데이트" → docs → claude-dev
+    "config.json 필드 추가" → config → claude-dev
 
-Q3: .md / .json / .yaml / .env 등 문서·설정 파일만인가?
-  YES → claude-dev ✅ (확정)
+Step 3: 에이전트 확정
+  매칭된 에이전트 확정. 매칭 불가 시 DEFAULT_AGENT 사용 (fallback).
 
-혼재(코드+문서 파일): Q1→Q2 순서의 확정 에이전트 사용.
-문서 파일은 같은 태스크에 포함 가능, 에이전트 변경 없음.
-
-⚠️  컨텍스트 보유를 이유로 한 claude-dev 선택은 유효하지 않다.
-    외주 에이전트는 worktree를 직접 탐색하므로 컨텍스트 보유는 이점이 아님.
+⚠️ 컨텍스트 보유를 이유로 한 claude-dev 선택은 유효하지 않다.
+   외주 에이전트는 worktree를 직접 탐색하므로 컨텍스트 보유는 이점이 아님.
 -->
 - Worktree: {PROJECT_ROOT}/.gran-maestro/worktrees/{TASK_ID}
 
