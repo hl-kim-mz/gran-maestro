@@ -161,7 +161,7 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
      → "건너뛰기" 또는 UI 미감지: 3으로 진행
    - `auto_approve=true` 또는 배치 모드: skip
 3. 승인 실행:
-   - `request.json`의 `current_phase`를 2로, `status`를 `phase2_execution`으로 변경
+   - **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 2 phase2_execution`; 실패 시 fallback으로 `request.json`의 `current_phase`=2, `status`=`phase2_execution` 직접 업데이트
    - 각 태스크에 대해 git worktree 생성
    - **Phase 2 (외주 실행) 프로토콜** 실행
 
@@ -656,7 +656,7 @@ Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_pat
 
 #### Step 6: Phase 3 전환
 
-모든 태스크가 `review` 이상 상태에 도달하면 `current_phase`를 `3`으로 변경 → Phase 3 (PM 리뷰) 진입
+모든 태스크가 `review` 이상 상태에 도달하면 **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 3 phase3_review`; 실패 시 fallback으로 `current_phase`=3, `status`=`phase3_review` 직접 업데이트 → Phase 3 (PM 리뷰) 진입
 
 ### Phase 3 리뷰 루프 (auto_review 활성화 시)
 

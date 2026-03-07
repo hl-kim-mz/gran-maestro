@@ -32,7 +32,7 @@ argument-hint: "{REQ-ID} {피드백 내용}"
 1. spec.md에서 `Assigned Agent` 확인
 2. 수정 프롬프트 구성: spec.md §3 수락 조건 + feedback-RN.md 수정 요청 + §5 테스트 명령
 3. 외주 실행: codex-dev → `Skill("mst:codex", "--dir {worktree_path} --trace {REQ-ID}/{TASK-NUM}/phase4-fix-RN")`; gemini-dev → `Skill("mst:gemini", "--dir {worktree_path} --files {worktree_path}/**/* --trace ...")`
-4. `current_phase=2`, `status="phase2_execution"` 업데이트 → 완료 후 사전 검증 → Phase 3
+4. **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 2 phase2_execution`; 실패 시 fallback으로 `current_phase`=2, `status`=`phase2_execution` 직접 업데이트 → 완료 후 사전 검증 → Phase 3
 
 ## 문제 해결
 

@@ -108,5 +108,17 @@ def set_field(base_dir: Path, id: str, field: str, value: str) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def set_phase(base_dir: Path, id: str, phase: int, status: str) -> None:
+    """JSON 파일의 current_phase, status, updated_at을 원자적으로 갱신."""
+    path = _find_json_file(base_dir, id)
+    if not path:
+        raise FileNotFoundError(f"JSON not found for ID: {id}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["current_phase"] = phase
+    data["status"] = status
+    data["updated_at"] = timestamp_now()
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 if __name__ == "__main__":
     raise SystemExit("직접 실행 금지. python3 scripts/mst.py를 통해 호출하세요.")

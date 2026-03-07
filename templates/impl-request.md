@@ -4,7 +4,7 @@
 - Worktree: {{WORKTREE_PATH}}
 - Spec: {{SPEC_PATH}}
 
-## 구현 컨텍스트 (PM 작성 — 3~5줄 자유 형식)
+## 구현 컨텍스트 (PM 작성)
 
 {{IMPL_CONTEXT}}
 

@@ -310,6 +310,14 @@ def cmd_set_field(args):
     return 0
 
 
+def cmd_request_set_phase(args):
+    """REQ의 current_phase와 status를 원자적으로 변경."""
+    from _state_manager import set_phase
+    set_phase(BASE_DIR, args.req_id, args.phase, args.status)
+    print(f"{args.req_id}: phase={args.phase}, status={args.status}")
+    return 0
+
+
 def cmd_plan_list(args):
     rows = []
     for pln_id, path, data in iter_plan_dirs():
@@ -2314,6 +2322,11 @@ def build_parser():
     req_cancel = req_sub.add_parser("cancel")
     req_cancel.add_argument("req_id")
 
+    req_set_phase = req_sub.add_parser("set-phase")
+    req_set_phase.add_argument("req_id")
+    req_set_phase.add_argument("phase", type=int)
+    req_set_phase.add_argument("status")
+
     # --- timestamp ---
     ts = sub.add_parser("timestamp")
     ts_sub = ts.add_subparsers(dest="subcommand")
@@ -2542,6 +2555,7 @@ def main():
         ("request", "filter"): cmd_request_filter,
         ("request", "count"): cmd_request_count,
         ("request", "cancel"): cmd_request_cancel,
+        ("request", "set-phase"): cmd_request_set_phase,
         ("timestamp", "now"): cmd_timestamp,
         ("set-status", None): cmd_set_status,
         ("set-field", None): cmd_set_field,
