@@ -379,6 +379,12 @@ Phase 2에서 Claude(PM)는 **절대 코드를 직접 작성하지 않습니다*
 
 #### Step 1: 전체 태스크 스펙 일괄 검증 (외주 전 필수)
 
+#### Step 2.7: Preflight — spec.md Read 검증
+
+각 태스크의 spec.md를 Read하기 전 경로 유효성을 확인합니다:
+- spec.md Read 실패 시: `"spec.md 읽기 실패 (경로: {spec_path}) — 워크트리 구조 확인 필요"` 오류를 반환하고 해당 태스크의 구현 착수를 차단합니다.
+- Read 성공 후 아래 일괄 검증을 진행합니다.
+
 모든 태스크의 spec.md를 일괄 검증합니다. 다음 항목이 명확한지 확인, 부족하면 보완:
 - **수락 조건** (§3): AC가 pass/fail로 측정 가능한지
 - **테스트 계획** (§5): 실행 명령어와 항목이 구체적인지
@@ -682,7 +688,7 @@ Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_pat
 모든 태스크가 `committed` 상태에 도달하고 `current_phase`가 3으로 전환된 후:
 
 1. `review.auto_review` 설정 확인 (`{PROJECT_ROOT}/.gran-maestro/config.resolved.json` 읽기):
-   - `request.json.auto_approve` 값도 함께 확인하여 `AUTO_MODE = (CLI --auto 전달) OR (request.json.auto_approve == true)`로 판단
+   - `AUTO_MODE`는 단건 프로토콜 진입 시 단일 초기화된 값을 그대로 사용한다 (이중 판단 금지).
    - `false` (기본): 아래 태스크 상태 검증 후 "최종 수락" 섹션으로 직행 (mst:review 미호출):
      1. `request.json.tasks` 전체 확인: 모든 태스크가 `committed` 이상 상태인지 검증
         - 태스크 상태 순서: `pending → executing → pre_check → committed → done`
@@ -747,10 +753,18 @@ Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_pat
      1. `request.json.tasks`에서 `generated_by: "review"` + `status: "pending"` 태스크만 선별
      2. **Step 4a 포함** 재실행: 신규 태스크 worktree 생성 후 4b~4e 실행
      3. 재실행 완료 후 `current_phase → 3` 재전환 → 이 루프 반복
-   - **`status: "pass_a_failed"`**: Pass A MUST AC 실패.
-     1. `reviews/RV-NNN/pass-a-result.md` 경로 확인 및 Read
-     2. 실패한 AC-ID 목록과 `failure_class`를 PM에게 보고
-     3. 해당 worktree에서 실패 AC 기반 재외주 트리거: `request.json.tasks`에서 실패 AC에 해당하는 태스크를 선별하여 5b-3 경로(에러 수정 프롬프트 생성 및 재외주 실행)로 진입
+   - **`status: "pass_a_failed"`**:
+     재외주 태스크 선별 방법:
+     1. `reviews/RV-NNN/pass-a-result.md`를 Read하여 `failed_ac_ids` 목록을 파싱한다.
+     2. 각 AC-ID를 `request.json.tasks` 배열의 각 태스크 spec §2(변경 범위)의 파일 목록과 매핑하거나,
+        spec §3 수락 조건 ID와 태스크 ID를 직접 매핑하여 재외주 대상 태스크를 선정한다.
+     3. 매핑 불가 시 fallback: 모든 `committed` 상태 태스크를 재외주 대상으로 취급한다.
+
+     재외주 절차:
+     1. 선별된 태스크에 대해 `request.json.tasks`에 신규 태스크 항목 생성 (`generated_by: "review"`, `status: "pending"`)
+     2. **Step 4a 포함** 재실행: 신규 태스크 worktree 생성 후 4b~4e 실행
+     3. 재외주 완료 후 → `current_phase`를 3으로 재전환 → `mst:review` 재호출 (이 루프 반복)
+        (gap_found 분기와 동일 구조)
    - **`status: "limit_reached"`**:
      - 일반 모드: AskUserQuestion → [추가 반복 허용 (+1회)] / [현재 상태로 수락] / [중단]
        - 추가 반복: review 재호출
