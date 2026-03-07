@@ -164,8 +164,9 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
 
 구현을 시작하기 전 아래 검사를 수행한다:
 
-1. spec.md 내 `## Test Scenarios (Pre-Impl)` 섹션 존재 확인
-2. 각 automatable AC에 대해 `Test:` 항목(실행 명령 또는 확인 방법) 기입 여부 확인
+1. spec.md Read — 실패 시 "spec.md 읽기 실패 (경로: {spec_path}) — 워크트리 구조 확인 필요" 오류 반환 후 착수 차단.
+2. spec.md 내 `"Test Scenarios (Pre-Impl)"` 문자열 **포함 검사(contains)** — `"## Test Scenarios (Pre-Impl)"` (번호 없음) 또는 `"## N.N Test Scenarios (Pre-Impl)"` (번호 있음) 모두 허용.
+3. 각 automatable AC에 대해 `Test:` 항목(실행 명령 또는 확인 방법) 기입 여부 확인
 
 **통과 조건**: 섹션 존재 + 모든 automatable AC에 Test 항목 기입
 **실패 시**: 구현 착수 중단 → "Pre-Impl Test Scenarios 미작성" 오류 반환
@@ -175,7 +176,6 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
 **예외**: manual AC만 있는 spec은 Test Scenarios 섹션이 비어있어도 통과 허용
 
 preflight 검사가 통과된 경우에만 아래 Step 3(worktree 생성 및 구현 착수)로 진행.
-
 3. 승인 실행:
    - **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 2 phase2_execution`; 실패 시 fallback으로 `request.json`의 `current_phase`=2, `status`=`phase2_execution` 직접 업데이트
    - 각 태스크에 대해 git worktree 생성
@@ -268,7 +268,8 @@ outer: for wave_num, wave in enumerate(waves):
   출력: "── Wave {wave_num+1}/{len(waves)} 시작 ──"
   wave_results = []
   for req_id in wave:
-    result = 단건 승인 프로토콜 실행(req_id)
+    result = 단건 승인 프로토콜 실행(req_id, AUTO_MODE=현재 AUTO_MODE 값)
+    # AUTO_MODE: 배치 루프 진입 시점의 AUTO_MODE 값($ARGUMENTS --auto 포함 여부)을 단건 컨텍스트로 전달
     wave_results.append(result)
     if result == FAILED:
       오류 처리 규칙 적용 (§ 배치 오류 처리)
@@ -672,7 +673,9 @@ Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_pat
 
 #### Step 6: Phase 3 전환
 
-모든 태스크가 `review` 이상 상태에 도달하면 **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 3 phase3_review`; 실패 시 fallback으로 `current_phase`=3, `status`=`phase3_review` 직접 업데이트 → Phase 3 (PM 리뷰) 진입
+태스크 상태 순서: `pending → executing → pre_check → committed → done`
+
+모든 태스크가 `committed` 상태에 도달하면 **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 3 phase3_review`; 실패 시 fallback으로 `current_phase`=3, `status`=`phase3_review` 직접 업데이트 → Phase 3 (PM 리뷰) 진입
 
 ### Phase 3 리뷰 루프 (auto_review 활성화 시)
 
@@ -680,7 +683,11 @@ Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_pat
 
 1. `review.auto_review` 설정 확인 (`{PROJECT_ROOT}/.gran-maestro/config.resolved.json` 읽기):
    - `request.json.auto_approve` 값도 함께 확인하여 `AUTO_MODE = (CLI --auto 전달) OR (request.json.auto_approve == true)`로 판단
-   - `false` (기본): 기존 Phase 3 → Phase 5 흐름 유지 (mst:review 미호출), "최종 수락" 섹션으로 직행
+   - `false` (기본): 아래 태스크 상태 검증 후 "최종 수락" 섹션으로 직행 (mst:review 미호출):
+     1. `request.json.tasks` 전체 확인: 모든 태스크가 `committed` 이상 상태인지 검증
+        - 태스크 상태 순서: `pending → executing → pre_check → committed → done`
+        - `committed` 미만 태스크 존재 시: "태스크 {TASK_ID}가 아직 committed 상태가 아닙니다" 경고 후 대기
+     2. 검증 통과 시 "최종 수락" 섹션으로 직행
    - `true` 또는 `AUTO_MODE=true`이면 mst:review 호출 진행
 
 2. mst:review 호출:
@@ -740,6 +747,10 @@ Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --dir {worktree_pat
      1. `request.json.tasks`에서 `generated_by: "review"` + `status: "pending"` 태스크만 선별
      2. **Step 4a 포함** 재실행: 신규 태스크 worktree 생성 후 4b~4e 실행
      3. 재실행 완료 후 `current_phase → 3` 재전환 → 이 루프 반복
+   - **`status: "pass_a_failed"`**: Pass A MUST AC 실패.
+     1. `reviews/RV-NNN/pass-a-result.md` 경로 확인 및 Read
+     2. 실패한 AC-ID 목록과 `failure_class`를 PM에게 보고
+     3. 해당 worktree에서 실패 AC 기반 재외주 트리거: `request.json.tasks`에서 실패 AC에 해당하는 태스크를 선별하여 5b-3 경로(에러 수정 프롬프트 생성 및 재외주 실행)로 진입
    - **`status: "limit_reached"`**:
      - 일반 모드: AskUserQuestion → [추가 반복 허용 (+1회)] / [현재 상태로 수락] / [중단]
        - 추가 반복: review 재호출
