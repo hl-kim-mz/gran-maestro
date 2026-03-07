@@ -236,7 +236,8 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    발견 시:
    a. `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출 → 현재 screen IDs 확인
    b. diff = 현재 screen IDs − pending 항목의 `baseline_screen_ids`
-   c. 기대 화면 수 = `styles` 수 × `screen_list` 수 (screen_list 미존재 시 1로 간주 — 하위호환)
+   c. 기대 화면 수 = `styles` 수 × `screen_list` 수 (screen_list 미존재 시 1로 간주 — 이전 버전 pending 항목(screen_list 필드 미포함) 호환용)
+      - ※ 신규 pending 항목은 항상 `screen_list` 필드를 포함하여 저장한다 (Step 2 참조)
    d. diff 크기 판단:
 
       **diff >= 기대 화면 수 (화면 생성 완료):**
@@ -295,7 +296,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    - `screen_list`를 이후 Step 3의 중첩 루프에서 사용
 
 1. **스타일 세트 도출** (LLM 자율 판단):
-   - 요청 텍스트/화면 설명을 분석해 3~4개 스타일 도출
+   - 요청 텍스트/화면 설명을 분석해 2~3개 스타일 도출 (최대 3개)
    - 각 스타일: 이름(예: "Minimal & Clean") + slug(예: "minimal") + 차별화 포인트 요약
    - slug 변환 규칙: 소문자 + 하이픈 (공백→하이픈, 특수문자 제거, 영문 기준)
      - 예: "Minimal & Clean" → "minimal", "Dark & Modern" → "dark-modern", "Vibrant & Colorful" → "vibrant-colorful"
@@ -430,7 +431,8 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    ```
 
 7. **Q1: 어떤 스타일을 탐색할까요?** (`AskUserQuestion`, `multiSelect: true`):
-   - 선택지: A({스타일명1}) / B({스타일명2}) / C({스타일명3}) / [D({스타일명4})] / 다시 생성 (다른 스타일로)
+   - 선택지: A({스타일명1}) / B({스타일명2}) / C({스타일명3}) / 다시 생성 (다른 스타일로)
+   - 스타일은 최대 3개 도출되므로 A/B/C + "다시 생성" = 최대 4개 선택지 (AskUserQuestion 4개 제한 준수)
    - **복수 선택 가능** — 선택한 스타일 모두에 대해 variants를 생성함
    - "다시 생성" 단독 선택 시: Step 1로 돌아가 새 스타일 세트 도출 (accumulated_screens 유지)
    - 스타일 1개 이상 선택 시: Step 8로 진행
@@ -476,13 +478,21 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 
 10.5. **Q_final: 최종 시안을 선택해주세요** (`AskUserQuestion`, `multiSelect: false`):
     - accumulated_screens 전체 시안을 스타일 단위로 선택지 제시 (스타일명 — 해당 스타일의 모든 화면이 포함됨)
-    - 사용자가 1개 스타일 선택 → Step 11로 진행
+    - **variant 포함 스타일의 최종 기록 화면 규칙**:
+      - variant가 없는 스타일: 기존대로 스타일명을 단일 선택지로 표시
+      - variant가 있는 스타일: 스타일 선택 후 별도 `AskUserQuestion`을 통해 원본 또는 각 variant 중 하나를 선택하도록 안내
+        - 예: "A. 원본" / "B. variant 1" / "C. variant 2"
+        - variant 수는 Q2 선택지(최대 3개)와 연동 → 원본 1 + variant 최대 3 = 최대 4개 (AskUserQuestion 4개 제한 준수)
+      - 최종 선택된 단일 화면의 `stitch_screen_id`를 Step 11에서 기록한다
+      - **`screen_title` 기록 규칙**: variant 선택 시 `screen_title`은 `"{원본 화면명} (variant {N})"` 형식으로 기록 (예: "로그인 화면 (variant 1)"); 원본 선택 시 원본 화면명 그대로 기록
+    - 사용자가 1개 스타일(및 variant 포함 시 1개 화면) 선택 → Step 11로 진행
 
 11. **메타데이터 갱신**:
     - 최종 선택된 스타일의 배치 pending 항목을 아래 형식으로 갱신 (active):
+    - `stitch_screen_id`에는 Q_final에서 실제 선택된 화면의 ID를 기록한다 (variant 선택 시 해당 variant의 screen_id, 원본 선택 시 원본 screen_id).
       ```json
       {
-        "stitch_screen_id": "{screen_id}",
+        "stitch_screen_id": "{실제 선택된 화면의 screen_id}",
         "url": "https://stitch.withgoogle.com/projects/{stitch_project_id}",
         "image_url": "{downloadUrl 또는 null}",
         "style": "{선택된 스타일명}",
@@ -737,7 +747,7 @@ variants 생성 시:
 - `--req REQ-NNN`: 특정 REQ에 연결 (메타데이터 기록)
 - `--edit SCREEN_ID`: 기존 화면 수정
 - `--list`: 현재 Stitch 프로젝트의 화면 목록 조회
-- `--multi`: 멀티 스타일 시안 생성 모드. 3~4개 스타일을 자동 도출하여 각 스타일별로 화면을 생성하고, 사용자가 선택 후 variants 추가 가능. `--screens`와 함께 사용하면 스타일당 복수 화면 생성.
+- `--multi`: 멀티 스타일 시안 생성 모드. 2~3개 스타일(최대 3개)을 자동 도출하여 각 스타일별로 화면을 생성하고, 사용자가 선택 후 variants 추가 가능. `--screens`와 함께 사용하면 스타일당 복수 화면 생성.
 - `--screens "화면1,화면2,..."`: `--multi`와 함께 사용. 각 스타일별로 생성할 화면 목록을 쉼표 구분으로 지정. 미지정 시 사용자에게 입력 요청.
 - `--model pro|flash`: 생성에 사용할 모델 지정. `pro` = GEMINI_3_PRO, `flash` = GEMINI_3_FLASH. 미지정 시 `config.stitch.model_id` 사용.
 - `--redesign SCREEN_ID`: 기존 화면을 근본적으로 재설계 (generate_variants REIMAGINE 모드). variants 수와 변경 aspects를 사용자에게 확인 후 실행.
