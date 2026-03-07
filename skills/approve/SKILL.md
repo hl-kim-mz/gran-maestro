@@ -392,13 +392,13 @@ Wave 3: {...}
 
 spec.md의 `Assigned Agent` 필드(§8 에이전트 팀 구성)를 읽어 에이전트를 결정합니다.
 `Assigned Agent` 값은 request 스킬이 config의 `agent_assignments`와 태스크 설명을 기반으로
-도메인 추론을 거쳐 결정한 결과입니다. (`agent_assignments` 구조: `{ "에이전트명": ["도메인1", ...] }`)
-
-spec.md에 에이전트가 지정되어 있으면 그대로 사용. 미지정 시 `config.resolved.json`의 `workflow.default_agent` 사용.
+도메인 추론을 거쳐 결정한 결과입니다. `최종:` 이후 값을 에이전트명으로 사용합니다.
 
 > **CLI guard**: Phase 2 진입 전 Codex CLI 설치 확인 필요. `codex-dev` 배정 시 `codex` 명령어 사용 가능 여부를 사전 확인할 것.
 
 `claude`와 `claude-dev`는 동일하게 처리됩니다 (하위 호환).
+
+spec.md에 에이전트가 지정되어 있으면 그대로 사용. 미지정 시 `config.resolved.json`의 `workflow.default_agent` 사용.
 
 **`Assigned Agent: claude`/`claude-dev`인 경우**: Step 4 외주 디스패치를 통해 `/mst:claude` 서브에이전트에게 위임. PM은 직접 구현하지 않습니다.
 
