@@ -160,6 +160,22 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
      → "설계하기": `Skill(skill: "mst:stitch", args: "--req {REQ-ID} {spec §1 요약}")` 호출 후 3으로 진행
      → "건너뛰기" 또는 UI 미감지: 3으로 진행
    - `auto_approve=true` 또는 배치 모드: skip
+2.7. **Pre-Impl Preflight 검사 (구현 착수 전 필수)**
+
+구현을 시작하기 전 아래 검사를 수행한다:
+
+1. spec.md 내 `## Test Scenarios (Pre-Impl)` 섹션 존재 확인
+2. 각 automatable AC에 대해 `Test:` 항목(실행 명령 또는 확인 방법) 기입 여부 확인
+
+**통과 조건**: 섹션 존재 + 모든 automatable AC에 Test 항목 기입
+**실패 시**: 구현 착수 중단 → "Pre-Impl Test Scenarios 미작성" 오류 반환
+  - failure_class: ac_unclear
+  - PM에 반환: spec.md의 Test Scenarios 섹션 보완 요청
+
+**예외**: manual AC만 있는 spec은 Test Scenarios 섹션이 비어있어도 통과 허용
+
+preflight 검사가 통과된 경우에만 아래 Step 3(worktree 생성 및 구현 착수)로 진행.
+
 3. 승인 실행:
    - **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 2 phase2_execution`; 실패 시 fallback으로 `request.json`의 `current_phase`=2, `status`=`phase2_execution` 직접 업데이트
    - 각 태스크에 대해 git worktree 생성
