@@ -41,7 +41,7 @@ argument-hint: "[REQ-ID] [--auto]"
    }
    ```
 4. **request.json 업데이트**:
-   - `review_iterations` 배열에 `{ "rv_id": "RV-NNN", "created_at": "<ISO8601>", "status": "completed" }` 항목 추가 (status는 Step 6 완료 후 갱신).
+   - `review_iterations` 배열에 `{ "rv_id": "RV-NNN", "created_at": "<ISO8601>", "status": "in_progress" }` 항목 추가 (Step 5 완료 후 `"completed"`로 갱신).
    - `review_summary` = `{ "iteration": N, "status": "reviewing" }` 업데이트.
 
 ### Step 2: 컨텍스트 로드
@@ -191,7 +191,9 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
 
 ### Step 6: 갭 처리 분기
 
-AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 4개 분기로 처리합니다.
+AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 5개 분기로 처리합니다.
+
+> **Step 5 완료 시 공통 절차**: 분기 처리가 완료되면 `request.json.review_iterations` 배열에서 현재 회차 항목의 `status`를 `"in_progress"` → `"completed"`로 갱신합니다.
 
 #### (a) 갭 없음 + 코드리뷰 이슈 없음
 
@@ -284,6 +286,18 @@ AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 4개 분기로 
   - `[현재 상태로 수락]`: Phase 5 진행. `review.json.status = "passed"` (강제 수락).
   - `[중단]`: 워크플로우 중단.
 
+#### (e) Pass A MUST AC 실패
+
+Pass A(필수 인수락 조건) 검증에서 MUST 등급 AC가 1건 이상 실패한 경우.
+
+- `review.json.status = "pass_a_failed"` 기록.
+- `request.json.review_summary = { "iteration": N, "status": "pass_a_failed" }` 업데이트.
+- `pass-a-result.md`는 `reviews/RV-NNN/pass-a-result.md`에 저장 (이후 approve가 참조).
+- review는 `mst:feedback`을 직접 호출하지 않고 **종료**합니다.
+- approve가 이 상태를 수신하면 해당 태스크를 re-outsource 트리거합니다.
+
+> **안내 (approve 처리)**: approve가 `review.json.status = "pass_a_failed"`를 읽으면, PM에게 피드백을 요청하거나 해당 태스크를 재외주(re-outsource)하는 루프를 트리거합니다. approve/SKILL.md Phase 3 결과 처리 섹션에서 `pass_a_failed` 분기를 참조하세요.
+
 ## 수동 호출 모드 (/mst:review REQ-NNN)
 
 approve 루프 밖에서 직접 호출 시 Step 1~4 동일 실행 후 Step 5 결과를 사용자에게 직접 보고합니다.
@@ -334,7 +348,7 @@ approve 루프 밖에서 직접 호출 시 Step 1~4 동일 실행 후 Step 5 결
 | `created_at` | 회차 시작 시각 (ISO8601). |
 | `gaps_found` | 발견된 갭 수. 0이면 갭 없음. |
 | `tasks_created` | 갭으로 생성된 태스크 ID 배열. 갭 없으면 `[]`. |
-| `status` | 항상 `"completed"` (회차 실행 완료 의미). 갭 여부는 `gaps_found > 0`으로 구분. |
+| `status` | Step 1에서 `"in_progress"`로 초기화, Step 5 완료 후 `"completed"`로 갱신. 갭 여부는 `gaps_found > 0`으로 구분. |
 | `review_issues_summary` | (선택) 등급별 코드리뷰 이슈 요약. 이슈가 존재하면 `review.json.review_issues_summary`와 동일 구조로 기록. |
 
 ### review_summary 객체
@@ -344,13 +358,14 @@ approve 루프 밖에서 직접 호출 시 Step 1~4 동일 실행 후 Step 5 결
 | 필드 | 설명 |
 |------|------|
 | `iteration` | 현재(마지막) 회차 번호. |
-| `status` | 현재 상태: `reviewing` \| `gap_fixing` \| `passed` \| `limit_reached` |
+| `status` | 현재 상태: `reviewing` \| `gap_fixing` \| `passed` \| `limit_reached` \| `pass_a_failed` |
 
 **status 규칙**:
 - `reviewing`: Step 1~4 진행 중.
 - `gap_fixing`: 갭 발견, 태스크 추가됨 (Phase 2 재실행 대기).
 - `passed`: 갭 없음, 리뷰 통과.
 - `limit_reached`: `--auto` 모드에서 `max_iterations` 초과 + 갭 있음.
+- `pass_a_failed`: Pass A MUST AC 실패로 인해 재작업이 필요한 상태. approve가 이 상태를 수신하면 해당 태스크를 re-outsource 트리거.
 
 ### review.json
 
@@ -361,7 +376,7 @@ approve 루프 밖에서 직접 호출 시 Step 1~4 동일 실행 후 Step 5 결
   "id": "RV-NNN",
   "req_id": "REQ-NNN",
   "iteration": N,
-  "status": "passed | gap_found | reviewing",
+  "status": "passed | gap_found | reviewing | pass_a_failed",
   "created_at": "<ISO8601>",
   "gaps_found": 0,
   "tasks_created": [],
