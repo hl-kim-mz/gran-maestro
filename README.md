@@ -58,6 +58,16 @@ Claude Code(v1.0.33 이상)에서:
 
 상세 설치 가이드: [docs/quick-start.md](docs/quick-start.md)
 
+## What's New
+
+Chrome Extension으로 브라우저에서 UI 요소를 직접 선택해 캡처로 저장할 수 있습니다.
+저장된 캡처는 `/mst:picks`로 목록을 확인하고 원하는 항목을 골라낼 수 있습니다.
+원하는 캡처를 선택하고 "plan으로 전환해줘"라고 입력하면 구현 계획이 시작됩니다.
+
+```
+/mst:picks   # 캡처 목록 확인 → 원하는 항목 선택 후 "plan으로 전환해줘" 입력
+```
+
 ## 기능 요약
 
 | 기능 | 명령 | 용도 |

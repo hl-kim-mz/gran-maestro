@@ -58,6 +58,16 @@ Single-request mode is also available: `/mst:request`
 
 Detailed installation guide: [docs/quick-start.en.md](docs/quick-start.en.md)
 
+## What's New
+
+Pick UI elements directly in your browser with the Chrome Extension and save them as captures.
+Review your saved captures with `/mst:picks` and select the ones you want to work with.
+Select the captures you want and type "convert to plan" — Gran Maestro starts the implementation plan.
+
+```
+/mst:picks   # review capture list → select items and type "convert to plan"
+```
+
 ## Feature Summary
 
 | Feature | Command | Purpose |
