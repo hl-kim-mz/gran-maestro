@@ -41,7 +41,7 @@ argument-hint: "[REQ-ID] [--auto]"
    }
    ```
 4. **request.json 업데이트**:
-   - `review_iterations` 배열에 `{ "rv_id": "RV-NNN", "created_at": "<ISO8601>", "status": "completed" }` 항목 추가 (status는 Step 5 완료 후 갱신).
+   - `review_iterations` 배열에 `{ "rv_id": "RV-NNN", "created_at": "<ISO8601>", "status": "completed" }` 항목 추가 (status는 Step 6 완료 후 갱신).
    - `review_summary` = `{ "iteration": N, "status": "reviewing" }` 업데이트.
 
 ### Step 2: 컨텍스트 로드
@@ -61,13 +61,73 @@ argument-hint: "[REQ-ID] [--auto]"
      - `max_iterations`: (`AUTO_MODE=true`일 때) `config.auto_mode.max_review_iterations` > `config.review.max_iterations` > 기본값(3)
    - 이후 문서의 "**`--auto` 모드**" 분기는 `AUTO_MODE=true`일 때 동일하게 적용.
 
-### Step 3: 병렬 실행 시작
+### Step 3: Pass A — 인수 판정 (AC 충족성 검증)
 
-Claude(인컨텍스트)와 background 에이전트 3개를 동시 시작합니다.
+**목적**: 요구 충족 증명 (built the right thing?)
+**책임**: PM이 직접 수행 (개발자 자가 보고 신뢰 안 함)
+
+#### automatable AC 검증 (PM 독립 실행)
+
+1. spec.md의 각 automatable AC에 정의된 `Test:` 명령을 PM이 직접 실행
+2. **Playwright 조건부 실행**: 프로젝트에 Playwright가 있으면 (`package.json`에 `playwright` 의존성 또는 `playwright.config.*` 파일 존재) `npx playwright test` 실행 후 스크린샷 증거 수집. Playwright가 없으면 이 단계 건너뜀.
+3. 실행 결과가 `Then:` 기대값과 일치 여부 판정
+4. 테스트 코드가 없으면 → `failure_class: ac_unclear`
+
+#### manual AC 검증 (PM 직접 확인)
+
+1. PM이 직접 동작 확인 (클릭, 실행, 결과 관찰)
+2. 확인 완료: 증거 텍스트 또는 스크린샷 기록
+3. 불명확하면 → `failure_class: ac_unclear`
+
+#### automatable AC가 없는 경우
+
+spec.md에 automatable AC가 없고 manual AC만 존재하는 경우: automatable 검증 단계를 건너뛰고 manual AC 검증만 수행.
+
+#### Pass A 체크리스트
+
+- [ ] AC-시나리오 추적성: 모든 AC가 1개 이상 시나리오에 매핑됨
+- [ ] 실행 증거: 시나리오별 로그/출력/스크린샷 중 최소 1개
+- [ ] 기대 결과 일치: 실제 결과 = 기대값
+- [ ] 음수/경계 케이스: 최소 1개 포함 (신규 기능 필수)
+- [ ] 회귀 확인: 영향 모듈 핵심 회귀 통과
+- [ ] 모호성 차단: AC 불명확 시 pass 금지
+- [ ] 실패 분류 강제: fail 시 `ac_unclear` | `interpretation` | `implementation` 중 1개 지정
+
+#### Pass A 출력
+
+- `pass_a_result`: `pass` | `fail`
+- `failed_ac_ids`: 실패한 AC-ID 목록
+- `failure_class`: `ac_unclear` | `interpretation` | `implementation`
+- `evidence`: 실행 로그/스크린샷 경로/확인 기록 목록
+
+**MUST AC 하나라도 fail → Pass B 진입 차단 → mst:feedback으로 전달**
+
+Pass A 결과를 `reviews/RV-NNN/pass-a-result.md`에 저장:
+
+```markdown
+# Pass A 결과 — RV-NNN
+
+pass_a_result: pass | fail
+failed_ac_ids: [AC-XX, ...]
+failure_class: ac_unclear | interpretation | implementation
+evidence:
+  - <로그/스크린샷 경로 또는 확인 기록>
+```
+
+MUST AC가 하나라도 실패한 경우: `mst:feedback`으로 `pass-a-result.md`를 전달하고 Pass B를 진행하지 않음. SHOULD AC만 실패한 경우: 경고로 기록하고 Pass B 진입 허용.
+
+---
+
+### Step 4: Pass B — 코드 품질 검증
+
+**목적**: 구현 품질 확인 (built the thing right?)
+**조건**: Pass A 전체 통과 후에만 진행 (MUST AC 실패 시 이 단계 건너뜀)
+
+Pass B는 Claude(인컨텍스트)와 background 에이전트 3개를 동시 시작합니다.
 
 ```
 Claude (인컨텍스트):   spec §3 AC 체크리스트 순차 검증  ─┐
-code-reviewer (bg):   구현 레벨 리뷰                  ─┤─→ Step 4에서 PM 취합 → review-report.md
+code-reviewer (bg):   구현 레벨 리뷰                  ─┤─→ Step 5에서 PM 취합 → review-report.md
 arch-reviewer (bg):   설계/계획 레벨 리뷰              ─┤
 ui-reviewer (bg):     UI 설계 검토 (조건부)            ─┘
 ```
@@ -105,7 +165,7 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
 
 **ui_reviewer 스킵 조건**: `request.json.stitch_screens` 배열이 비어있고 `frontend/` 디렉토리 변경 파일이 없으면 auto-skip. 취합 시 "UI 리뷰 skip (변경 없음)" 표시.
 
-### Step 4: 완료 대기 및 취합
+### Step 5: 완료 대기 및 취합
 
 1. **완료 폴링**: background 에이전트 3개(또는 skip된 에이전트 제외) 완료 대기. approve SKILL.md Step 4d 완료 감지 패턴 동일 적용.
    - 에이전트 실패 시: 해당 역할 리뷰 "에이전트 실패" 표시 후 나머지 취합 계속 진행.
@@ -129,7 +189,7 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
    <review-ui.md 핵심 항목 또는 "UI 리뷰 skip (변경 없음)">
    ```
 
-### Step 5: 갭 처리 분기
+### Step 6: 갭 처리 분기
 
 AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 4개 분기로 처리합니다.
 
