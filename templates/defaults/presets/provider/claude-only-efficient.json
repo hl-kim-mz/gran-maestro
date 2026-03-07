@@ -97,7 +97,8 @@
         "count": 0
       },
       "gemini": {
-        "count": 0
+        "count": 0,
+        "tier": "premium"
       },
       "claude": {
         "count": 1,

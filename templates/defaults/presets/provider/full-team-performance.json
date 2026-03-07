@@ -94,7 +94,8 @@
         "tier": "premium"
       },
       "claude": {
-        "count": 0
+        "count": 0,
+        "tier": "economy"
       }
     }
   },

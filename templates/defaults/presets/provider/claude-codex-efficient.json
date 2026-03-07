@@ -75,7 +75,8 @@
         "count": 0
       },
       "claude": {
-        "count": 0
+        "count": 0,
+        "tier": "economy"
       }
     }
   },
@@ -89,7 +90,8 @@
         "count": 0
       },
       "claude": {
-        "count": 0
+        "count": 0,
+        "tier": "economy"
       }
     }
   },
@@ -100,7 +102,8 @@
         "tier": "economy"
       },
       "gemini": {
-        "count": 0
+        "count": 0,
+        "tier": "premium"
       },
       "claude": {
         "count": 1,
