@@ -4,6 +4,27 @@
 
 ---
 
+## [0.51.0] — 2026-03-09
+
+### 새 기능
+
+- **OMX Autopilot 통합**: `config.json`에 `omx` 섹션 추가 및 `approve` 스킬에 `$autopilot` 조건부 삽입으로 oh-my-codex 자율 실행 지원
+- **Plan-Review 관점 강화**: `intent_validator`에 Ontologist 관점(핵심 개념 정의 확인), `scope_critic`에 Brownfield 충돌 리스크 관점 추가
+
+### 개선
+
+- **plan/request 역할 분리**: `plan` 스킬은 스펙 정제, `request` 스킬은 실행 착수로 역할을 명확히 분리하고 `spec.md` 경량화
+- **오실레이션 탐지 가이드**: `plan` 스킬에 3.8.3 반복 진동(오실레이션) 감지 및 PM 판단 가이드 삽입
+- **Scope Audit 관점 추가**: `review` 스킬 `arch_reviewer`에 SCOPE_CREEP/OMISSION 감지를 위한 Scope Audit 관점 강제 추가
+- **스키마 안전성·태스크 매핑·SKILL.md 복잡도 개선**: REQ-312 후속 우려사항 3종 해소
+- **Squash 머지 브랜치 전략**: PR 머지 시 Squash 머지를 기본으로 도입해 히스토리 가독성 향상
+
+### 버그 수정
+
+- **premium tier 직접 전달 버그**: `request` SKILL.md 모델 resolve 로직에서 premium tier가 올바르게 전달되지 않던 문제 수정
+
+---
+
 ## [0.50.0] — 2026-03-08
 
 ### 새 기능
