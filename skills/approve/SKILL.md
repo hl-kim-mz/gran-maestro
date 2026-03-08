@@ -720,6 +720,8 @@ else:
 
 #### Step 6: Phase 3 전환
 
+> 이 Step의 목적: Phase 2 완료 태스크를 Phase 3 리뷰 루프로 연결하고 결과별 후속 액션을 확정한다 / 핵심 출력물: `current_phase=3`, review 결과별 재실행/수락 분기
+
 태스크 상태 순서: `pending → executing → pre_check → committed → done`
 
 모든 태스크가 `committed` 상태에 도달하면 **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 3 phase3_review`; 실패 시 fallback으로 `current_phase`=3, `status`=`phase3_review` 직접 업데이트 → Phase 3 (PM 리뷰) 진입
@@ -795,11 +797,26 @@ else:
      2. **Step 4a 포함** 재실행: 신규 태스크 worktree 생성 후 4b~4e 실행
      3. 재실행 완료 후 `current_phase → 3` 재전환 → 이 루프 반복
    - **`status: "pass_a_failed"`**:
+     > 이 Step의 목적: Pass A 실패 AC 기준으로 재외주 대상을 정확히 선별한다 / 핵심 출력물: 스키마 검증된 `pass-a-result.md` 기반 재외주 태스크 목록
+     > ⚠️ CRITICAL: `pass-a-result.md` 스키마 필수 필드가 하나라도 누락되면 재외주 선별을 즉시 중단하고 review 재실행을 요구한다.
+
+     | 조건 | 동작 | 다음 단계 |
+     |---|---|---|
+     | `pass-a-result.md` 스키마 검증 실패 (필수 필드 누락) | `"스키마 불일치"` 출력 + `/mst:review {REQ_ID}` 재실행 안내 | 재외주 선별 중단 |
+     | 스키마 검증 통과 + `covers_ac` 필드 존재(비어있지 않음) 태스크 있음 | `failed_ac_ids ∩ covers_ac` 교집합 기준으로 재외주 대상 선별 | 선별 태스크로 재외주 절차 진행 |
+     | 스키마 검증 통과 + 모든 `committed` 태스크의 `covers_ac`가 없거나 빈 배열(`[]`) | 하위 호환 fallback으로 모든 `committed` 태스크를 재외주 대상으로 선별 | 재외주 절차 진행 |
+     | 스키마 검증 통과 + `covers_ac` 필드는 있으나 교집합 없음 (비어있지 않은 필드 기준) | fallback 없이 빈 선별 결과 유지 | 재외주 대상 없음 상태로 분기 종료 |
+     | 스키마 검증 통과 + 일부 태스크만 `covers_ac` 존재 (혼합 상태) | `covers_ac` 비어있지 않은 태스크는 교집합 기준 선별, 나머지(`covers_ac` 없거나 빈 배열)는 fallback 대상 포함 | 선별 태스크로 재외주 절차 진행 |
+
      재외주 태스크 선별 방법:
      1. `reviews/RV-NNN/pass-a-result.md`를 Read하여 `failed_ac_ids` 목록을 파싱한다.
-     2. 각 AC-ID를 `request.json.tasks` 배열의 각 태스크 spec §2(변경 범위)의 파일 목록과 매핑하거나,
-        spec §3 수락 조건 ID와 태스크 ID를 직접 매핑하여 재외주 대상 태스크를 선정한다.
-     3. 매핑 불가 시 fallback: 모든 `committed` 상태 태스크를 재외주 대상으로 취급한다.
+     2. 파싱 직후 `templates/schemas/pass-a-result.md` 기준으로 필수 필드(`pass_a_result`, `failed_ac_ids`, `failure_class`, `evidence`) 존재 여부를 검증한다.
+        - 하나라도 누락되면 `"스키마 불일치"` 오류를 출력하고, "`/mst:review {REQ_ID}`를 재실행해 pass-a-result.md를 스키마에 맞게 다시 생성하세요" 안내 후 재외주 선별을 중단한다.
+     3. `request.json.tasks`의 `committed` 상태 태스크 중 `covers_ac` 필드가 있고 비어있지 않은 태스크를 대상으로,
+        `failed_ac_ids ∩ tasks[i].covers_ac` 교집합이 1개 이상인 태스크를 재외주 대상으로 선정한다.
+     4. fallback 조건(하위 호환): `covers_ac` 필드가 없거나 빈 배열(`[]`)인 `committed` 태스크에 대해서는
+        fallback으로 재외주 대상에 포함한다.
+        (`covers_ac` 필드가 비어있지 않은데 교집합이 없는 경우에는 fallback하지 않는다.)
 
      재외주 절차:
      1. 선별된 태스크에 대해 `request.json.tasks`에 신규 태스크 항목 생성 (`generated_by: "review"`, `status: "pending"`)

@@ -359,7 +359,8 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
          (최종 iteration의 이슈 및 반영 결과 기준)
 
    k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가 (spec.md 저장 직후, 다중 태스크 시 02, 03... 포함):
-      `id`, `title`, `status: "pending"`, `agent`(필수 — 누락 금지), `spec: "tasks/01/spec.md"`
+      `id`, `title`, `status: "pending"`, `agent`(필수 — 누락 금지), `spec: "tasks/01/spec.md"`, `covers_ac: ["AC-001", ...]`
+      - `covers_ac`는 해당 태스크가 담당하는 spec §3 수락 조건 ID 목록으로 채운다 (예: `["AC-001", "AC-003"]`).
    l. `request.json`의 `status`를 `"spec_ready"`로 업데이트
 5. ⚠️ **spec.md 작성 완료 확인** — spec.md 미존재 시 스킬 종료 금지
 6. 스펙 요약 표시 + `/mst:approve REQ-NNN` 승인 안내
