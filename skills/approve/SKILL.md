@@ -440,6 +440,17 @@ spec.md의 `Assigned Agent` 필드를 읽어 에이전트를 결정합니다: (1
 
 #### Step 4: 병렬 디스패치 실행
 
+**REQ 브랜치 생성 (태스크 수와 무관한 공통 선행 단계)**:
+
+```bash
+# master 기반으로 REQ 중간 브랜치 생성 (이미 존재하면 skip)
+git show-ref --verify --quiet refs/heads/gran-maestro/REQ-NNN \
+  || git checkout -b gran-maestro/REQ-NNN {config.worktree.base_branch}
+```
+
+이 브랜치는 모든 태스크 커밋의 집합점이 되며, accept 단계에서 master에 squash-merge된다.
+단일 태스크 REQ에서도 반드시 이 단계를 실행해야 accept의 3단계 플로우가 정상 작동한다.
+
 **태스크가 1개인 경우**: 기존 순차 실행과 동일 처리.
 
 **태스크가 2개 이상이고 독립 태스크가 존재하는 경우**:
@@ -447,6 +458,12 @@ spec.md의 `Assigned Agent` 필드를 읽어 에이전트를 결정합니다: (1
 ##### 4a. Worktree 일괄 생성
 
 독립 태스크들의 git worktree를 미리 생성합니다.
+
+태스크 worktree는 위에서 생성한 REQ 중간 브랜치를 기준으로 생성한다:
+
+```bash
+git worktree add {worktree_path} -b gran-maestro/REQ-NNN-T01 gran-maestro/REQ-NNN
+```
 
 ##### 4b. Outsource Brief 파일 작성
 
