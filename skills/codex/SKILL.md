@@ -21,12 +21,30 @@ Codex CLI 호출의 단일 진입점. request 워크플로우(--trace 모드 포
 2. **프롬프트 소스**: `--prompt-file` 있으면 파일 우선 (미존재 시 에러 중단); 없으면 인라인 사용
 3. `--dir` 지정 시 디렉토리 존재 확인 (없으면 에러 중단); 상대경로는 cwd 기준
 4. `--trace` 모드 판별 (아래 섹션 참조)
-5. **기본 모델**: `config.resolved.json`의 `models.providers.codex[default_tier]`로 resolve; 없으면 `gpt-5.3-codex` 폴백. tier resolve 순서: `providers.codex[default_tier]`
+5. **기본 모델 resolve (MANDATORY)**:
+   > ⚠️ **tier 이름 직접 전달 금지**: `"premium"`, `"economy"` 등 tier 이름을 `-m` 플래그에 그대로 전달하면 Codex CLI가 모델을 찾지 못한다.
+   > 반드시 아래 중 하나의 방법으로 실제 모델명으로 resolve 후 전달한다.
+   >
+   > **방법 A (권장) — mst.py 사용:**
+   > ```bash
+   > MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex")
+   > # MODEL = "gpt-5.3-codex"  ← 실제 모델명, tier 이름 아님
+   > ```
+   >
+   > **방법 B — 수동 2단계 lookup:**
+   > ```bash
+   > # 1단계: tier 이름 취득
+   > #   config.models.providers.codex.default_tier = "premium"
+   > # 2단계: tier 이름으로 모델명 lookup  ← 이 단계를 반드시 수행
+   > #   config.models.providers.codex.<tier_name> = "gpt-5.3-codex"
+   > # ⚠️ 잘못된 예: codex exec -m <tier_name>   (tier 이름 그대로 전달)
+   > # ✅ 올바른 예: codex exec -m gpt-5.3-codex
+   > ```
 6. Codex CLI 실행:
    ```bash
-   codex exec --full-auto -m {model} -C {working_dir} "{prompt}"                         # 인라인
-   codex exec --full-auto -m {model} -C {working_dir} "$(cat {prompt_file})"             # --prompt-file
-   set -o pipefail; codex exec --full-auto -m {model} -C {working_dir} "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log  # trace
+   MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex"); codex exec --full-auto -m "$MODEL" -C {working_dir} "{prompt}"                         # 인라인
+   MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex"); codex exec --full-auto -m "$MODEL" -C {working_dir} "$(cat {prompt_file})"             # --prompt-file
+   MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex"); set -o pipefail; codex exec --full-auto -m "$MODEL" -C {working_dir} "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log  # trace
    ```
 7. **결과 처리**: `--trace` → Trace 문서 작성 후 경로만 출력; `--output` → 파일 저장; 둘 다 없음 → 결과 표시
 

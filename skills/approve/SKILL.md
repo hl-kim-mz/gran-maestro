@@ -493,9 +493,11 @@ Write -> {PROJECT_ROOT}/.gran-maestro/requests/{REQ-ID}/tasks/{NN}/prompts/phase
 ```bash
 # codex-dev인 경우 (OMX_AUTOPILOT=true 시 \$autopilot 프리픽스 삽입)
 Bash(
-  command: 'set -o pipefail; codex exec --full-auto -m {config.models.providers.codex[default_tier]} -C {worktree_path} "\$autopilot $(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log',   # OMX_AUTOPILOT=true
+  MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex");
+  command: 'set -o pipefail; codex exec --full-auto -m "$MODEL" -C {worktree_path} "\$autopilot $(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log',   # OMX_AUTOPILOT=true
   # 또는:
-  command: 'set -o pipefail; codex exec --full-auto -m {config.models.providers.codex[default_tier]} -C {worktree_path} "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log',              # OMX_AUTOPILOT=false
+  MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex");
+  command: 'set -o pipefail; codex exec --full-auto -m "$MODEL" -C {worktree_path} "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log',              # OMX_AUTOPILOT=false
   run_in_background: true,
   timeout: {config.timeouts.cli_large_task_ms}
 )
@@ -700,9 +702,11 @@ else:
    - 전면 재작성 권장 여부
    ```bash
    # OMX_AUTOPILOT=true
-   set -o pipefail; codex exec --full-auto -m {config.models.providers.codex[default_tier]} -C {worktree_path} "\$autopilot $(cat {escalation_prompt_path})" 2>&1 | tee {task_dir}/running-fallback.log
+   MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex");
+   set -o pipefail; codex exec --full-auto -m "$MODEL" -C {worktree_path} "\$autopilot $(cat {escalation_prompt_path})" 2>&1 | tee {task_dir}/running-fallback.log
    # OMX_AUTOPILOT=false (현행 유지)
-   set -o pipefail; codex exec --full-auto -m {config.models.providers.codex[default_tier]} -C {worktree_path} "$(cat {escalation_prompt_path})" 2>&1 | tee {task_dir}/running-fallback.log
+   MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex");
+   set -o pipefail; codex exec --full-auto -m "$MODEL" -C {worktree_path} "$(cat {escalation_prompt_path})" 2>&1 | tee {task_dir}/running-fallback.log
    ```
 
 4. **결과 처리**:
