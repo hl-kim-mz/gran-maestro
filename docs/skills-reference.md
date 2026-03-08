@@ -47,6 +47,7 @@ Gran Maestro 플러그인이 제공하는 31개 스킬의 전체 레퍼런스입
   - [/mst:archive](#mstarchive)
   - [/mst:setup-omx](#mstsetup-omx)
   - [/mst:setup-extension](#mstsetup-extension)
+- [자율 실행 모드 (-a / --auto)](#자율-실행-모드--a----auto)
 - [한국어 자연어 트리거](#한국어-자연어-트리거)
 
 ---
@@ -84,7 +85,7 @@ Gran Maestro 워크플로우(Phase 1→2→3→5)를 제어하는 핵심 스킬 
 
 - 새로운 기능 구현, 리팩터링, 버그 수정 등 코드 작업을 요청할 때
 - PM이 요청을 분석하고 스펙을 작성하게 하려 할 때
-- `--auto` 플래그로 Q&A 없이 즉시 실행하려 할 때
+- `--auto` 플래그로 스펙 작성 후 사용자 승인 없이 즉시 실행하려 할 때
 
 #### 사용 예시
 
@@ -93,17 +94,26 @@ Gran Maestro 워크플로우(Phase 1→2→3→5)를 제어하는 핵심 스킬 
 /mst:request --auto JWT 토큰 만료 시간을 30분으로 변경
 ```
 
+#### --auto 동작
+
+`--auto`(`-a`) 플래그를 전달하면:
+- Spec Pre-review Pass를 건너뜁니다
+- 스펙 작성 완료 즉시 `/mst:approve REQ-NNN --auto`를 자동 호출합니다 (사용자 확인 없음)
+- `config.auto_mode.request=true`로 상시 활성화할 수 있습니다 (CLI 플래그가 우선)
+
 ---
 
 ### /mst:plan
 
 **한 줄 설명**: 요구사항 미결 항목을 사용자와 Q&A로 정제하고 실행 가능한 plan.md를 작성합니다.
 
-**인자**: `{플래닝 주제}`
+**인자**: `[-a|--auto] {플래닝 주제}`
 
 #### 목적
 
 구현을 시작하기 전에 요청의 핵심 미결 항목을 사용자와 대화로 정제합니다. 모호한 요구사항을 구체화하고, 범위와 제약을 합의한 뒤 `.gran-maestro/plans/PLN-NNN/plan.md`로 저장합니다. plan.md 생성 후 `/mst:request`로 이어집니다.
+
+> **범위 제한**: plan은 REQ 단위 분리(어떤 요청을 만들지)까지만 고민합니다. 각 REQ 내부의 태스크 분해는 `/mst:request` 단계에서 코드베이스를 직접 탐색한 후 결정합니다.
 
 #### 사용 시점
 
@@ -116,9 +126,18 @@ Gran Maestro 워크플로우(Phase 1→2→3→5)를 제어하는 핵심 스킬 
 
 ```
 /mst:plan 알림 시스템 전체 리팩터링
-/mst:plan 결제 모듈 추가 — Stripe 연동 범위 논의
-/mst:plan --from-debug DBG-012   # 디버그 세션 연결
+/mst:plan -a 결제 모듈 추가 — Stripe 연동 범위 논의   # 자율 모드
+/mst:plan --from-debug DBG-012                        # 디버그 세션 연결
 ```
+
+#### --auto 동작
+
+`--auto`(`-a`) 플래그를 전달하면:
+- `AskUserQuestion` 없이 PM이 미결 항목을 자율 결정합니다
+- 확신이 낮은 항목은 `mst:discussion`을 자동 호출해 결론을 도출합니다
+- 모든 결정 근거를 `plans/PLN-NNN/auto-decisions.md`에 기록합니다
+- plan.md 저장 후 `/mst:request -a`를 자동 호출하여 전 과정을 연속 실행합니다
+- `config.auto_mode.plan=true`로 상시 활성화할 수 있습니다
 
 #### 베스트 프랙티스
 
@@ -136,7 +155,7 @@ Gran Maestro 워크플로우(Phase 1→2→3→5)를 제어하는 핵심 스킬 
 
 **한 줄 설명**: PM이 작성한 구현 스펙을 승인하고 Phase 2 실행을 시작합니다.
 
-**인자**: `[REQ-ID...] [--stop-on-fail | --continue] [--parallel] [--priority <level>]`
+**인자**: `[REQ-ID...] [--auto] [--stop-on-fail | --continue] [--parallel] [--priority <level>]`
 
 #### 목적
 
@@ -154,8 +173,17 @@ PM이 분석·작성한 스펙을 검토 후 승인하여 실제 구현(Phase 2)
 /mst:approve REQ-007                  # 단건 승인
 /mst:approve REQ-007 REQ-008 REQ-009  # 다건 배치 승인
 /mst:approve --parallel               # 병렬 실행
+/mst:approve REQ-007 --auto           # 자율 모드 (리뷰~수락 무인 완주)
 /mst:approve REQ-007 --stop-on-fail   # 실패 시 중단
 ```
+
+#### --auto 동작
+
+`--auto` 플래그 또는 `request.json.auto_approve=true`(자동 연계 시 설정됨)이면:
+- Stitch 디자인 제안 단계를 건너뜁니다
+- `review.auto_review=false`여도 **항상** `/mst:review --auto`를 호출합니다
+- 리뷰 CRITICAL 이슈 없으면 `/mst:accept`를 자동 실행합니다 (`workflow.auto_accept_result` 설정 따름)
+- MAJOR/MINOR 이슈는 `severity_auto_fix` 설정에 따라 PM이 직접 수정 후 루프를 재진입합니다
 
 ---
 
@@ -910,6 +938,61 @@ Gran Maestro Chrome Extension(UI Picker)을 Chrome에 로드하는 설치 절차
 - `--skip-open` — `chrome://extensions` 자동 오픈을 생략합니다. 이미 해당 페이지를 열어 둔 경우 사용합니다.
 
 > 자세한 설치 절차는 [Chrome Extension 설치 가이드](extension-setup.md)를 참고하세요.
+
+---
+
+## 자율 실행 모드 (-a / --auto)
+
+`-a` 또는 `--auto` 플래그를 전달하면 사람 개입 없이 전 과정을 자동으로 완주하는 **자율 실행 모드**가 활성화됩니다. 각 스킬에서 동작이 다릅니다.
+
+### 스킬별 동작
+
+| 스킬 | --auto 효과 |
+|------|------------|
+| `/mst:plan -a` | AskUserQuestion 없이 PM이 미결 항목을 자율 결정. 결정 근거를 `auto-decisions.md`에 기록. 완료 후 `/mst:request -a` 자동 연계 |
+| `/mst:request -a` | Spec Pre-review 건너뜀. 스펙 작성 완료 즉시 `/mst:approve --auto` 자동 호출 |
+| `/mst:approve --auto` | Stitch 디자인 제안 건너뜀. `review.auto_review` 설정 무관하게 항상 리뷰 실행. CRITICAL 없으면 자동 수락 |
+
+### 전체 연계 흐름
+
+```
+/mst:plan -a "주제"
+  └→ plan.md 저장 (자율 결정 + auto-decisions.md 기록)
+     └→ /mst:request --plan PLN-NNN -a
+           └→ spec.md 작성 (Spec Pre-review 없음)
+              └→ /mst:approve REQ-NNN --auto
+                    └→ Phase 2 실행 (codex/gemini)
+                       └→ /mst:review --auto
+                              └→ /mst:accept  (auto_accept_result=true 시)
+```
+
+`/mst:plan -a` 한 번으로 plan → spec → 구현 → 리뷰 → 수락까지 전 과정이 무인 실행됩니다.
+
+### config로 상시 활성화
+
+CLI 플래그 없이 항상 자율 모드로 실행하려면:
+
+```json
+{
+  "auto_mode": {
+    "plan": true,
+    "request": true
+  }
+}
+```
+
+```
+/mst:settings auto_mode.plan true
+/mst:settings auto_mode.request true
+```
+
+> CLI `-a` 플래그는 config 설정보다 항상 우선합니다.
+
+### 주의사항
+
+- **plan**: 확신이 낮은 항목은 `mst:discussion`을 자동 호출해 결론을 도출합니다. `config.auto_mode.confidence_threshold`로 임계값을 조정할 수 있습니다.
+- **approve**: CRITICAL 이슈 발생 시 자동 흐름이 멈추고 사용자 개입을 요청합니다.
+- **approve**: MAJOR/MINOR 이슈는 `severity_auto_fix` 설정에 따라 PM이 직접 수정 후 루프를 재진입합니다.
 
 ---
 

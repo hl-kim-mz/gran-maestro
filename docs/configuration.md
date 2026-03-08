@@ -17,6 +17,7 @@
 
 ## 목차
 
+- [auto_mode](#auto_mode)
 - [workflow](#workflow)
 - [server](#server)
 - [concurrency](#concurrency)
@@ -37,6 +38,33 @@
 - [phase1_exploration](#phase1_exploration)
 - [notifications / realtime / debug / cleanup](#notifications--realtime--debug--cleanup)
 - [예시 설정 조합](#예시-설정-조합)
+
+---
+
+## auto_mode
+
+`-a` / `--auto` 플래그를 CLI 없이 상시 활성화하는 설정입니다. CLI 플래그가 항상 config 설정보다 우선합니다.
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `auto_mode.plan` | `false` | `/mst:plan` 자율 실행 모드 상시 활성화 |
+| `auto_mode.request` | `false` | `/mst:request` 자동 승인 모드 상시 활성화 |
+| `auto_mode.confidence_threshold` | `0.8` | plan 자율 모드에서 자율 결정 임계값 (0~1). 이 값 미만이면 `mst:discussion` 자동 호출 |
+
+### auto_mode.plan
+
+`true`이면 `/mst:plan` 실행 시 `AskUserQuestion` 없이 PM이 모든 미결 항목을 자율 결정합니다.
+- 확신 점수가 `confidence_threshold` 미만인 항목은 `mst:discussion`을 자동 실행해 결론을 도출합니다
+- 모든 결정 근거는 `plans/PLN-NNN/auto-decisions.md`에 기록됩니다
+- plan.md 저장 후 `/mst:request -a`를 자동 호출합니다
+
+### auto_mode.request
+
+`true`이면 `/mst:request` 실행 시 스펙 작성 후 사용자 승인 없이 즉시 `/mst:approve --auto`를 호출합니다.
+- Spec Pre-review Pass를 건너뜁니다
+- `request.json`에 `auto_approve: true`로 기록됩니다
+
+> 두 값을 모두 `true`로 설정하면 `/mst:plan` 한 번으로 plan → spec → 구현 → 리뷰 → 수락까지 전 과정이 무인 실행됩니다. 자세한 내용은 [스킬 레퍼런스 — 자율 실행 모드](skills-reference.md#자율-실행-모드--a----auto)를 참고하세요.
 
 ---
 
