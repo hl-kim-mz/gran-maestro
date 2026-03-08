@@ -156,10 +156,12 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
 | 역할 키 | 검토 관점 | config 키 | 모델 resolve |
 |---------|-----------|-----------|-------------|
 | `code_reviewer` | 누락 로직, 버그, 엣지케이스, 테스트 누락 | `review.roles.code_reviewer.agent` | `providers[agent][review.roles.code_reviewer.tier \|\| default_tier]`로 resolve |
-| `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
+| `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 + Scope Audit(필수): `SCOPE_CREEP`(spec.md에 없는 구현), `OMISSION`(spec.md에는 있으나 구현 누락) 점검. 미발견 시에도 `"확인 완료 — 해당 없음"` 명시 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
 | `ui_reviewer` | Stitch 시안 vs 실제 UI, UX 흐름 일관성 | `review.roles.ui_reviewer.agent` | `providers[agent][review.roles.ui_reviewer.tier \|\| default_tier]`로 resolve |
 
 각 리뷰어(code_reviewer, arch_reviewer, ui_reviewer)는 발견한 이슈에 반드시 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 등급을 태깅해야 한다 (`templates/review-request.md`의 등급 판별 가이드 및 보안 오버라이드 규칙 적용).
+
+arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에는 위 Scope Audit 지시(`SCOPE_CREEP`, `OMISSION`, 미발견 시 `"확인 완료 — 해당 없음"` 명시)를 반드시 포함해 전달한다.
 
 각 에이전트 프롬프트에 출력 파일 경로를 명시하여 전달합니다:
 - code_reviewer → `reviews/RV-NNN/review-code.md`
