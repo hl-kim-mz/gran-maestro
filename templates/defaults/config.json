@@ -369,5 +369,9 @@
     "codex-dev": ["backend", "skill", "test", "infra"],
     "claude-dev": ["docs", "config"],
     "gemini-dev": ["frontend", "ui"]
+  },
+  "omx": {
+    "enabled": false,
+    "autopilot": false
   }
 }
