@@ -115,6 +115,13 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
    a. 요청 파싱 및 복잡도 분류 (simple | standard | complex)
    b. Simple → 단독 분석 / Standard·Complex → Analysis Squad 팀 소환
    c. 코드베이스 탐색 (`config.phase1_exploration.roles` 기반 병렬):
+      > ⚠️ **탐색 목적**: 구현 절차를 미리 결정하기 위함이 아닙니다.
+      > 아래 세 가지에만 집중합니다:
+      > ① 기존 패턴·컨벤션 파악 (에이전트가 따라야 할 것)
+      > ② 핵심 진입점 식별 (에이전트가 탐색 시작할 1~3개 파일/디렉토리)
+      > ③ 충돌 가능성 감지 (변경 시 영향받는 기존 코드)
+      > 구체적인 구현 방법은 에이전트가 worktree에서 직접 판단합니다.
+
       config 읽기: `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `phase1_exploration.roles` 참조
       각 role의 모델 결정: `phase1_exploration.roles.{role}.tier` → `providers[agent][tier]`로 resolve (tier 미지정 시 `providers[agent].default_tier` 사용)
       ① `symbol_tracing` role agent [background dispatch] — enabled=true인 경우, 정밀 심볼 추적
@@ -200,6 +207,10 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - `false`: `/mst:debug` 사용 안내 후 일반 워크플로우 진행
    g. 접근 방식 결정 시 **Ideation 자동 트리거 (LLM 판단)**: 아래 중 하나 해당 시 `Skill(skill: "mst:ideation", args: "{주제} --from-request")` 호출:
       - `complex` 분류, 트레이드오프 불명확, 고영향 의사결정, PM 단독 판단 확신 부족
+      - 기술 스택·아키텍처·구현 접근법 결정 (plan 미사용 시, 또는 plan에서 의도적으로 미결 상태로 남긴 경우)
+      - 코드베이스 탐색(4c) 결과가 접근법 선택에 영향을 줄 만큼 중요한 패턴을 발견한 경우
+      > ⚠️ plan에서 기술 접근법을 결정하지 않는 것은 의도된 설계입니다.
+      > 코드베이스를 직접 본 상태에서 결정하는 이 단계가 더 정확한 판단을 제공합니다.
       - 결과(`synthesis.md`)를 spec 작성에 반영하고 `discussion/req-approach-synthesis.md`에 저장
       - simple 요청/접근 방식 명백한 경우 ideation 없이 진행
    h-0. **Stitch 트리거 감지** (config.stitch.enabled=true인 경우):
@@ -210,10 +221,29 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - 그 외(새 화면 추가/약한 신호): approve Phase 2.5에서 제안, 이 단계 skip
    h-0.5. **Assigned Agent 기본값 보관**: spec.md 작성 직전, `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `workflow.default_agent` 값을 읽어 Assigned Agent 필드의 기본값으로 설정한다. `templates/spec.md`의 Decision Tree(0~3단계)는 이 기본값의 override 조건으로만 동작한다. config 미참조 시 `claude-dev` 자동 선택은 금지. `config.resolved.json`이 없으면 `templates/defaults/config.json`의 `agent_assignments`를 fallback으로 Read한다. 이때 `workflow.default_agent`도 `templates/defaults/config.json`에서 함께 Read하여 DEFAULT_AGENT로 사용한다.
    h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용); `--plan` 없으면 `## 가정 사항` 섹션 포함
+      > ⚠️ **spec.md 작성 원칙**: spec은 "무엇을 달성해야 하는가 + 알아야 할 맥락"만 기술합니다.
+      > - **포함**: AC (완료 기준), 범위 경계, 제약 조건, 패턴 힌트, 시작점 1~3개, 의존성
+      > - **제외**: 수정 파일 exhaustive 목록, 단계별 구현 절차, 에지케이스 사전 열거
+      > 구체적인 구현 방법은 에이전트가 worktree를 직접 탐색하며 결정합니다.
    h-1. **다중 태스크 분해 처리** (plan 기반 우선, 없으면 PM 자율 판단):
       - [--plan]: `## 태스크 분해` 섹션 파싱 → 2개 이상 시 동일 절차 (아래 스텝 0~2 수행)
       - [--plan 없음]: pm-conductor.md Step 6.6 판단 따름; 2단계 이상 결정 시 동일 절차
+
+      **태스크 분해 기준 (우선순위 순)**:
+
+      - **순서 의존성 기준 (0차, 최우선)**: 선행 결과물 없이는 후행 작업을 시작할 수 없는 경우 → 직렬 태스크로 분리.
+        예: DB 스키마 변경 → API 엔드포인트 → UI 연동. blockedBy/blocks로 순서 명시.
+        단순히 "나중에 하면 좋겠다" 수준은 직렬화 대상이 아님 — 실제 결과물 의존이 있을 때만.
+
+      - **중간 검증 가능성 기준 (0.5차)**: 작업 중간 지점에서 독립적으로 검증할 수 있는 경계가 존재하는 경우 → 그 경계를 기준으로 분리.
+        분리 판단 질문:
+        ① "절반만 완료한 상태에서 '이게 잘 됐나?' 확인할 수 있는가?" → YES면 분리 경계
+        ② "T01만 완료하고 T02를 안 해도 코드베이스가 망가지지 않는가?" → YES면 분리 가능
+        분리 금지: 중간 상태가 어느 것도 단독 검증 불가능한 경우 (예: UI와 API를 절반씩) → 하나의 태스크로 묶기.
+        파일 수·라인 수는 분리 기준이 아님.
+
       - **기능 책임 단위 분리 기준 (1차)**: 동일 태스크에 서로 다른 비즈니스 기능이 혼재하는 경우 → 기능 단위로 분리 (파일 타입·수가 아닌 기능 책임 범위 기준). 파일 타입 혼재(`.ts` + `.md`)는 분리의 필요충분조건이 아님 — 동일 기능 책임 내 보조 파일은 같은 태스크에 포함 가능. agent 배정은 h-0.5 단계 참조.
+
       - **레이어 분리 기준 (2차)**: 동일 기능 단위라도 프론트엔드(.tsx/.jsx/UI 컴포넌트)와 백엔드(API/DB/서버 로직) 작업이 모두 포함되고 각각 독립 커밋/테스트 단위가 될 만큼 충분하면 → 레이어별 2개 태스크로 분리. 백엔드 T: API 및 DB 로직 → codex-dev 또는 default_agent; 프론트엔드 T: UI 컴포넌트·페이지 → gemini-dev (.tsx/.jsx 포함 시). blockedBy 설정: 백엔드 API가 완료되어야 연동 가능하면 `blockedBy: [백엔드T]`, UI 스타일만 독립 개발 가능하면 병렬 허용. 단, 프론트만 or 백엔드만 수정하면 1차 기준만 적용 (레이어 분리 불필요).
 
       **스텝 0.5 (선행): 책임 겹침 방지 검증**

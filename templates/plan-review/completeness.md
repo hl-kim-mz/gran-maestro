@@ -1,3 +1,9 @@
+# Plan Review — Completeness (DEPRECATED)
+
+> ⚠️ 이 템플릿은 더 이상 plan review에서 사용되지 않습니다.
+> 구현 완전성 검토는 /mst:request 단계의 Spec Pre-review Pass에서 수행됩니다.
+> plan review는 전략적 수준(intent_validator, scope_critic)으로 재설계되었습니다.
+
 # Plan Review — Completeness
 
 - Plan ID: {{PLN_ID}}

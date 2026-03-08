@@ -1,3 +1,9 @@
+# Plan Review — UX Reviewer (DEPRECATED)
+
+> ⚠️ 이 템플릿은 더 이상 plan review에서 사용되지 않습니다.
+> UX 흐름 검토는 plan의 ideation/discussion에서 수행되며,
+> 구현 수준 UX 이슈는 /mst:request 단계의 Spec Pre-review Pass에서 다룹니다.
+
 # Plan Review — UX Reviewer
 
 - Plan ID: {{PLN_ID}}

@@ -1,3 +1,9 @@
+# Plan Review — Devil's Advocate (DEPRECATED)
+
+> ⚠️ 이 템플릿은 더 이상 plan review에서 사용되지 않습니다.
+> plan review는 전략적 수준(intent_validator, scope_critic)으로 재설계되었습니다.
+> 대안 탐색은 plan의 ideation/discussion 또는 Strategic Review의 외부 리서치에서 수행됩니다.
+
 # Plan Review — Devil's Advocate
 
 - Plan ID: {{PLN_ID}}
