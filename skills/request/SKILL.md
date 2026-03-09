@@ -133,6 +133,57 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       총 소요 = max(enabled_roles_time, claude_direct_time) — 추가 지연 없음
       반드시 `Skill(skill: "mst:codex/gemini", ...)` 도구로 호출 — MCP 직접 호출 금지
       role agent 기본값: symbol_tracing=codex, broad_scan=gemini
+   c-arch. **아키텍처 논의 게이트 (Step 1d-arch)**:
+      - 실행 시점: Step 1c 탐색 완료 직후 (Step 1e 이전)
+      - PM은 탐색 결과를 바탕으로 트리거 조건 A·B·C를 점검:
+        - A. 의존 fan-out이 넓어져 다수 모듈에 연쇄 영향이 예상되는가?
+        - B. 인터페이스 계약(API/함수 시그니처/이벤트 계약) 변경이 필요한가?
+        - C. 데이터 흐름의 분기점(입력/출력 경로, 상태 전이 경계) 변경이 있는가?
+      - PM 확신도(`pm_arch_confidence`, 0.0~1.0)를 산정하고 `workflow.arch_gate_threshold`와 비교해 게이트 개폐를 결정:
+      - pm_arch_confidence 산정 기준 (rubric):
+        - 0.0~0.3: 변경 범위 명확, 단일 모듈 한정, 기존 패턴 단순 적용 가능
+        - 0.4~0.6: 일부 모듈 의존성 변경 예상되나 영향 범위 파악 가능
+        - 0.7~1.0: 다수 모듈 연쇄 영향, 아키텍처 방향 불명확, 설계 리스크 존재
+      - 트리거-게이트 결정 관계:
+        - Gate Open 조건: A/B/C 중 1개 이상 충족 AND `pm_arch_confidence >= arch_gate_threshold`
+        - Gate Close 조건: A/B/C 모두 미충족 (`pm_arch_confidence` 무관) 또는 `pm_arch_confidence < arch_gate_threshold`
+      - `arch_gate_threshold` 읽기 순서:
+        1. `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `workflow.arch_gate_threshold`
+        2. fallback: `templates/defaults/config.json`의 `workflow.arch_gate_threshold`
+        3. 최종 fallback: `0.7`
+      - `--plan` bypass 조건 (plan.md 선로드 필요):
+        - `--plan PLN-NNN`이 제공된 경우, plan.md가 아직 Read되지 않았다면 여기서 먼저 Read
+        - Read 후 plan.md에 아키텍처 방향이 이미 결정된 경우
+          (예: `## 아키텍처 결정` 섹션, 기술스택 확정, 접근법 명시)
+          → 게이트 실행 없이 skip. `req-arch-decision.md`에 `gate: skip`, `reason: "plan 참조"` 저장.
+        - `--plan` 미제공 시 bypass 없이 게이트 정상 실행
+      - AUTO_APPROVE=false + Gate Open:
+        - `AskUserQuestion`으로 방향 선택 요청 (기본 선택지 2개 + 보조 선택지 3종):
+          1. "제안 방향으로 진행"
+          2. "방향을 바꿔서 직접 입력"
+          3. (보조, PM 판단 시 포함) `ideation` 실행
+          4. (보조, PM 판단 시 포함) `discussion` 실행
+          5. (보조, PM 판단 시 포함) `explore` 재실행
+      - AUTO_APPROVE=true + Gate Open:
+        - `AskUserQuestion` 없이 PM이 자율 결정:
+          - 방향이 미확정/발산 필요 → `Skill(skill: "mst:ideation", args: "{주제} --from-request")`
+          - 방향은 있으나 리스크·합의가 복잡 → `Skill(skill: "mst:discussion", args: "{주제} --from-request")`
+          - 두 조건 동시 충족 → `discussion` 우선
+          - 두 조건 모두 미충족 → `ideation` 기본 (방향 탐색 우선)
+      - Gate Open이든 Close든, 게이트 판단 결과를 `REQ-NNN/discussion/req-arch-decision.md`에 저장한다.
+        ```yaml
+        gate: open | close | skip
+        reason: "plan 참조, gate skip" | "트리거 미충족" | "confidence 충분" | "게이트 열림"
+        confidence: 0.75
+        threshold: 0.7
+        triggers:
+          A: true | false
+          B: true | false
+          C: true | false
+        result: ideation | discussion | none
+        arch_direction: "방향 요약 (gate open 시만)"
+        ```
+      - Gate Open 후 방향 확정 시에만 spec.md에 `## 아키텍처 영향도 검토` 섹션을 삽입한다. Gate Close 또는 skip 시 미삽입.
    d-1. `--from-debug DBG-NNN` 제공 여부 처리:
       - `debug/DBG-NNN/debug-report.md` Read (미존재 시 경고 후 플래그 무시)
       - `debug_context` 메모리 보관: `linked_debug_id`, `root_cause`, `fix_suggestions`, `affected_files`
@@ -206,6 +257,7 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - `auto_trigger_from_start=true`: `/mst:debug` 자동 호출 후 이 워크플로우 종료
       - `false`: `/mst:debug` 사용 안내 후 일반 워크플로우 진행
    g. 접근 방식 결정 시 **Ideation 자동 트리거 (LLM 판단)**: 아래 중 하나 해당 시 `Skill(skill: "mst:ideation", args: "{주제} --from-request")` 호출:
+      - Step 1d-arch(c-arch)에서 이미 ideation/discussion이 실행된 경우 이 단계는 **반드시 skip한다** (중복 실행 방지)
       - `complex` 분류, 트레이드오프 불명확, 고영향 의사결정, PM 단독 판단 확신 부족
       - 기술 스택·아키텍처·구현 접근법 결정 (plan 미사용 시, 또는 plan에서 의도적으로 미결 상태로 남긴 경우)
       - 코드베이스 탐색(4c) 결과가 접근법 선택에 영향을 줄 만큼 중요한 패턴을 발견한 경우

@@ -92,6 +92,45 @@ Phase 1 runs in two modes:
        범위는 Claude 자율 판단, 중복 허용, (a)(b) 완료 대기 불필요
    (a)(b) 수신 결과(enabled role들)와 (c) Claude 직접 탐색 컨텍스트를 종합 → spec 작성
    기본값: symbol_tracing=codex, broad_scan=gemini (설정 미존재 시 기존 동작 유지)
+3.5) **Step 1d-arch 아키텍처 논의 게이트** (Step 3 직후):
+   - 트리거 조건 A·B·C 점검:
+     - A. 의존 fan-out 확장으로 다수 모듈 연쇄 영향 예상
+     - B. 인터페이스 계약(API/시그니처/이벤트) 변경 필요
+     - C. 데이터 흐름 분기점(입출력 경계/상태 전이) 변경
+   - `arch_gate_threshold` 읽기 순서:
+     1. `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `workflow.arch_gate_threshold`
+     2. fallback: `templates/defaults/config.json`의 `workflow.arch_gate_threshold`
+     3. 최종 fallback: `0.7`
+   - `--plan` bypass 조건 (plan.md 선로드 필요):
+     - `--plan PLN-NNN`이 제공된 경우, plan.md가 아직 Read되지 않았다면 여기서 먼저 Read
+     - Read 후 plan.md에 아키텍처 방향이 이미 결정된 경우
+       (예: `## 아키텍처 결정` 섹션, 기술스택 확정, 접근법 명시)
+       → 게이트 실행 없이 skip. `req-arch-decision.md`에 `gate: skip`, `reason: "plan 참조"` 저장.
+     - `--plan` 미제공 시 bypass 없이 게이트 정상 실행
+   - PM 확신도(`pm_arch_confidence`, 0.0~1.0)와 `workflow.arch_gate_threshold`를 비교:
+     - pm_arch_confidence 산정 기준 (rubric):
+       - 0.0~0.3: 변경 범위 명확, 단일 모듈 한정, 기존 패턴 단순 적용 가능
+       - 0.4~0.6: 일부 모듈 의존성 변경 예상되나 영향 범위 파악 가능
+       - 0.7~1.0: 다수 모듈 연쇄 영향, 아키텍처 방향 불명확, 설계 리스크 존재
+     - Gate Open: `(A or B or C)` and `pm_arch_confidence >= arch_gate_threshold`
+     - Gate Close: A/B/C 모두 미충족 또는 `pm_arch_confidence < arch_gate_threshold`
+   - AUTO_APPROVE=false + Gate Open:
+     - `AskUserQuestion`으로 방향 선택 요청
+     - 필수 선택지: "제안 방향으로 진행", "방향을 바꿔서 직접 입력"
+     - 보조 선택지(상황별): ideation / discussion / explore
+   - AUTO_APPROVE=true + Gate Open:
+     - `AskUserQuestion` 없이 PM이 자율 선택:
+       - 방향 미확정/발산 필요: `/mst:ideation`
+       - 방향 확정 상태에서 리스크/합의 복잡: `/mst:discussion`
+       - 두 조건 동시 충족: `discussion` 우선
+       - 두 조건 모두 미충족: `ideation` 기본 (방향 탐색 우선)
+   - 게이트 결과(open/close/skip 모두, 선택 근거, 확정 방향)를 `REQ-NNN/discussion/req-arch-decision.md`에 저장
+   - Gate Open 후 방향 확정 시에만 spec.md에 `## 아키텍처 영향도 검토` 섹션 삽입 (Gate Close/skip 시 미삽입)
+   ※ 책임 경계 (Step 6과 구분):
+     - Step 3.5(1d-arch): 탐색 완료 직후 아키텍처 영향도 게이트 — 미확정 방향/리스크 조기 해소
+     - Step 6: 접근 방식 결정 (복잡도 high, 방향 비교 필요 시)
+     - Step 3.5에서 ideation/discussion 실행 시 Step 6은 반드시 skip
+   ※ SKILL.md 대응: 이 단계는 SKILL.md Step 1d-arch(레이블 c-arch)에 대응
 4) Delegate external analysis to Codex (code structure) + Gemini (large context + discussion/ideation log analysis) via `/mst:codex`, `/mst:gemini` skills (parallel). Gemini Context Report should include prior discussion/ideation session logs when available.
 5) For ambiguous requirements:
    [Interactive mode — /mst:plan]:
@@ -109,6 +148,7 @@ Phase 1 runs in two modes:
    - If `false`: suggest `/mst:debug` to user and continue normal workflow
    - Detection cues: "bug", "error", "debug", "why doesn't it work", "root cause", issue descriptions with symptoms
 6) For approach decisions: collect 3 AI opinions → synthesize → present ranked recommendations.
+   - Step 3.5(1d-arch)에서 이미 ideation/discussion이 실행된 경우 이 단계는 **반드시 skip한다**.
    **Ideation 활용 (LLM 판단)**: 복잡한 접근 방식 결정이 필요한 경우 `/mst:ideation`을 호출하여 체계적인 3-AI 병렬 분석을 수행합니다. 다음 상황에서 LLM이 자율적으로 판단합니다:
    - complexity가 complex이거나, 유효한 접근 방식이 2개 이상이고 트레이드오프가 불명확할 때
    - 아키텍처, 보안, 성능 등 고영향 설계 결정이 포함될 때
