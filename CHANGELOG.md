@@ -4,6 +4,20 @@
 
 ---
 
+## [0.53.0] — 2026-03-10
+
+### 개선
+
+- `mst:approve` + `mst:review`: Phase 3 PASS 후 `[TRACE_DONE]` 신호를 종료 신호로 오인해 `mst:accept` 미호출로 불쑥 종료되던 문제 수정
+  - `approve/SKILL.md`: `Skill(mst:review)` 반환 직후 "즉시 결과 처리로 진행" reminder 추가
+  - `review/SKILL.md`: Phase 3 PASS 분기에서 "review는 mst:accept를 직접 호출하지 않는다" 명시
+- `mst:request` Step 1d-arch 아키텍처 논의 게이트 신설 (`mst:request Step 1d-arch`)
+- `mst:approve` `base_branch` 설정 마법사 및 안내 추가
+- `mst:approve`/`mst:request` AUTO_MODE 전환 프로세스 및 지원 패턴 개선
+- auto 모드 매뉴얼 문서 추가 (plan / request / approve)
+
+---
+
 ## [0.52.0] — 2026-03-10
 
 ### 개선
