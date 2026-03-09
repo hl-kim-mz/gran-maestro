@@ -761,6 +761,7 @@ else:
    AUTO_MODE=false -> Skill(skill: "mst:review", args: "{REQ_ID}")
    ```
    (`AUTO_MODE=true`에서는 `review.auto_review=false`이더라도 항상 호출)
+   > ⚠️ **반환 후 즉시 3번으로 진행** — `[TRACE_DONE]` 텍스트 포함 여부 무관. approve는 Phase 5(mst:accept) 완료 시에만 종료.
 
 3. review 결과 처리:
 

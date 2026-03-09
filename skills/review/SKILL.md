@@ -164,7 +164,7 @@ AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 5개 분기로 
 
 - `review.json.status = "passed"`
 - `request.json.review_summary = { "iteration": N, "status": "passed" }` 업데이트
-- Phase 3 PASS 반환 → approve 루프에서 Phase 5(accept) 진행.
+- Phase 3 PASS 반환. approve가 Phase 5(mst:accept)를 호출 — review는 mst:accept를 직접 호출하지 않는다.
 
 #### (b) 갭 없음 + 코드리뷰 이슈만 있음 (AC는 통과, 설계/품질 이슈)
 
@@ -211,7 +211,7 @@ AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 5개 분기로 
 - MINOR 이슈를 `review-report.md`에 기록하고 `review_issues_summary.skipped` 배열에 기록.
 - `review.json.status = "passed"`.
 - `request.json.review_summary = { "iteration": N, "status": "passed" }` 업데이트.
-- Phase 3 PASS 반환 → approve 루프에서 Phase 5(accept) 진행.
+- Phase 3 PASS 반환. approve가 Phase 5(mst:accept)를 호출 — review는 mst:accept를 직접 호출하지 않는다.
 
 ##### (b-3) MINOR만 존재 + 개수 > threshold (자동 태스크 생성)
 
