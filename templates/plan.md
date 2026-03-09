@@ -30,6 +30,15 @@
 
 {추가로 PM이 알아야 할 배경 정보}
 
+## 연관 컨텍스트 (해당 시에만)
+
+> 상세 내용은 아래 파일을 직접 참조하세요. 내용을 이 파일에 복사하지 않습니다.
+
+| 유형 | ID | 파일 경로 |
+|------|----|-----------|
+| 디버그 조사 | DBG-NNN | `.gran-maestro/debug/DBG-NNN/debug-report.md` |
+| 캡처 | CAP-NNN | `.gran-maestro/captures/CAP-NNN/capture.json` |
+
 ## 디자인 시안 (해당 시에만)
 
 > Stitch로 생성된 디자인 시안 정보입니다. `/mst:plan`의 Step 4에서 "스티치로 디자인 시안 보기" 선택 시 자동으로 채워집니다.
