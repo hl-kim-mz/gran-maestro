@@ -415,10 +415,13 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - `covers_ac`는 해당 태스크가 담당하는 spec §3 수락 조건 ID 목록으로 채운다 (예: `["AC-001", "AC-003"]`).
    l. `request.json`의 `status`를 `"spec_ready"`로 업데이트
 5. ⚠️ **spec.md 작성 완료 확인** — spec.md 미존재 시 스킬 종료 금지
-6. 스펙 요약 표시 + `/mst:approve REQ-NNN` 승인 안내
+6. 스펙 요약 표시 + 승인 안내 (두 가지 명령을 모두 명시):
+   - 일반: `/mst:approve REQ-NNN`
+   - 자율 모드: `/mst:approve -a REQ-NNN` (이후 단계를 중간 승인 없이 자동 실행)
    - **[필수] 할당 에이전트 보고**: `[할당 예정] REQ-NNN → {agent명} ({provider})` 형식으로 명시 (다중 REQ 시 개별 명시)
    - ⚠️ `/mst:approve` 수신 전까지: 코드 수정·파일 편집·커밋 전면 금지
-   - `auto_approve=true` 상태에서는 승인 단계를 스킵하고 `Skill(skill: "mst:approve", args: "REQ-NNN --auto")`로 자동 진입한다 (`--auto` 생략 금지)
+   - `auto_approve=true` 상태에서는 승인 단계를 스킵하고 `Skill(skill: "mst:approve", args: "-a REQ-NNN")`로 자동 진입한다 (`-a` 생략 금지)
+   - **세션 중 자율 모드 전환**: spec 요약 표시 후 대기 중 사용자가 "auto로", "자율 모드로", "-a로" 등을 입력하면 `/mst:approve -a REQ-NNN`으로 자동 진입한다
 
 ## 옵션
 

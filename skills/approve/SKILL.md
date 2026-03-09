@@ -2,7 +2,7 @@
 name: approve
 description: "스펙을 승인하고 실행을 시작합니다. 사용자가 '승인', '진행해', 'OK 진행'을 말하거나 /mst:approve를 호출할 때 사용. Gran Maestro 워크플로우 내에서만 의미 있으며, 일반적인 확인 응답에는 사용하지 않음."
 user-invocable: true
-argument-hint: "[REQ-ID...] [--auto] [--stop-on-fail | --continue] [--parallel] [--priority <level>]"
+argument-hint: "[-a|--auto] [REQ-ID...] [--stop-on-fail | --continue] [--parallel] [--priority <level>]"
 ---
 
 # maestro:approve
@@ -130,8 +130,12 @@ PM이 작성한 구현 스펙을 승인하고 Phase 2 실행을 시작합니다.
 ### 단건 승인 프로토콜
 
 **AUTO_MODE 초기화** (단건 프로토콜 진입 즉시):
-`AUTO_MODE = ($ARGUMENTS에 --auto 포함) OR (request.json.auto_approve == true)`
+`AUTO_MODE = ($ARGUMENTS에 --auto 또는 -a 포함) OR (request.json.auto_approve == true)`
 이후 모든 Step에서 이 변수를 사용한다.
+
+**세션 중 자율 모드 전환**: `AskUserQuestion` 대기 중 사용자가 다음 패턴을 입력하면 즉시 `AUTO_MODE=true`로 전환합니다:
+- 자연어 예시: "auto로 해줘", "자율 모드로", "-a로", "지금부터 자동으로", "이제 auto로"
+- 전환 즉시 `[자율 모드 전환] 이제부터 -a 모드로 진행합니다.` 출력 후 현재 Step부터 AUTO_MODE=true 적용하여 재개
 
 REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토콜을 실행합니다.
 
