@@ -176,6 +176,22 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
 **예외**: manual AC만 있는 spec은 Test Scenarios 섹션이 비어있어도 통과 허용
 
 preflight 검사가 통과된 경우에만 아래 Step 3(worktree 생성 및 구현 착수)로 진행.
+
+**base_branch 안내 (비차단, preflight 통과 이후 실행)**:
+- config.resolved.json에서 `worktree.base_branch` 값 읽기
+  - 파일 읽기 실패 또는 키 부재 시: 경고를 **silent suppress** — 출력 없이 Step 3 진행
+- `worktree.base_branch` 값이 정확히 `"main"` (대소문자 구분, exact match)인 경우에만 아래 안내 출력:
+
+  ⚠️  base_branch가 "main"으로 설정되어 있습니다.
+      모든 워크트리가 main 브랜치 기준으로 분기됩니다.
+      다른 브랜치로 변경하려면:
+        • /mst:on 을 다시 실행하거나
+        • 대시보드 Settings → 설정 마법사 → Git 단계에서 변경하세요.
+
+- 값이 `"main"` 이 아닌 경우: 출력 없이 진행
+- 이 안내는 실행을 **절대 차단하지 않음** — 출력 후 즉시 Step 3으로 진행
+- **배치 승인 모드**: 각 REQ의 preflight 통과 시마다 1회씩 출력 (base_branch는 전역 설정이나, 배치 내 첫 REQ 처리 시에만 1회 출력하도록 PM이 추적하는 것을 권장)
+
 3. 승인 실행:
    - **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py request set-phase {REQ_ID} 2 phase2_execution`; 실패 시 fallback으로 `request.json`의 `current_phase`=2, `status`=`phase2_execution` 직접 업데이트
    - 각 태스크에 대해 git worktree 생성

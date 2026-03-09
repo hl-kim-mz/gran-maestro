@@ -11,6 +11,7 @@ import {
   Users,
   Wrench,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,12 +21,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { apiFetch } from '@/hooks/useApi';
 import { cn, deepSet, getNestedValue } from '@/lib/utils';
 import type { PresetMeta, PresetDiffChange } from '../../../../src/types';
 
-type WizardStep = 1 | 2 | 3 | 4;
+type WizardStep = 1 | 2 | 3 | 4 | 5;
 type AgentSelection = 'claude' | 'claude-codex' | 'claude-gemini' | 'full-team';
 type TierSelection = 'performance' | 'efficient' | 'budget';
 
@@ -50,7 +52,7 @@ type PresetResponse = {
   builtin: PresetMeta[];
 };
 
-const STEP_LABELS = ['에이전트', '성향', '도구', '리뷰'] as const;
+const STEP_LABELS = ['Git', '에이전트', '성향', '도구', '리뷰'] as const;
 
 const AGENT_OPTIONS: Array<{
   id: AgentSelection;
@@ -137,6 +139,10 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
   const [initializing, setInitializing] = useState(false);
   const [applying, setApplying] = useState(false);
 
+  const [baseBranch, setBaseBranch] = useState<string>('');
+  const [baseBranchLoaded, setBaseBranchLoaded] = useState(false);
+  const [initialBaseBranch, setInitialBaseBranch] = useState<string>('main');
+
   const [diffChanges, setDiffChanges] = useState<PresetDiffChange[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
@@ -155,6 +161,8 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
       setInitialToggles(INITIAL_TOGGLES);
       setDiffChanges([]);
       setDiffError(null);
+      setBaseBranch('');
+      setBaseBranchLoaded(false);
       setInitializing(true);
 
       try {
@@ -174,6 +182,13 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
         setToolToggles(loadedToggles);
         setInitialToggles(loadedToggles);
         setBuiltinPresets(Array.isArray(presetResponse.builtin) ? presetResponse.builtin : []);
+
+        const loadedBaseBranch = String(
+          getNestedValue(mergedConfig, ['worktree', 'base_branch']) ?? 'main'
+        );
+        setBaseBranch(loadedBaseBranch);
+        setInitialBaseBranch(loadedBaseBranch);
+        setBaseBranchLoaded(true);
       } catch (err) {
         if (!isMounted) return;
         alert(`Failed to initialize setup wizard: ${err instanceof Error ? err.message : String(err)}`);
@@ -192,8 +207,21 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
   }, [open, projectId]);
 
   const canGoBack = step > 1;
-  const canGoNext = (step === 1 && !!selectedAgent) || (step === 2 && !!selectedTier) || step === 3;
-  const canApply = step === 4 && !!selectedAgent && !!selectedTier && !initializing && !applying && !diffError && !loadingDiff;
+  const canGoNext =
+    (step === 1 && baseBranch.trim().length > 0) ||
+    (step === 2 && !!selectedAgent) ||
+    (step === 3 && !!selectedTier) ||
+    step === 4;
+
+  const canApply =
+    step === 5 &&
+    !!selectedAgent &&
+    !!selectedTier &&
+    baseBranch.trim().length > 0 &&
+    !initializing &&
+    !applying &&
+    !diffError &&
+    !loadingDiff;
 
   const fetchDiff = async () => {
     if (!projectId || !selectedAgent || !selectedTier) return;
@@ -214,6 +242,10 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
 
       const serverChanges = diffResponse.changes || [];
       const toolChanges: PresetDiffChange[] = [];
+
+      if (baseBranch !== initialBaseBranch) {
+        toolChanges.push({ path: 'worktree.base_branch', from: initialBaseBranch, to: baseBranch.trim() });
+      }
 
       if (initialToggles.stitch !== toolToggles.stitch) {
         toolChanges.push({ path: 'stitch.enabled', from: initialToggles.stitch, to: toolToggles.stitch });
@@ -238,16 +270,11 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
   };
 
   const handleNext = () => {
-    if (step === 1 && selectedAgent) {
-      setStep(2);
-      return;
-    }
-    if (step === 2 && selectedTier) {
-      setStep(3);
-      return;
-    }
-    if (step === 3) {
-      setStep(4);
+    if (step === 1 && baseBranch.trim().length > 0) { setStep(2); return; }
+    if (step === 2 && selectedAgent) { setStep(3); return; }
+    if (step === 3 && selectedTier) { setStep(4); return; }
+    if (step === 4) {
+      setStep(5);
       setDiffChanges([]);
       void fetchDiff();
       return;
@@ -255,17 +282,10 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
   };
 
   const handleBack = () => {
-    if (step === 4) {
-      setStep(3);
-      return;
-    }
-    if (step === 3) {
-      setStep(2);
-      return;
-    }
-    if (step === 2) {
-      setStep(1);
-    }
+    if (step === 5) { setStep(4); return; }
+    if (step === 4) { setStep(3); return; }
+    if (step === 3) { setStep(2); return; }
+    if (step === 2) { setStep(1); }
   };
 
   const handleApply = async () => {
@@ -292,6 +312,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
         nextConfig = deepSet(nextConfig, ['stitch', 'enabled'], toolToggles.stitch);
         nextConfig = deepSet(nextConfig, ['code_review', 'enabled'], toolToggles.codeReview);
         nextConfig = deepSet(nextConfig, ['plan_review', 'enabled'], toolToggles.planReview);
+        nextConfig = deepSet(nextConfig, ['worktree', 'base_branch'], baseBranch.trim());
 
         await apiFetch('/api/config', projectId, {
           method: 'PUT',
@@ -318,7 +339,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
             설정 마법사
           </DialogTitle>
           <DialogDescription>
-            4단계로 에이전트 조합, 성향, 도구 설정을 한 번에 적용합니다.
+            5단계로 Git 설정, 에이전트 조합, 성향, 도구 설정을 한 번에 적용합니다.
           </DialogDescription>
           <div className="flex items-center gap-2 pt-3">
             {STEP_LABELS.map((label, index) => {
@@ -365,6 +386,44 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
           ) : (
             <>
               {step === 1 && (
+                <div className="space-y-5">
+                  <p className="text-sm text-muted-foreground">
+                    새 워크트리를 어느 브랜치 기준으로 생성할지 지정합니다.
+                  </p>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Base Branch</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={baseBranch}
+                        onChange={(e) => setBaseBranch(e.target.value)}
+                        placeholder="예: master, main, develop"
+                        className="font-mono"
+                        disabled={initializing || !baseBranchLoaded}
+                      />
+                      {baseBranch.trim() === 'main' && (
+                        <Badge
+                          variant="outline"
+                          className="text-amber-600 border-amber-400 dark:text-amber-400 dark:border-amber-500 shrink-0"
+                        >
+                          기본값
+                        </Badge>
+                      )}
+                    </div>
+                    {baseBranch.trim() === 'main' && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        현재 "main"으로 설정되어 있습니다. 실제 작업 브랜치로 변경하는 것을 권장합니다.
+                      </p>
+                    )}
+                    {!baseBranchLoaded && !initializing && (
+                      <p className="text-xs text-destructive">
+                        설정을 불러오지 못했습니다. 페이지를 닫고 다시 시도하세요.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">원하는 에이전트 조합을 선택하세요.</p>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -405,7 +464,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
                 </div>
               )}
 
-              {step === 2 && (
+              {step === 3 && (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">작업 성향을 선택하세요.</p>
                   <div className="grid gap-3 sm:grid-cols-3">
@@ -443,7 +502,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
                 </div>
               )}
 
-              {step === 3 && (
+              {step === 4 && (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">원하는 도구만 켜서 세부 동작을 맞춤화하세요.</p>
                   <div className="space-y-3">
@@ -495,10 +554,10 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
                 </div>
               )}
 
-              {step === 4 && (
+              {step === 5 && (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">적용될 설정 변경 사항을 확인하세요.</p>
-                  
+
                   {loadingDiff ? (
                     <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground animate-pulse">
                       변경사항을 계산 중입니다...
@@ -542,16 +601,17 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
 
         <DialogFooter className="px-6 py-4 border-t bg-muted/25 flex-row items-center justify-between shrink-0">
           <div className="text-xs text-muted-foreground">
-            {step === 1 && 'Step 1/4: 에이전트 조합 선택'}
-            {step === 2 && 'Step 2/4: 성향 선택'}
-            {step === 3 && 'Step 3/4: 도구 커스터마이즈'}
-            {step === 4 && 'Step 4/4: 리뷰 및 적용'}
+            {step === 1 && 'Step 1/5: Git 설정'}
+            {step === 2 && 'Step 2/5: 에이전트 조합 선택'}
+            {step === 3 && 'Step 3/5: 성향 선택'}
+            {step === 4 && 'Step 4/5: 도구 커스터마이즈'}
+            {step === 5 && 'Step 5/5: 리뷰 및 적용'}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleBack} disabled={!canGoBack || initializing || applying}>
               Back
             </Button>
-            {step < 4 ? (
+            {step < 5 ? (
               <Button onClick={handleNext} disabled={!canGoNext || initializing || applying}>
                 Next
               </Button>
