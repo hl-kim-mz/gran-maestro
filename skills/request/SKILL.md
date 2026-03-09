@@ -265,6 +265,116 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       > 코드베이스를 직접 본 상태에서 결정하는 이 단계가 더 정확한 판단을 제공합니다.
       - 결과(`synthesis.md`)를 spec 작성에 반영하고 `discussion/req-approach-synthesis.md`에 저장
       - simple 요청/접근 방식 명백한 경우 ideation 없이 진행
+
+      **게이트 오픈 조건** (하나 이상 해당 시):
+      - `complex` 분류, 트레이드오프 불명확, 고영향 의사결정, PM 단독 판단 확신 부족
+      - 기술 스택·아키텍처·구현 접근법 결정 (plan 미사용 시, 또는 plan에서 의도적으로 미결 상태로 남긴 경우)
+      - 코드베이스 탐색(1c) 결과가 접근법 선택에 영향을 줄 만큼 중요한 패턴을 발견한 경우
+
+      **게이트 오픈 처리**:
+      - `AUTO_APPROVE=false`:
+        AskUserQuestion으로 사용자에게 접근 방식 확인:
+          - PM이 코드베이스 탐색 결과를 바탕으로 후보 접근법 2~3개를 선택지로 제시
+          - 각 선택지에 트레이드오프(장점/단점/적합한 상황) 포함
+          - 보조 선택지로 "ideation으로 다각도 검토" 포함 (PM 판단 시)
+          - 사용자 답변 반영 후 g-1로 진행
+      - `AUTO_APPROVE=true`:
+        `Skill(skill: "mst:ideation", args: "{주제} --from-request")` 자율 실행
+          - 결과(`synthesis.md`)를 spec 작성에 반영
+          - `discussion/req-approach-synthesis.md`에 저장
+   g-1. **구현 수준 리서치 패스** (Step g 완료 직후, Step h 진입 전)
+
+      > **목적**: plan의 Strategic Review(3.8)가 전략 수준 리서치를 담당하듯,
+      > 이 단계는 코드베이스 탐색 + 접근법 확정 이후 **구현 수준**의 표준·대안을 능동적으로 점검한다.
+      > pre-review(h-2)가 spec 작성 후 사후 체크라면, 이 단계는 spec 작성 전 사전 점검이다.
+
+      **트리거 조건** (하나 이상 해당 시 실행):
+      - `complex` 분류
+      - 신규 라이브러리·패턴·API 도입 (코드베이스 탐색에서 전례 미발견)
+      - Step g에서 ideation/discussion이 실행된 경우
+      - PM이 구현 접근법 확신도를 0.7 미만으로 자체 산정한 경우
+
+      **skip 조건** (하나라도 해당 시 skip):
+      - `simple` 분류 AND 코드베이스 내 동일 패턴 적용 전례 존재
+      - `--plan` 제공 AND plan.md에 구현 방식이 구체적으로 명시된 경우
+      - `discussion/req-impl-research.md` 존재 시 (동일 REQ에서 이미 실행됨)
+      - `AUTO_APPROVE=true` — 단, 아래 **AUTO_APPROVE 자율 처리** 참조
+
+      **AUTO_APPROVE=true 처리**:
+      - 기본적으로 skip하되, PM이 구현 접근법 확신도(`impl_confidence`)를 0.0~1.0으로 자체 산정
+      - PM은 아래 순서로 **자력으로 확신도를 높이는 것을 최우선**으로 한다:
+        1. 코드베이스 재탐색 (Glob/Grep) → 기존 패턴·전례 확인
+        2. WebSearch로 구현 수준 표준 확인
+        3. 위 두 단계 후 확신도 재산정
+      - 재산정 후 확신도 분기:
+        - `impl_confidence >= 0.7`: PM 자율 판단으로 spec 보정(필요 시) 후 h-0 진행
+        - `impl_confidence < 0.7`: PM이 ideation/discussion 필요 여부를 **추가로 판단**:
+          - 접근법 방향 자체가 불명확하거나 발산이 필요한 경우 → `Skill(skill: "mst:ideation", args: "{주제} --from-request")` 실행
+          - 리스크·트레이드오프 합의가 필요한 경우 → `Skill(skill: "mst:discussion", args: "{주제} --from-request")` 실행
+          - 위 두 조건 모두 해당하지 않으면 → PM 자율 판단으로 처리 (ideation/discussion 호출 금지)
+      - 모든 자율 처리 결과는 `req-impl-research.md`에 기록
+
+      **실행 절차** (`AUTO_APPROVE=false`인 경우):
+      1. **코드베이스 패턴 재점검** (Glob/Grep):
+         - spec에서 사용할 라이브러리·API의 기존 용례를 코드베이스에서 탐색
+         - 동일 목적의 기존 유틸·헬퍼·추상화 존재 여부 확인
+      2. **구현 수준 WebSearch** (PM 판단 시 실행):
+         - `{라이브러리} {버전} best practices`, `{패턴} implementation guide`
+         - `{접근법} common pitfalls {언어/프레임워크}`
+         - ⚠️ 전략 수준 검색 금지 — 구현 방식에 한정 (라이브러리 선택, 아키텍처 방향 전환은 범위 밖)
+      3. **결과 분류**:
+         - `ALIGNED`: 표준 패턴과 일치, 코드베이스 내 대안 없음
+         - `DEVIATION`: spec 접근법이 표준에서 벗어남 (이유 없는 경우 보정 필요)
+         - `DUPLICATE`: 코드베이스에 동일·유사 구현 존재 (재사용 검토 필요)
+         - `BETTER_ALTERNATIVE`: 동일 목적의 더 단순한 구현 방법 발견
+      4. **처리**:
+         - `ALIGNED`: 결과 저장 후 h-0으로 진행
+         - `DEVIATION` / `BETTER_ALTERNATIVE`:
+           - AskUserQuestion으로 사용자에게 에스컬레이션:
+             - 현재 spec 접근법과 발견된 표준/대안을 나란히 제시
+             - 각 선택지에 **장점 / 단점 / 적합한 상황** 포함
+             - "현재 spec 방향 유지": 이유를 spec 가정 사항에 기록 후 h-0 진행
+             - "표준/대안으로 spec 수정": PM이 spec 보정 후 h-0 진행
+         - `DUPLICATE` (CRITICAL — 완전 중복 구현):
+           - AskUserQuestion으로 사용자에게 에스컬레이션:
+             - 기존 구현 위치·범위와 신규 구현 의도를 함께 제시
+             - 각 선택지에 **장점 / 단점 / 적합한 상황** 포함
+             - "기존 구현 재사용으로 spec 수정": spec 보정 후 h-0 진행
+             - "새로 구현 (이유 있음)": 이유를 spec 가정 사항에 기록 후 h-0 진행
+      5. **결과 저장**: `{PROJECT_ROOT}/.gran-maestro/requests/REQ-NNN/discussion/req-impl-research.md`
+         ```yaml
+         trigger: complex | new_library | post_ideation | low_confidence
+         impl_confidence: 0.0~1.0  # AUTO_APPROVE=true 시만 기록
+         codebase_findings:
+           - type: DUPLICATE | BETTER_ALTERNATIVE | NONE
+             detail: "..."
+         web_search:
+           - query: "..."
+             finding: "..."
+         result: ALIGNED | DEVIATION | DUPLICATE | BETTER_ALTERNATIVE
+         spec_changes: "변경 없음 | {변경 내용 요약}"
+         ```
+   1.8. **구현 세부 Q&A Pass** (Step 1g 완료 직후, Step h-0 이전):
+      - `AUTO_APPROVE=true`면 이 단계 전체를 완전 skip하고 Step h-0으로 즉시 진행
+      - `AUTO_APPROVE=false`면 아래 7개 카테고리를 **고정 순서로 순차 질문**한다:
+        1) 에러/실패 처리
+        2) 엣지케이스
+        3) 데이터 변경
+        4) 호환성
+        5) 성능
+        6) 테스트 범위
+        7) 배포 전략
+      - 각 카테고리는 `AskUserQuestion` **동시 1개만** 호출한다.
+      - 각 질문에는 반드시 `"해당 없음"` 선택지를 포함한다.
+      - 선택지 수는 총 6개 이내를 유지한다 (핵심 선택지 + 보조 선택지 합산).
+      - **모호한 답변 처리 (카테고리별 최대 3회)**:
+        - 답변이 불명확하면, 직전 답변을 반영해 더 구체적인 선택지로 재질문한다.
+        - 3회 내 명확한 답변이 확보되지 않으면 PM이 해당 카테고리를 **가장 안전한 선택**으로 자동 결정한다.
+        - 자동 결정 시 결정 사유를 내부 메모에 남기고 다음 카테고리로 진행한다.
+      - `--plan PLN-NNN`이 제공된 경우에도 이 단계는 동일하게 실행한다 (`AUTO_APPROVE=false` 기준).
+      - 수집된 Q&A 결과는 spec.md 작성 시 반드시 반영:
+        - §3 수락 조건(AC) 상세에 반영
+        - §3.5 Constraints에 반영
    h-0. **Stitch 트리거 감지** (config.stitch.enabled=true인 경우):
       - 명시적 디자인 요청("화면 디자인해줘", "Stitch로", "목업", "시안" 등):
         ⚠️ **`mcp__stitch__*` 도구를 직접 호출하는 것은 절대 금지.**
@@ -335,7 +445,7 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       `--prereview` → 강제 실행 (다른 skip 조건 무시); `--auto`/`-a` 또는 `AUTO_APPROVE=true` → skip;
       `--no-prereview` → skip; `workflow.spec_prereview=false` → skip; 모두 통과 시 실행
 
-      **에스컬레이션 모드** (변경 없음): `--plan` 있으면 `"user"`, 없으면 `"pm-self"`
+      **에스컬레이션 모드**: `AUTO_APPROVE=true`면 `"pm-self"`, 그 외(`AUTO_APPROVE=false`)는 항상 `"user"`
 
       **config 읽기** (신규):
       - `max_iterations` = `config.workflow.spec_prereview_max_iterations` (미설정 시 기본 3)
@@ -401,8 +511,11 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         - `current_iteration < max_iterations` → `current_iteration++` → **LOOP 재진입**
         - `current_iteration >= max_iterations` → 루프 종료
 
-      - MINOR_COUNT < minor_escalation_threshold 또는 minor_escalation_threshold == null → 기존 동작:
-        - MINOR 이슈만: PM이 자체 반영 후 루프 종료
+      - MINOR_COUNT < minor_escalation_threshold 또는 minor_escalation_threshold == null → escalation_mode에 따라:
+        - **user 모드** (`escalation_mode = "user"`): MINOR 이슈 목록을 AskUserQuestion으로 제시 + 선택지 "반영하고 재리뷰" / "반영 없이 진행"
+          - "반영하고 재리뷰": PM이 이슈를 spec.md에 Edit으로 반영 후 루프 재진입 (max_iterations 확인)
+          - "반영 없이 진행": 루프 종료
+        - **pm-self 모드** (`escalation_mode = "pm-self"`): PM이 자체 반영 후 루프 종료 (기존 동작)
       - 전체 NO_ISSUES: 수정 없이 루프 종료
 
       **[PREREVIEW LOOP 종료]**

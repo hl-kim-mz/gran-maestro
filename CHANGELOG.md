@@ -4,6 +4,17 @@
 
 ---
 
+## [0.52.0] — 2026-03-10
+
+### 개선
+
+- `mst:request`에 **Step 1.8 구현 세부 Q&A Pass** 추가: Step 1g 이후 Step h-0 이전에 7개 카테고리(에러/실패처리, 엣지케이스, 데이터 변경, 호환성, 성능, 테스트 범위, 배포 전략)를 `AskUserQuestion`으로 순차 확인
+- Step 1.8에서 각 질문에 `"해당 없음"` 선택지를 포함하고, 모호한 답변은 최대 3회 재질문 후 PM이 가장 안전한 선택으로 자동 결정하도록 규칙화
+- `AUTO_APPROVE=true`일 때 Step 1.8을 완전 skip하도록 분기 추가
+- Spec Pre-review 에스컬레이션 모드를 `AUTO_APPROVE` 기준으로 변경: `AUTO_APPROVE=false`면 항상 사용자에게 `AskUserQuestion`으로 처리 방식 확인, `AUTO_APPROVE=true`면 `pm-self` 자동 반영 유지
+
+---
+
 ## [0.51.1] — 2026-03-09
 
 ### 개선

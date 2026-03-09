@@ -156,14 +156,6 @@ REQ 리스트가 1건이거나, 명시적 단건 인자 호출 시 이 프로토
     - "예, 자동으로 연결 실행" → `config.json`의 `workflow.auto_approve_on_unblock`을 `true`로 업데이트
       알림: "✓ 이후 모든 체인에서 의존성 해소 시 자동 approve가 실행됩니다. (`/mst:settings workflow.auto_approve_on_unblock false`로 되돌릴 수 있습니다)"
     - "아니오, 각 단계마다 수동 approve" → 현재 요청만 진행, 설정 변경 없음
-2.5. **Phase 2.5: Stitch 디자인 제안** (단건 + `auto_approve=false`인 경우만):
-   - `config.stitch.enabled`가 false면 skip
-   - spec.md §2에서 UI 관련 변경 감지 (프론트엔드 파일, "화면"/"UI"/"페이지"/"컴포넌트" 등 키워드)
-   - UI 변경 감지 + `stitch_screens` 비어있으면:
-     → 제안: "구현 전 Stitch로 화면을 설계할까요? [설계하기 / 건너뛰기]"
-     → "설계하기": `Skill(skill: "mst:stitch", args: "--req {REQ-ID} {spec §1 요약}")` 호출 후 3으로 진행
-     → "건너뛰기" 또는 UI 미감지: 3으로 진행
-   - `auto_approve=true` 또는 배치 모드: skip
 2.7. **Pre-Impl Preflight 검사 (구현 착수 전 필수)**
 
 구현을 시작하기 전 아래 검사를 수행한다:
