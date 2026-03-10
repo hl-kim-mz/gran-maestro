@@ -518,7 +518,8 @@ Bash(
 
 # gemini-dev인 경우
 Bash(
-  command: 'set -o pipefail && cd {worktree_path} && gemini -p "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log',
+  MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model gemini default 2>/dev/null);
+  command: 'set -o pipefail && cd {worktree_path} && gemini -p "$(cat {prompt_file})"${MODEL:+ --model "$MODEL"} --approval-mode yolo 2>&1 | tee {task_dir}/running.log',
   run_in_background: true,
   timeout: {config.timeouts.cli_large_task_ms}
 )
