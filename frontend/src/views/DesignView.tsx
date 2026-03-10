@@ -159,6 +159,43 @@ export function DesignView() {
     return result;
   }, [sessions, searchValue, filterValue, sortValue]);
 
+  const isPlanDesign = selectedSession?.source === 'plan_design';
+  const hasStyles = Boolean(selectedSession?.has_styles) && !isPlanDesign;
+  const styleNames = useMemo(() => getStyleNames(selectedSession), [selectedSession]);
+  const activeStyle = hasStyles ? (selectedStyle ?? styleNames[0] ?? null) : null;
+  const selectedScreen = useMemo(() => {
+    const selectedScreenId = selectedScreenFile?.replace(/\.md$/, '');
+    return selectedSession?.screens?.find((screen) => {
+      const screenId = screen.id.replace(/\.md$/, '');
+      if (screenId !== selectedScreenId) {
+        return false;
+      }
+      if (!hasStyles || !activeStyle) {
+        return true;
+      }
+      return screen.style === activeStyle;
+    }) ?? selectedSession?.screens?.find((screen) =>
+      screen.id.replace(/\.md$/, '') === selectedScreenId && (!hasStyles || !activeStyle || !screen.style)
+    );
+  }, [selectedSession?.screens, selectedScreenFile, hasStyles, activeStyle]);
+  const canPreview = useMemo(
+    () =>
+      Boolean(selectedScreen?.html_file) ||
+      Boolean(hasStyles && activeStyle && selectedScreenFile && projectId && selectedSession),
+    [selectedScreen?.html_file, hasStyles, activeStyle, selectedScreenFile, projectId, selectedSession]
+  );
+  const htmlPreviewSrc = useMemo(() => {
+    if (!projectId || !selectedSession || !selectedScreenFile) {
+      return null;
+    }
+
+    if (hasStyles && activeStyle) {
+      return `/api/projects/${projectId}/designs/${selectedSession.id}/styles/${encodeURIComponent(activeStyle)}/screens/${selectedScreenFile}/html`;
+    }
+
+    return `/api/projects/${projectId}/designs/${selectedSession.id}/screens/${selectedScreenFile}/html`;
+  }, [projectId, selectedSession, selectedScreenFile, hasStyles, activeStyle]);
+
   const fetchSessions = useCallback(async () => {
     try {
       const data = await apiFetch<DesignSession[]>('/api/designs', projectId);
@@ -259,8 +296,33 @@ export function DesignView() {
   }, [selectedSession?.id, projectId]);
 
   useEffect(() => {
-    setViewMode('html');
-  }, [selectedScreenFile, selectedStyle]);
+    setViewMode(canPreview ? 'html' : 'image');
+  }, [canPreview]);
+
+  useEffect(() => {
+    if (viewMode !== 'html' || !htmlPreviewSrc) {
+      return;
+    }
+
+    const abortController = new AbortController();
+
+    fetch(htmlPreviewSrc, { method: 'HEAD', signal: abortController.signal })
+      .then((response) => {
+        if (!response.ok) {
+          setViewMode('image');
+        }
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return;
+        }
+        setViewMode('image');
+      });
+
+    return () => {
+      abortController.abort();
+    };
+  }, [viewMode, htmlPreviewSrc]);
 
   useEffect(() => {
     if (
@@ -273,7 +335,6 @@ export function DesignView() {
       return;
     }
 
-    const styleNames = getStyleNames(selectedSession);
     const styleName = selectedStyle ?? styleNames[0] ?? null;
     if (!styleName) {
       setStyleScreenFiles([]);
@@ -309,6 +370,7 @@ export function DesignView() {
     selectedSession?.has_styles,
     selectedSession?.source,
     selectedStyle,
+    styleNames,
     projectId,
   ]);
 
@@ -319,7 +381,6 @@ export function DesignView() {
     }
 
     const isStyleSession = selectedSession.source !== 'plan_design' && Boolean(selectedSession.has_styles);
-    const styleNames = getStyleNames(selectedSession);
     const styleName = selectedStyle ?? styleNames[0] ?? null;
 
     if (isStyleSession && !styleName) {
@@ -343,6 +404,7 @@ export function DesignView() {
     selectedSession?.source,
     selectedScreenFile,
     selectedStyle,
+    styleNames,
     projectId,
   ]);
 
@@ -372,35 +434,10 @@ export function DesignView() {
     );
   }
 
-  const isPlanDesign = selectedSession?.source === 'plan_design';
-  const hasStyles = Boolean(selectedSession?.has_styles) && !isPlanDesign;
-  const styleNames = getStyleNames(selectedSession);
-  const activeStyle = hasStyles ? (selectedStyle ?? styleNames[0] ?? null) : null;
   const screenFiles = hasStyles ? styleScreenFiles : (selectedSession?.screen_files ?? []);
   const parsedScreen = screenContent ? parseScreenContent(screenContent) : null;
   const parsedScreenTitle = parsedScreen?.title ? parsedScreen.title : 'Design 화면';
-  const selectedScreenId = selectedScreenFile?.replace(/\.md$/, '');
-  const selectedScreen =
-    selectedSession?.screens?.find((screen) => {
-      const screenId = screen.id.replace(/\.md$/, '');
-      if (screenId !== selectedScreenId) {
-        return false;
-      }
-      if (!hasStyles || !activeStyle) {
-        return true;
-      }
-      return screen.style === activeStyle;
-    }) ??
-    selectedSession?.screens?.find((screen) =>
-      screen.id.replace(/\.md$/, '') === selectedScreenId && (!hasStyles || !activeStyle || !screen.style)
-    );
-  const hasHtmlPreview = Boolean(selectedScreen?.html_file);
-  const htmlPreviewSrc =
-    projectId && selectedSession && selectedScreenFile
-      ? hasStyles && activeStyle
-        ? `/api/projects/${projectId}/designs/${selectedSession.id}/styles/${encodeURIComponent(activeStyle)}/screens/${selectedScreenFile}/html`
-        : `/api/projects/${projectId}/designs/${selectedSession.id}/screens/${selectedScreenFile}/html`
-      : null;
+  const hasHtmlPreview = canPreview;
 
   const renderScreenTabs = (files: string[], emptyDescription: string) => {
     if (files.length === 0) {
@@ -466,6 +503,7 @@ export function DesignView() {
                         className="w-full border rounded"
                         style={{ minHeight: '600px' }}
                         sandbox="allow-scripts"
+                        onError={() => setViewMode('image')}
                       />
                     ) : (
                       <>

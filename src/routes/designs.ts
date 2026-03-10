@@ -200,13 +200,29 @@ projectDesignsApi.get("/designs/:desId", async (c) => {
   if (hasStyles) {
     const styleDirs = (await listDirs(stylesDir)).filter((dir) => isSafePathSegment(dir));
     const normalizedScreens = Array.isArray(response.screens)
-      ? response.screens.map((screen) => {
+      ? await Promise.all(response.screens.map(async (screen) => {
         const currentStyle = typeof screen.style === "string" ? screen.style : null;
+        const htmlFile = typeof screen.html_file === "string" ? screen.html_file : null;
+
+        if (!htmlFile && typeof currentStyle === "string" && isSafePathSegment(currentStyle)) {
+          const screenId = (screen.id as string).replace(/\.md$/, "");
+          if (isSafePathSegment(screenId)) {
+            const candidatePath = `${stylesDir}/${currentStyle}/${screenId}.html`;
+            try {
+              const stat = await Deno.stat(candidatePath);
+              if (stat.isFile) {
+                return { ...screen, html_file: `styles/${currentStyle}/${screenId}.html` };
+              }
+            } catch (_error) {
+              // ignore missing fallback html file
+            }
+          }
+        }
+
         if (!currentStyle || isSafePathSegment(currentStyle)) {
           return screen;
         }
 
-        const htmlFile = typeof screen.html_file === "string" ? screen.html_file : null;
         if (!htmlFile) {
           return screen;
         }
@@ -221,7 +237,7 @@ projectDesignsApi.get("/designs/:desId", async (c) => {
           ...screen,
           style: extractedStyle,
         };
-      })
+      }))
       : response.screens;
 
     return c.json({

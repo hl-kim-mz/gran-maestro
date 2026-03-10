@@ -208,7 +208,15 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
      - `html_file_path`가 이미 설정되어 있으면(동기 경로에서 Step 4-2가 저장 완료): 이 단계 skip
      - `html_file_path`가 미설정이면(폴링 경로): `get_screen` 응답의 `output_components`를 확인하여 Step 4-2의 output_components 파싱 규칙을 따른다
        - 코드 포함 시: `html_content` 메모리 변수에 보관 (파일 저장은 Step D에서 md와 동시 수행)
-       - 비어있거나 제안 텍스트인 경우: `html_content = null`
+       - 비어있거나 제안 텍스트인 경우: **html 대기 루프**(30초 간격 최대 20회, 총 최대 10분)로 재확인
+         - ⚠️ 이 루프는 screen_id 감지용 Step 4-1 폴링과 별도이며, screen_id 확보 이후에만 실행
+         - `html_wait_count = 1`로 시작, `html_wait_count <= 20` 동안 반복:
+           a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30`
+           b. `mcp__stitch__get_screen(name: "projects/{id}/screens/{screen_id}", ...)` 재호출
+           c. `output_components` 재확인:
+              - 코드 포함 시: `html_content` 메모리 변수에 보관하고 루프 종료
+              - 여전히 비어있거나 제안 텍스트면 `[Stitch] HTML 대기 중... ({html_wait_count}/20회)` 출력 후 `html_wait_count += 1`
+         - 20회 모두 코드 미확인 시: `html_content = null`로 확정
 
 6. **variants 요청 시** (--variants 또는 트리거 C):
    ```
@@ -375,7 +383,15 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
      - 해당 `스타일명+화면명` 키가 html_file_path 맵에 이미 설정되어 있으면(동기 경로에서 Step 3가 저장 완료): 이 단계 skip
      - 미설정이면(폴링 경로): `get_screen` 응답의 `output_components`를 확인하여 Step 4-2의 output_components 파싱 규칙을 따른다
        - 코드 포함 시: `스타일명+화면명 → html_content` 맵에 보관 (파일 저장은 Step 5.5에서 md와 동시 수행)
-       - 비어있거나 제안 텍스트인 경우: 해당 키에 null
+       - 비어있거나 제안 텍스트인 경우: **html 대기 루프**(30초 간격 최대 20회, 총 최대 10분)로 재확인
+         - ⚠️ 이 루프는 screen_id 수집용 Step 4 폴링과 별도이며, 각 screen_id별로 독립 카운터를 사용
+         - 각 screen_id마다 `html_wait_count = 1`로 시작, `html_wait_count <= 20` 동안 반복:
+           a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30`
+           b. 동일한 `screen_id`로 `mcp__stitch__get_screen(...)` 재호출
+           c. `output_components` 재확인:
+              - 코드 포함 시: 해당 `스타일명+화면명 → html_content` 맵에 보관하고 루프 종료
+              - 여전히 비어있거나 제안 텍스트면 `[Stitch] HTML 대기 중... ({html_wait_count}/20회, screen_id: {screen_id})` 출력 후 `html_wait_count += 1`
+         - 20회 모두 코드 미확인 시: 해당 `스타일명+화면명` 키에 null 확정
    - 스타일명 + 화면명과 screen_id, downloadUrl을 매핑하여 보관
 
 5.5. **screen-NNN.md 일괄 생성** (스타일 폴더 구조):
