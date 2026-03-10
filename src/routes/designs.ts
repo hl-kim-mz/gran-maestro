@@ -199,8 +199,34 @@ projectDesignsApi.get("/designs/:desId", async (c) => {
   const hasStyles = await dirExists(stylesDir);
   if (hasStyles) {
     const styleDirs = (await listDirs(stylesDir)).filter((dir) => isSafePathSegment(dir));
+    const normalizedScreens = Array.isArray(response.screens)
+      ? response.screens.map((screen) => {
+        const currentStyle = typeof screen.style === "string" ? screen.style : null;
+        if (!currentStyle || isSafePathSegment(currentStyle)) {
+          return screen;
+        }
+
+        const htmlFile = typeof screen.html_file === "string" ? screen.html_file : null;
+        if (!htmlFile) {
+          return screen;
+        }
+
+        const styleMatch = `/${htmlFile}`.match(/\/styles\/([^/]+)\//);
+        const extractedStyle = styleMatch?.[1];
+        if (!extractedStyle || !isSafePathSegment(extractedStyle)) {
+          return screen;
+        }
+
+        return {
+          ...screen,
+          style: extractedStyle,
+        };
+      })
+      : response.screens;
+
     return c.json({
       ...response,
+      screens: normalizedScreens,
       has_styles: true,
       style_dirs: styleDirs,
     });
