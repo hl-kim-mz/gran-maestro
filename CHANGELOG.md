@@ -4,6 +4,16 @@
 
 ---
 
+## [0.53.1] — 2026-03-10
+
+### 버그 수정
+
+- `mst:approve`: gemini-dev 외주 호출 시 `--approval-mode yolo` 누락으로 background 실행 중 hung 상태 발생하던 문제 수정
+- `mst:approve`: gemini-dev 호출에 `--model` resolve 코드 추가 — codex-dev 패턴과 일관성 확보
+- `mst:dashboard`: DesignView HTML 미리보기 버튼이 표시되지 않던 문제 수정
+
+---
+
 ## [0.53.0] — 2026-03-10
 
 ### 개선
