@@ -184,13 +184,14 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 
 4-1. **폴링 루프** (빈 응답인 경우만):
    최대 20회, 30초 간격 (총 최대 10분)
+   > ⚠️ **MANDATORY**: 반드시 20회를 모두 채울 때까지 루프를 종료하지 않는다. 중간에 임의로 중단하는 것은 금지다.
 
-   반복마다:
+   반복마다 (poll_count = 1부터 시작, 20 이하인 동안 반복):
    a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30` (Bash 호출)
    b. `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출
    c. `현재 screen IDs - baseline_screen_ids ≠ ∅` 인가?
       - YES: 차집합의 첫 번째 screen ID 선택 → step 5로 진행
-      - NO: 반복 계속
+      - NO: `[Stitch] 대기 중... ({poll_count}/20회)` 출력 후 poll_count += 1, 반복 계속
 
    20회 모두 미감지 시:
    - "[Stitch] 화면 생성 요청이 처리 중입니다 — 수 분 내 완료됩니다. 잠시 후 /mst:stitch --list로 확인하세요." 출력
@@ -319,26 +320,31 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    - REQ-NNN 없고 PLN-NNN이 있을 경우: `plan.json`의 `stitch_screens`에 동일 형식으로 기록
    - 둘 다 없을 경우: 선기록 생략
 
-3. **스타일 × 화면 중첩 순차 호출** (총 N×M회, N = 스타일 수, M = 화면 수):
-   ```
-   for each style in styles:
-     mkdir {PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/styles/{style_slug}/
-     for each screen in screen_list:
+3. **스타일 × 화면 전체 병렬 호출** (총 N×M회, N = 스타일 수, M = 화면 수):
+
+   - 먼저 모든 스타일 폴더를 생성:
+     ```
+     for each style in styles:
+       mkdir {PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/styles/{style_slug}/
+     ```
+   - 이후 N×M개의 `mcp__stitch__generate_screen_from_text` 호출을 **단일 메시지에 모두 포함시켜 동시에 발송** (순차 대기 금지):
+     ```
+     [병렬] for each (style, screen) in styles × screen_list:
        mcp__stitch__generate_screen_from_text(
          projectId: {stitch_project_id},
          prompt: "{screen 화면 설명}\n\n[스타일 방향] {스타일명}: {스타일 차별화 포인트}",
          deviceType: "DESKTOP",
          modelId: {STITCH_MODEL}
        )
-       - 응답 있음(screen_id 포함):
-         screen_id 임시 보관 → output_components 코드 포함 시
-         `{PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/styles/{style_slug}/screen-{화면순번:001,002,...}.html` 저장
-         → 스타일명+화면명→html_file_path 맵 보관 → 다음 화면/스타일 호출 계속
-       - 빈 응답/null: 해당 화면 "pending" 상태로 표시 → 폴링 루프(Step 4)에서 일괄 처리
-       - 명시적 오류: 해당 화면 실패 기록 후 계속
-   ```
+     ```
+   - 모든 응답 수집 후 처리:
+     - 응답 있음(screen_id 포함): screen_id 임시 보관 → output_components 코드 포함 시
+       `{PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/styles/{style_slug}/screen-{화면순번:001,002,...}.html` 저장
+       → 스타일명+화면명→html_file_path 맵 보관
+     - 빈 응답/null: 해당 (스타일, 화면) 쌍을 pending 목록에 추가 → Step 4에서 일괄 폴링
+     - 명시적 오류: 해당 화면 실패 기록
 
-   > **단일 화면 최적화**: `screen_list`가 1개이면 내부 루프는 1회만 실행되어 기존 동작과 동일.
+   > **단일 화면 최적화**: `screen_list`가 1개이고 스타일도 1개이면 병렬 호출은 1회만 실행되어 기존 동작과 동일.
 
 4. **폴링 루프** (즉시 응답 없는 화면이 있는 경우):
    - 대기 안내 출력:
@@ -347,11 +353,13 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
      ```
    - 수집 목표 수 = 기대 전체 화면 수(N×M) − 이미 수집된 screen_id 수
    - 최대 20회, 30초 간격:
+     > ⚠️ **MANDATORY**: 반드시 20회를 모두 채울 때까지 루프를 종료하지 않는다. 중간에 임의로 중단하는 것은 금지다.
+     poll_count = 1로 초기화, poll_count <= 20인 동안 반복:
      a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30` (Bash 호출)
      b. `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출
      c. `현재 screen IDs - baseline_screen_ids`의 차집합 크기 >= 수집 목표 수?
         - YES: 차집합에서 목표 수만큼 screen ID 선택 → Step 5로 진행
-        - NO: 반복 계속
+        - NO: `[Stitch] 대기 중... ({poll_count}/20회)` 출력 후 poll_count += 1, 반복 계속
    - 20회 모두 미감지 시:
      - "[Stitch] 일부 스타일 생성이 지연되고 있습니다 — 잠시 후 /mst:stitch --list로 확인하세요." 출력
      - pending 항목 유지 (`stale_at` = `created_at` + 15분)
