@@ -31,6 +31,9 @@ Subcommands:
   version bump        <patch|minor|major>
 
   context gather      [--diff N] [--skills] [--agents] [--format text|json]
+  state set          --skill NAME --step N --total M [--return-to SKILL/STEP]
+  state get
+  state clear
 
   task set-commit     <TASK-ID> <commit hash> <commit message>
 
@@ -308,6 +311,49 @@ def cmd_set_field(args):
     """지정 ID의 단일 JSON 필드 업데이트."""
     from _state_manager import set_field
     set_field(BASE_DIR, args.id, args.field, args.value)
+    return 0
+
+
+def _skill_state_base_dir() -> Path:
+    local_base_dir = Path.cwd().resolve() / ".gran-maestro"
+    if local_base_dir.exists():
+        return local_base_dir
+    if BASE_DIR and os.access(BASE_DIR, os.W_OK):
+        return BASE_DIR
+    return local_base_dir
+
+
+def cmd_state_set(args):
+    from _skill_state import set_snapshot
+
+    state_base_dir = _skill_state_base_dir()
+    data = set_snapshot(
+        state_base_dir,
+        skill=args.skill,
+        step=args.step,
+        total=args.total,
+        return_to=args.return_to,
+    )
+    print(json.dumps(data, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_state_get(args):
+    from _skill_state import get_snapshot
+
+    data = get_snapshot(_skill_state_base_dir())
+    if data is None:
+        print("스냅샷 없음")
+        return 0
+    print(json.dumps(data, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_state_clear(args):
+    from _skill_state import clear_snapshot
+
+    clear_snapshot(_skill_state_base_dir())
+    print("스냅샷 초기화 완료")
     return 0
 
 
@@ -2430,6 +2476,19 @@ def build_parser():
     set_field_cmd.add_argument("value", help="새 값 (문자열)")
     set_field_cmd.set_defaults(func=cmd_set_field)
 
+    # --- state ---
+    state = sub.add_parser("state")
+    state_sub = state.add_subparsers(dest="subcommand")
+
+    state_set = state_sub.add_parser("set")
+    state_set.add_argument("--skill", required=True)
+    state_set.add_argument("--step", type=int, required=True)
+    state_set.add_argument("--total", type=int, required=True)
+    state_set.add_argument("--return-to", dest="return_to")
+
+    state_sub.add_parser("get")
+    state_sub.add_parser("clear")
+
     # --- plan ---
     plan = sub.add_parser("plan")
     plan_sub = plan.add_subparsers(dest="subcommand")
@@ -2647,6 +2706,9 @@ def main():
         ("timestamp", "now"): cmd_timestamp,
         ("set-status", None): cmd_set_status,
         ("set-field", None): cmd_set_field,
+        ("state", "set"): cmd_state_set,
+        ("state", "get"): cmd_state_get,
+        ("state", "clear"): cmd_state_clear,
         ("plan", "list"): cmd_plan_list,
         ("plan", "count"): cmd_plan_count,
         ("plan", "inspect"): cmd_plan_inspect,
