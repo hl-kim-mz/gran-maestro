@@ -3,6 +3,8 @@
 - Request: {{REQ_ID}} / Task: {{TASK_ID}}
 - Worktree: {{WORKTREE_PATH}}
 - Base branch: {{BASE_BRANCH}}
+- Spec: {{SPEC_PATH}}
+- Plan: {{PLAN_PATH}}
 
 ## 변경 의도 (PM 작성 — 1~3줄 자유 형식)
 
@@ -16,6 +18,8 @@
 
 아래 순서로 변경사항을 직접 탐색하라. PM이 제공한 diff나 요약에 의존하지 말고 직접 확인하라.
 
+0. 스펙 직접 읽기: `cat {{SPEC_PATH}}` (또는 Read 도구) — 변경 의도·범위·수락 조건 파악
+0.1. plan 직접 읽기 (source_plan이 있는 경우만): `{{PLAN_PATH}}`가 `"N/A"`가 아니면 `cat {{PLAN_PATH}}` (또는 Read 도구), `"N/A"`면 source_plan 없음으로 보고 이 단계를 skip
 1. `git -C {{WORKTREE_PATH}} diff --name-only {{BASE_BRANCH}}...HEAD` — 변경된 파일 목록 파악
 2. `git -C {{WORKTREE_PATH}} diff {{BASE_BRANCH}}...HEAD` — 전체 변경 내용 확인
 3. 변경된 파일만 탐색할 것. 변경되지 않은 파일은 검토 범위 밖이다

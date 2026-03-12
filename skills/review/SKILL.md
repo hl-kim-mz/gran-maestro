@@ -124,6 +124,9 @@ arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에
 - arch_reviewer → `reviews/RV-NNN/review-arch.md`
 - ui_reviewer → `reviews/RV-NNN/review-ui.md`
 
+- `{{SPEC_PATH}}`: 해당 태스크의 `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/tasks/{NN}/spec.md` 절대 경로
+- `{{PLAN_PATH}}`: `request.json.source_plan` 존재 시 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`, 미존재 시 `"N/A"`
+
 **ui_reviewer 스킵 조건**: `request.json.stitch_screens` 배열이 비어있고 `frontend/` 디렉토리 변경 파일이 없으면 auto-skip. 취합 시 "UI 리뷰 skip (변경 없음)" 표시.
 
 ### Step 5: 완료 대기 및 취합
