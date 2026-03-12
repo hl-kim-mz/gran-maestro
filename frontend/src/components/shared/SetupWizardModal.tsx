@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Bot,
   Brain,
@@ -27,7 +27,7 @@ import { apiFetch } from '@/hooks/useApi';
 import { cn, deepSet, getNestedValue } from '@/lib/utils';
 import type { PresetMeta, PresetDiffChange } from '../../../../src/types';
 
-type WizardStep = 1 | 2 | 3 | 4 | 5;
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 type AgentSelection = 'claude' | 'claude-codex' | 'claude-gemini' | 'full-team';
 type TierSelection = 'performance' | 'efficient' | 'budget';
 
@@ -52,7 +52,17 @@ type PresetResponse = {
   builtin: PresetMeta[];
 };
 
-const STEP_LABELS = ['Git', '에이전트', '성향', '도구', '리뷰'] as const;
+const STEP_LABELS = ['Git', '에이전트', '성향', 'Agent 미세조정', '도구', '리뷰'] as const;
+
+const AGENT_FEATURES = [
+  { id: 'discussion', label: 'Discussion' },
+  { id: 'ideation', label: 'Ideation' },
+  { id: 'collaborative_debug', label: 'Collaborative Debug' },
+  { id: 'debug', label: 'Debug' },
+  { id: 'explore', label: 'Explore' },
+  { id: 'prereview', label: 'Prereview' },
+];
+const AGENT_TYPES = ['codex', 'gemini', 'claude'];
 
 const AGENT_OPTIONS: Array<{
   id: AgentSelection;
@@ -138,6 +148,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
   const [builtinPresets, setBuiltinPresets] = useState<PresetMeta[]>([]);
   const [initializing, setInitializing] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [agentOverrides, setAgentOverrides] = useState<Record<string, number | string>>({});
 
   const [baseBranch, setBaseBranch] = useState<string>('');
   const [baseBranchLoaded, setBaseBranchLoaded] = useState(false);
@@ -146,6 +157,8 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
   const [diffChanges, setDiffChanges] = useState<PresetDiffChange[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
+  const [agentPreloadError, setAgentPreloadError] = useState<string | null>(null);
+  const prefetchRequestIdRef = useRef<number>(0);
 
   useEffect(() => {
     if (!open || !projectId) return;
@@ -161,8 +174,10 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
       setInitialToggles(INITIAL_TOGGLES);
       setDiffChanges([]);
       setDiffError(null);
+      setAgentPreloadError(null);
       setBaseBranch('');
       setBaseBranchLoaded(false);
+      setAgentOverrides({});
       setInitializing(true);
 
       try {
@@ -211,10 +226,11 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
     (step === 1 && baseBranch.trim().length > 0) ||
     (step === 2 && !!selectedAgent) ||
     (step === 3 && !!selectedTier) ||
-    step === 4;
+    (step === 4 && !loadingDiff && !agentPreloadError) ||
+    step === 5;
 
   const canApply =
-    step === 5 &&
+    step === 6 &&
     !!selectedAgent &&
     !!selectedTier &&
     baseBranch.trim().length > 0 &&
@@ -261,7 +277,17 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
       const filteredServerChanges = serverChanges.filter((c) => !toolPaths.has(c.path));
       const mergedChanges = [...filteredServerChanges, ...toolChanges];
 
-      setDiffChanges(mergedChanges);
+      const finalChanges = [...mergedChanges];
+      Object.entries(agentOverrides).forEach(([path, value]) => {
+        const existingIndex = finalChanges.findIndex(c => c.path === path);
+        if (existingIndex >= 0) {
+          finalChanges[existingIndex] = { ...finalChanges[existingIndex], to: value };
+        } else {
+          finalChanges.push({ path, from: undefined, to: value });
+        }
+      });
+
+      setDiffChanges(finalChanges);
     } catch (err) {
       setDiffError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -269,12 +295,48 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1 && baseBranch.trim().length > 0) { setStep(2); return; }
     if (step === 2 && selectedAgent) { setStep(3); return; }
-    if (step === 3 && selectedTier) { setStep(4); return; }
-    if (step === 4) {
-      setStep(5);
+    if (step === 3 && selectedTier) {
+      setStep(4);
+      if (Object.keys(agentOverrides).length === 0) {
+        setLoadingDiff(true);
+        setAgentPreloadError(null);
+        const reqId = ++prefetchRequestIdRef.current;
+        try {
+          const presetId = resolvePresetId(selectedAgent!, selectedTier, builtinPresets);
+          if (presetId) {
+            const diffResponse = await apiFetch<{ changes: PresetDiffChange[] }>(
+              `/api/presets/${presetId}/diff`,
+              projectId,
+              { method: 'POST' }
+            );
+            if (reqId !== prefetchRequestIdRef.current) return;
+            const changes = diffResponse.changes || [];
+            const overrides: Record<string, number | string> = {};
+            changes.forEach((c) => {
+              if (c.path.includes('.agents.')) {
+                overrides[c.path] = c.to as number | string;
+              }
+            });
+            setAgentOverrides(overrides);
+          }
+        } catch (err) {
+          if (reqId !== prefetchRequestIdRef.current) return;
+          console.error(err);
+          setAgentPreloadError(err instanceof Error ? err.message : String(err));
+        } finally {
+          if (reqId === prefetchRequestIdRef.current) {
+            setLoadingDiff(false);
+          }
+        }
+      }
+      return;
+    }
+    if (step === 4) { setStep(5); return; }
+    if (step === 5) {
+      setStep(6);
       setDiffChanges([]);
       void fetchDiff();
       return;
@@ -282,6 +344,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
   };
 
   const handleBack = () => {
+    if (step === 6) { setStep(5); return; }
     if (step === 5) { setStep(4); return; }
     if (step === 4) { setStep(3); return; }
     if (step === 3) { setStep(2); return; }
@@ -314,6 +377,11 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
         nextConfig = deepSet(nextConfig, ['plan_review', 'enabled'], toolToggles.planReview);
         nextConfig = deepSet(nextConfig, ['worktree', 'base_branch'], baseBranch.trim());
 
+        Object.entries(agentOverrides).forEach(([path, value]) => {
+          const pathParts = path.split('.');
+          nextConfig = deepSet(nextConfig, pathParts, value);
+        });
+
         await apiFetch('/api/config', projectId, {
           method: 'PUT',
           body: JSON.stringify(nextConfig),
@@ -339,7 +407,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
             설정 마법사
           </DialogTitle>
           <DialogDescription>
-            5단계로 Git 설정, 에이전트 조합, 성향, 도구 설정을 한 번에 적용합니다.
+            6단계로 Git 설정, 에이전트 조합, 성향, 세부 조정 및 도구 설정을 한 번에 적용합니다.
           </DialogDescription>
           <div className="flex items-center gap-2 pt-3">
             {STEP_LABELS.map((label, index) => {
@@ -438,6 +506,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
                           onClick={() => {
                             setSelectedAgent(option.id);
                             setSelectedTier(null);
+                            setAgentOverrides({});
                           }}
                           className={cn(
                             'rounded-2xl border p-4 text-left transition-colors',
@@ -476,7 +545,11 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
                           key={option.id}
                           type="button"
                           aria-pressed={selected}
-                          onClick={() => setSelectedTier(option.id)}
+                          onClick={() => {
+                            setSelectedTier(option.id);
+                            setAgentOverrides({});
+                            ++prefetchRequestIdRef.current;
+                          }}
                           className={cn(
                             'rounded-2xl border p-4 text-left transition-colors',
                             'focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2',
@@ -503,6 +576,81 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
               )}
 
               {step === 4 && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">기능별 에이전트 할당량과 성향을 미세 조정합니다.</p>
+                  {loadingDiff ? (
+                    <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground animate-pulse">
+                      에이전트 설정을 불러오는 중...
+                    </div>
+                  ) : agentPreloadError ? (
+                    <div className="h-[200px] flex flex-col items-center justify-center gap-2 text-destructive">
+                      <div className="text-sm font-semibold">오류가 발생했습니다</div>
+                      <div className="text-xs">{agentPreloadError}</div>
+                      <Button variant="outline" size="sm" onClick={() => { setAgentPreloadError(null); setAgentOverrides({}); ++prefetchRequestIdRef.current; setStep(3); }} className="mt-2">
+                        재시도
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border bg-card">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                          <tr>
+                            <th className="px-4 py-3 font-semibold">기능</th>
+                            {AGENT_TYPES.map(agent => (
+                              <th key={agent} className="px-4 py-3 font-semibold capitalize">{agent}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {AGENT_FEATURES.map(feature => (
+                            <tr key={feature.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-4 py-3 font-medium whitespace-nowrap">{feature.label}</td>
+                              {AGENT_TYPES.map(agent => {
+                                const countPath = `${feature.id}.agents.${agent}.count`;
+                                const tierPath = `${feature.id}.agents.${agent}.tier`;
+                                
+                                const countVal = agentOverrides[countPath] ?? 0;
+                                const tierVal = agentOverrides[tierPath] ?? 'efficient';
+
+                                return (
+                                  <td key={agent} className="px-4 py-3 min-w-[120px]">
+                                    <div className="flex flex-col gap-1.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground w-10">Count</span>
+                                        <Input 
+                                          type="number" 
+                                          min={0}
+                                          className="h-7 w-16 text-xs px-2"
+                                          value={countVal}
+                                          onChange={(e) => setAgentOverrides(prev => ({ ...prev, [countPath]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground w-10">Tier</span>
+                                        <select 
+                                          className="flex h-7 w-[85px] rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                          value={tierVal}
+                                          onChange={(e) => setAgentOverrides(prev => ({ ...prev, [tierPath]: e.target.value }))}
+                                        >
+                                          <option value="performance">Perf</option>
+                                          <option value="efficient">Effic</option>
+                                          <option value="budget">Budget</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {step === 5 && (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">원하는 도구만 켜서 세부 동작을 맞춤화하세요.</p>
                   <div className="space-y-3">
@@ -554,7 +702,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
                 </div>
               )}
 
-              {step === 5 && (
+              {step === 6 && (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">적용될 설정 변경 사항을 확인하세요.</p>
 
@@ -601,22 +749,23 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
 
         <DialogFooter className="px-6 py-4 border-t bg-muted/25 flex-row items-center justify-between shrink-0">
           <div className="text-xs text-muted-foreground">
-            {step === 1 && 'Step 1/5: Git 설정'}
-            {step === 2 && 'Step 2/5: 에이전트 조합 선택'}
-            {step === 3 && 'Step 3/5: 성향 선택'}
-            {step === 4 && 'Step 4/5: 도구 커스터마이즈'}
-            {step === 5 && 'Step 5/5: 리뷰 및 적용'}
+            {step === 1 && 'Step 1/6: Git 설정'}
+            {step === 2 && 'Step 2/6: 에이전트 조합 선택'}
+            {step === 3 && 'Step 3/6: 성향 선택'}
+            {step === 4 && 'Step 4/6: Agent 미세조정'}
+            {step === 5 && 'Step 5/6: 도구 커스터마이즈'}
+            {step === 6 && 'Step 6/6: 리뷰 및 적용'}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleBack} disabled={!canGoBack || initializing || applying}>
               Back
             </Button>
-            {step < 5 ? (
-              <Button onClick={handleNext} disabled={!canGoNext || initializing || applying}>
+            {step < 6 ? (
+              <Button onClick={() => void handleNext()} disabled={!canGoNext || initializing || applying}>
                 Next
               </Button>
             ) : (
-              <Button onClick={handleApply} disabled={!canApply}>
+              <Button onClick={() => void handleApply()} disabled={!canApply}>
                 {applying ? 'Applying...' : 'Apply'}
               </Button>
             )}

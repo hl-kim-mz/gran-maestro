@@ -262,6 +262,7 @@ export function SettingsView() {
   const [saving, setSaving] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [openSections, setOpenSections] = useState<string[]>(['workflow']);
 
   useEffect(() => {
     if (!projectId) {
@@ -500,6 +501,13 @@ export function SettingsView() {
 
   const visibleSections = Object.entries(merged).filter(([key]) => !HIDDEN_FIELDS.includes(key));
 
+  const AGENT_SECTIONS = ['discussion', 'ideation', 'collaborative_debug', 'debug', 'explore', 'prereview', 'roles'];
+  const agentIndices = visibleSections
+    .map(([key], index) => (AGENT_SECTIONS.includes(key) ? index : -1))
+    .filter((index) => index !== -1);
+  const firstAgentIndex = agentIndices.length > 0 ? agentIndices[0] : -1;
+  const lastAgentIndex = agentIndices.length > 0 ? agentIndices[agentIndices.length - 1] : -1;
+
   return (
     <div className="flex h-full overflow-hidden">
       <div className="flex-1 min-w-0 overflow-hidden">
@@ -511,6 +519,12 @@ export function SettingsView() {
                 <p className="text-muted-foreground text-sm">System configuration and preferences.</p>
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setOpenSections(visibleSections.map(([key]) => key))} disabled={saving}>
+                  전부 열기
+                </Button>
+                <Button variant="outline" onClick={() => setOpenSections([])} disabled={saving}>
+                  전부 접기
+                </Button>
                 <Button
                   variant={panelOpen ? 'secondary' : 'outline'}
                   size="icon"
@@ -537,12 +551,21 @@ export function SettingsView() {
             </div>
 
             <div className="space-y-4">
-              <Accordion type="multiple" defaultValue={["workflow"]} className="w-full space-y-4">
-                {visibleSections.map(([sectionKey, sectionData]) => {
+              <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="w-full space-y-4">
+                {visibleSections.map(([sectionKey, sectionData], index) => {
                   const { fieldCount, modifiedCount } = getSectionCounts(sectionKey, sectionData);
+                  const isFirstAgent = index === firstAgentIndex;
 
                   return (
-                    <AccordionItem key={sectionKey} value={sectionKey} className="border rounded-md bg-card shadow-sm">
+                    <React.Fragment key={sectionKey}>
+                      {isFirstAgent && (
+                        <div className="flex items-center gap-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          <div className="flex-1 h-px bg-border"></div>
+                          <span>에이전트 관련</span>
+                          <div className="flex-1 h-px bg-border"></div>
+                        </div>
+                      )}
+                      <AccordionItem value={sectionKey} className="border rounded-md bg-card shadow-sm">
                       <AccordionTrigger className="py-2 px-3 text-sm font-bold uppercase tracking-wider hover:no-underline">
                         <div className="flex items-center gap-2">
                           {sectionKey}
@@ -568,6 +591,12 @@ export function SettingsView() {
                         </div>
                       </AccordionContent>
                     </AccordionItem>
+                    {index === lastAgentIndex && (
+                      <div className="flex items-center gap-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        <div className="flex-1 h-px bg-border"></div>
+                      </div>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </Accordion>
