@@ -501,7 +501,7 @@ export function DesignView() {
                         title={`${selectedSession?.id ?? 'design'}-${file}-html-preview`}
                         src={htmlPreviewSrc}
                         className="w-full border rounded"
-                        style={{ minHeight: '600px' }}
+                        style={{ minHeight: 'calc(100vh - 250px)' }}
                         sandbox="allow-scripts"
                         onError={() => setViewMode('image')}
                       />
