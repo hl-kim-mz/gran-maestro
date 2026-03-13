@@ -96,17 +96,29 @@ ui-reviewer (bg):     UI 설계 검토 (조건부)            ─┘
 
 - 각 AC 항목별로 관련 코드/설정 파일 Read.
 - PASS / FAIL / UNKNOWN 판정 후 근거 기록.
+- **Plan AC(PLAN-AC-N)가 있으면 Spec AC와 별도 섹션으로 검증**한다.
+  - Plan AC는 구현 상세보다 **관찰 가능한 결과/동작** 기준으로 판정한다 (예: "X 버튼 클릭 시 Y 결과 표시").
+  - Plan AC 미충족은 MUST 등급 실패로 처리하고, spec AC 실패와 동일하게 Pass A 실패 트리거 대상이 된다.
 - 결과를 `reviews/RV-NNN/ac-results.md`에 저장.
   ```markdown
   # AC 검증 결과 — RV-NNN
 
+  ## Spec AC
+  | AC | 등급 | 판정 | 근거 |
+  |----|------|------|------|
+  | AC-1 | MUST | ✅ PASS | ... |
+  | AC-2 | SHOULD | ❌ FAIL | ... |
+
+  ## Plan AC (PLN-NNN)
   | AC | 판정 | 근거 |
   |----|------|------|
-  | AC-1 | ✅ PASS | ... |
-  | AC-2 | ❌ FAIL | ... |
+  | PLAN-AC-1 | ✅ PASS | ... |
+  | PLAN-AC-2 | ❌ FAIL | ... |
   ```
+  Plan AC 섹션이 없으면 (source_plan 미존재 시) 생략한다.
 
 **MUST AC 실패 감지 트리거**: AC 검증 완료 후, 판정=FAIL이고 등급=[MUST]인 항목이 1개 이상이면
+(Spec MUST AC 또는 Plan AC 포함)
 → **Step 5(e) Pass A 실패 분기로 즉시 진입**. SHOULD AC 실패는 경고만 기록하며 Pass B 진입 허용.
 
 #### Background 에이전트 dispatch
@@ -131,6 +143,49 @@ arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에
 - `{{SPEC_PATH}}`: 해당 태스크의 `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/tasks/{NN}/spec.md` 절대 경로
 - `{{PLAN_PATH}}`: `request.json.source_plan` 존재 시 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`, 미존재 시 `"N/A"`
 
+#### 프롬프트 파일 사전 저장 (MANDATORY)
+
+> ⚠️ **파이프 방식 금지**: `echo "$PROMPT" | codex exec ... "$(cat)"` 패턴을 사용하면
+> shell command substitution이 파이프 연결 전에 평가되어 프롬프트가 빈 문자열로 전달됩니다.
+> 반드시 아래 파일 저장 → 파일에서 읽기 방식을 사용하세요.
+
+dispatch 전 각 리뷰어 프롬프트를 반드시 파일로 먼저 저장한다:
+```
+Write → {PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/reviews/{RV_ID}/{role}-prompt.md
+```
+이 경로를 `{PROMPT_FILE}`로 참조한다. 저장 완료 확인 후 dispatch한다.
+
+#### 에이전트 유형별 dispatch 패턴
+
+**`codex` 에이전트**:
+```bash
+Bash(
+  MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex {tier} 2>/dev/null || echo "gpt-5.3-codex");
+  command: 'set -o pipefail; codex exec --full-auto -m "$MODEL" -C {PROJECT_ROOT} "$(cat {PROMPT_FILE})" 2>&1 | tee {PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/reviews/{RV_ID}/{role}-running.log',
+  run_in_background: true,
+  timeout: {config.timeouts.cli_large_task_ms}
+)
+```
+
+**`gemini` 에이전트**:
+```bash
+Bash(
+  MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model gemini {tier} 2>/dev/null);
+  command: 'set -o pipefail && cd {PROJECT_ROOT} && gemini -p "$(cat {PROMPT_FILE})"${MODEL:+ --model "$MODEL"} --approval-mode yolo 2>&1 | tee {PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/reviews/{RV_ID}/{role}-running.log',
+  run_in_background: true,
+  timeout: {config.timeouts.cli_large_task_ms}
+)
+```
+
+**`claude`/`claude-dev` 에이전트**:
+```
+Agent(
+  subagent_type: "general-purpose",
+  prompt: {PROMPT_FILE 파일 내용 — Read 후 전달},
+  run_in_background: true
+)
+```
+
 **ui_reviewer 스킵 조건**: `request.json.stitch_screens` 배열이 비어있고 `frontend/` 디렉토리 변경 파일이 없으면 auto-skip. 취합 시 "UI 리뷰 skip (변경 없음)" 표시.
 
 ### Step 5: 완료 대기 및 취합
@@ -144,10 +199,16 @@ arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에
    ```markdown
    # 리뷰 리포트 — RV-NNN (REQ-NNN 반복 N)
 
-   ## AC 검증 결과
+   ## Spec AC 검증 결과
    - ✅ 충족 AC N개
    - ❌ 미충족/갭 N개
      - AC-X: <설명>
+
+   ## Plan AC 검증 결과 (PLN-NNN)
+   <!-- source_plan 없으면 이 섹션 생략 -->
+   - ✅ 충족 PLAN-AC N개
+   - ❌ 미충족 PLAN-AC N개
+     - PLAN-AC-X: <설명>
 
    ## 코드 리뷰 주요 발견 사항
    <review-code.md 핵심 항목>
