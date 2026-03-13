@@ -300,7 +300,7 @@
   },
   "review": {
     "auto_review": true,
-    "max_iterations": 3,
+    "max_iterations": 10,
     "severity_auto_fix": {
       "enabled": true,
       "minor_skip_threshold": 3,

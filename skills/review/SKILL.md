@@ -50,19 +50,23 @@ argument-hint: "[REQ-ID] [--auto]"
 
 > 이 Step의 목적: AC 검증/리뷰에 필요한 입력 컨텍스트를 수집한다 / 핵심 출력물: AC 목록, 변경 파일 목록, config 기반 실행 파라미터
 
-1. **AC 목록 수집**: 모든 `tasks/NN/spec.md` Read → `## 3. 수락 조건` 섹션에서 AC 항목 추출.
+1. **Spec AC 목록 수집**: 모든 `tasks/NN/spec.md` Read → `## 3. 수락 조건` 섹션에서 AC 항목 추출.
+1-b. **Plan AC 수집 (source_plan 존재 시)**: `request.json.source_plan` 필드 확인 → 값이 있으면 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md` Read → `## 인수 기준 초안` 섹션 추출 → 각 항목을 `PLAN-AC-N` ID로 태깅하여 AC 목록에 추가.
+   - Plan AC는 사용자가 plan 단계에서 합의한 최종 목표이므로 **MUST 등급**으로 처리한다.
+   - `source_plan` 미존재 또는 `## 인수 기준 초안` 섹션이 없으면 이 단계 skip (경고 없이 무시).
+   - 수집된 Plan AC는 Spec AC와 **분리하여 관리** (Pass A에서 별도 섹션으로 검증).
 2. **변경 파일 목록 수집**: `git log --name-only` 또는 `git diff <base>..HEAD --name-only` 기반으로 REQ 관련 변경 파일 목록 작성.
 3. **AC별 파일 매핑 준비**: 각 AC 항목과 관련 변경 파일 연결.
 4. **config 로드**: `config.resolved.json`에서 아래 값을 확인.
    - `review.roles.*` 에이전트 키
-   - `review.max_iterations` 키 경로: `config.review.max_iterations` (미정의 시 기본값 3 사용)
+   - `review.max_iterations` 키 경로: `config.review.max_iterations` (미정의 시 기본값 10 사용)
    - `auto_mode.review` 키 경로: `config.auto_mode.review` (true이면 `AUTO_MODE=true`, `--auto` 플래그와 동일 동작)
    - `auto_mode.max_review_iterations` 키 경로: `config.auto_mode.max_review_iterations`
      - `AUTO_MODE=true` 이고 값이 설정되어 있으며 `> 0`이면 `max_iterations`를 이 값으로 override
      - `0` 이하이면 무시하고 `config.review.max_iterations` 값을 사용
    - 우선순위:
      - `AUTO_MODE`: CLI `--auto` 플래그 > `config.auto_mode.review` > 기본값(false)
-     - `max_iterations`: (`AUTO_MODE=true`일 때) `config.auto_mode.max_review_iterations` > `config.review.max_iterations` > 기본값(3)
+     - `max_iterations`: (`AUTO_MODE=true`일 때) `config.auto_mode.max_review_iterations` > `config.review.max_iterations` > 기본값(10)
    - 이후 문서의 "**`--auto` 모드**" 분기는 `AUTO_MODE=true`일 때 동일하게 적용.
 
 ### Step 3: Pass A — 인수 판정 (AC 충족성 검증)
@@ -112,7 +116,7 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
 | 역할 키 | 검토 관점 | config 키 | 모델 resolve |
 |---------|-----------|-----------|-------------|
 | `code_reviewer` | 누락 로직, 버그, 엣지케이스, 테스트 누락 | `review.roles.code_reviewer.agent` | `providers[agent][review.roles.code_reviewer.tier \|\| default_tier]`로 resolve |
-| `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 + Scope Audit(필수): `SCOPE_CREEP`(spec.md에 없는 구현), `OMISSION`(spec.md에는 있으나 구현 누락) 점검. 미발견 시에도 `"확인 완료 — 해당 없음"` 명시 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
+| `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 + Scope Audit(필수): `SCOPE_CREEP`(spec.md에 없는 구현), `OMISSION`(spec.md에는 있으나 구현 누락) 점검. plan.md가 있는 경우 상위 목표·방향 대비 구현 적합성도 반드시 확인. 불필요한 파일 변경(범위 외 수정) 여부 점검. 미발견 시에도 `"확인 완료 — 해당 없음"` 명시 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
 | `ui_reviewer` | Stitch 시안 vs 실제 UI, UX 흐름 일관성 | `review.roles.ui_reviewer.agent` | `providers[agent][review.roles.ui_reviewer.tier \|\| default_tier]`로 resolve |
 
 각 리뷰어(code_reviewer, arch_reviewer, ui_reviewer)는 발견한 이슈에 반드시 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 등급을 태깅해야 한다 (`templates/review-request.md`의 등급 판별 가이드 및 보안 오버라이드 규칙 적용).
