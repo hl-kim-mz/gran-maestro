@@ -46,6 +46,7 @@ Before declaring completion, verify:
 
 The previous implementation attempt failed pre-checks with the following errors:
 
+<!-- Step 5b formatter output; parser 실패 시 원문 passthrough -->
 {ERROR_OUTPUT}
 
 Fix these errors while maintaining all acceptance criteria from the spec.
@@ -68,7 +69,7 @@ Important:
 | `{WORKTREE_PATH}` | Git worktree 경로 | `.gran-maestro/worktrees/REQ-001-01` |
 | `{SPEC_CONTENT}` | spec.md 전체 내용 | (Implementation Spec 문서) |
 | `{summary}` | 커밋 메시지용 요약 | `Add JWT auth middleware` |
-| `{ERROR_OUTPUT}` | 사전검증(tsc/test) 에러 출력 전문 (3000자 캡) | `src/foo.ts(10,5): error TS2345: ...` |
+| `{ERROR_OUTPUT}` | 사전검증(tsc/test) 포맷된 에러 출력 (입력 3000자 캡, 파싱 실패 시 원문 passthrough) | `src/foo.ts:10 — TS2345 — Argument of type 'string' is not assignable...` |
 | `{TEST_COMMAND}` | spec §5의 테스트 실행 명령어 | `npx vitest run` |
 | `{TYPECHECK_COMMAND}` | spec §5의 타입 체크 명령어 | `npx tsc --noEmit` |
 
@@ -126,4 +127,4 @@ Write → .gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}/prompts/phase2-impl.m
 ## 사전검증 실패 재외주 시 추가 삽입
 
 사전검증 실패 재외주(Phase 2 Step 5b)에서는 `<error_context>` 섹션에
-에러 출력과 검증 명령어가 삽입됩니다. `<previous_feedback>` 섹션은 비어 있습니다.
+포맷된 에러 출력과 검증 명령어가 삽입됩니다 (포맷 불가 시 원문 유지). `<previous_feedback>` 섹션은 비어 있습니다.
