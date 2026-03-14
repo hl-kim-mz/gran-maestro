@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, Flag, PlusCircle } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,6 +41,25 @@ type ActiveItemsResponse = {
   as_of: string;
 };
 
+type NextStep = {
+  label: string;
+  command: string;
+  reason: string;
+};
+
+type NextStepsResponse = {
+  items: NextStep[];
+};
+
+type ProjectPulse = {
+  active: number;
+  blocked: number;
+  done_7d: number;
+  stale_7d: number;
+};
+
+type CopyFeedbackState = 'copied' | 'failed';
+
 function normalizeCount(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, value);
@@ -62,16 +80,24 @@ export function OverviewView() {
   const { projectId, navigateTo } = useAppContext();
   const [statsLoading, setStatsLoading] = useState(true);
   const [activeLoading, setActiveLoading] = useState(true);
+  const [nextStepsLoading, setNextStepsLoading] = useState(true);
+  const [pulseLoading, setPulseLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [activeError, setActiveError] = useState<string | null>(null);
+  const [nextStepsError, setNextStepsError] = useState<string | null>(null);
+  const [pulseError, setPulseError] = useState<string | null>(null);
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [activeItems, setActiveItems] = useState<ActiveItem[]>([]);
+  const [nextSteps, setNextSteps] = useState<NextStep[]>([]);
+  const [pulse, setPulse] = useState<ProjectPulse | null>(null);
   const [activeCursor, setActiveCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('all');
+  const [copyFeedback, setCopyFeedback] = useState<Record<string, CopyFeedbackState>>({});
   const agentRef = useRef<AgentPerformanceHandle>(null);
+  const copyFeedbackTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const fetchStats = useCallback(async () => {
     const data = await apiFetch<OverviewStats>('/api/stats', projectId);
@@ -82,6 +108,14 @@ export function OverviewView() {
   const fetchActiveItems = useCallback(async (cursor?: string | null) => {
     const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
     return apiFetch<ActiveItemsResponse>(`/api/overview/active-items${query}`, projectId);
+  }, [projectId]);
+
+  const fetchNextSteps = useCallback(async () => {
+    return apiFetch<NextStepsResponse>('/api/overview/next-steps', projectId);
+  }, [projectId]);
+
+  const fetchPulse = useCallback(async () => {
+    return apiFetch<ProjectPulse>('/api/overview/pulse', projectId);
   }, [projectId]);
 
   const loadStats = useCallback(async (isRefresh = false) => {
@@ -119,6 +153,42 @@ export function OverviewView() {
     }
   }, [projectId, fetchActiveItems]);
 
+  const loadNextSteps = useCallback(async (isRefresh = false) => {
+    if (!projectId) return;
+    if (!isRefresh) setNextStepsLoading(true);
+
+    try {
+      const data = await fetchNextSteps();
+      setNextSteps(Array.isArray(data.items) ? data.items : []);
+      setNextStepsError(null);
+    } catch (err) {
+      setNextStepsError(err instanceof Error ? err.message : '다음 단계를 불러오지 못했습니다');
+      if (!isRefresh) {
+        setNextSteps([]);
+      }
+    } finally {
+      if (!isRefresh) setNextStepsLoading(false);
+    }
+  }, [projectId, fetchNextSteps]);
+
+  const loadPulse = useCallback(async (isRefresh = false) => {
+    if (!projectId) return;
+    if (!isRefresh) setPulseLoading(true);
+
+    try {
+      const data = await fetchPulse();
+      setPulse(data);
+      setPulseError(null);
+    } catch (err) {
+      setPulseError(err instanceof Error ? err.message : '프로젝트 상태 요약을 불러오지 못했습니다');
+      if (!isRefresh) {
+        setPulse(null);
+      }
+    } finally {
+      if (!isRefresh) setPulseLoading(false);
+    }
+  }, [projectId, fetchPulse]);
+
   const loadMoreActiveItems = useCallback(async () => {
     if (!projectId || !hasMore || !activeCursor || isLoadingMore) return;
 
@@ -141,8 +211,12 @@ export function OverviewView() {
     if (!projectId) {
       setStatsLoading(false);
       setActiveLoading(false);
+      setNextStepsLoading(false);
+      setPulseLoading(false);
       setStats(null);
       setActiveItems([]);
+      setNextSteps([]);
+      setPulse(null);
       setActiveCursor(null);
       setHasMore(false);
       return;
@@ -150,7 +224,15 @@ export function OverviewView() {
 
     loadStats();
     loadActiveItems();
-  }, [projectId, loadStats, loadActiveItems]);
+    loadNextSteps();
+    loadPulse();
+  }, [projectId, loadStats, loadActiveItems, loadNextSteps, loadPulse]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(copyFeedbackTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId));
+    };
+  }, []);
 
   const handleRefresh = async () => {
     if (!projectId) return;
@@ -159,6 +241,8 @@ export function OverviewView() {
       await Promise.all([
         loadStats(true),
         loadActiveItems(true),
+        loadNextSteps(true),
+        loadPulse(true),
         agentRef.current?.refresh(),
       ]);
     } finally {
@@ -170,8 +254,6 @@ export function OverviewView() {
     if (activeTab === 'all') return activeItems;
     return activeItems.filter((item) => normalizeItemType(item.type) === activeTab);
   }, [activeItems, activeTab]);
-
-  const topPriorityItem = activeItems[0];
 
   const blockedCount = useMemo(
     () => activeItems.reduce((count, item) => count + (item.blocked ? 1 : 0), 0),
@@ -209,10 +291,38 @@ export function OverviewView() {
     navigateTo('workflow', item.id);
   }, [navigateTo]);
 
-  const handleContinueTopPriority = useCallback(() => {
-    if (!topPriorityItem) return;
-    navigateToItem(topPriorityItem);
-  }, [topPriorityItem, navigateToItem]);
+  const handleCopyCommand = useCallback(async (itemId: string, command: string) => {
+    if (copyFeedbackTimeoutsRef.current[itemId]) {
+      clearTimeout(copyFeedbackTimeoutsRef.current[itemId]);
+    }
+
+    if (!navigator.clipboard?.writeText) {
+      setCopyFeedback((prev) => ({ ...prev, [itemId]: 'failed' }));
+      copyFeedbackTimeoutsRef.current[itemId] = setTimeout(() => {
+        setCopyFeedback((prev) => {
+          const next = { ...prev };
+          delete next[itemId];
+          return next;
+        });
+      }, 2000);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopyFeedback((prev) => ({ ...prev, [itemId]: 'copied' }));
+    } catch {
+      setCopyFeedback((prev) => ({ ...prev, [itemId]: 'failed' }));
+    }
+
+    copyFeedbackTimeoutsRef.current[itemId] = setTimeout(() => {
+      setCopyFeedback((prev) => {
+        const next = { ...prev };
+        delete next[itemId];
+        return next;
+      });
+    }, 2000);
+  }, []);
 
   if (!projectId) {
     return (
@@ -251,11 +361,13 @@ export function OverviewView() {
           <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
         </div>
 
-        {(statsError || activeError) && (
+        {(statsError || activeError || nextStepsError || pulseError) && (
           <Card className="bg-white dark:bg-card">
             <CardContent className="space-y-1 py-4 text-sm text-red-500">
               {statsError && <p>{statsError}</p>}
               {activeError && <p>{activeError}</p>}
+              {nextStepsError && <p>{nextStepsError}</p>}
+              {pulseError && <p>{pulseError}</p>}
             </CardContent>
           </Card>
         )}
@@ -353,44 +465,85 @@ export function OverviewView() {
             </CardContent>
           </Card>
 
-          <Card className="bg-white dark:bg-card">
-            <CardHeader>
-              <CardTitle className="text-base">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button
-                type="button"
-                variant="default"
-                className="w-full justify-start gap-2"
-                onClick={handleContinueTopPriority}
-                disabled={!topPriorityItem}
-              >
-                <ClipboardList className="h-4 w-4" />
-                Continue Top Priority
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={() => navigateTo('workflow')}
-              >
-                <Flag className="h-4 w-4" />
-                Unblock Now
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={() => navigateTo('workflow')}
-              >
-                <PlusCircle className="h-4 w-4" />
-                New Request
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                새 요청 생성은 Workflow에서 `mst:request` 명령으로 시작합니다.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <Card className="bg-white dark:bg-card">
+              <CardHeader>
+                <CardTitle className="text-base">Next Steps</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {nextStepsLoading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                ) : nextSteps.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-border dark:text-muted-foreground">
+                    지금 제안할 다음 단계가 없습니다.
+                  </div>
+                ) : (
+                  nextSteps.map((item, index) => {
+                    const feedback = copyFeedback[`next-step-${index}`];
+                    return (
+                      <div
+                        key={`next-step-${index}-${item.command}`}
+                        className="rounded-xl border border-slate-200 p-4 dark:border-border"
+                      >
+                        <div className="space-y-2">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-foreground">{item.label}</p>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyCommand(`next-step-${index}`, item.command)}
+                            className="w-full rounded-lg bg-slate-100 px-3 py-2 text-left text-sm font-medium text-slate-900 transition-colors hover:bg-slate-200 dark:bg-muted dark:text-foreground dark:hover:bg-muted/80"
+                          >
+                            {item.command}
+                          </button>
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-xs text-muted-foreground">{item.reason}</p>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {feedback === 'copied' ? 'Copied' : feedback === 'failed' ? 'Copy failed' : 'Click to copy'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white dark:bg-card">
+              <CardHeader>
+                <CardTitle className="text-base">Project Pulse</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pulseLoading ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Active', value: normalizeCount(pulse?.active ?? 0) },
+                      { label: 'Blocked', value: normalizeCount(pulse?.blocked ?? 0) },
+                      { label: 'Done 7d', value: normalizeCount(pulse?.done_7d ?? 0) },
+                      { label: 'Stale 7d', value: normalizeCount(pulse?.stale_7d ?? 0) },
+                    ].map((metric) => (
+                      <div
+                        key={metric.label}
+                        className="rounded-xl border border-slate-200 p-4 dark:border-border"
+                      >
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
+                        <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-foreground">{metric.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         <Card className="bg-white dark:bg-card">
