@@ -42,6 +42,28 @@ class IntentStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def update(
+        self,
+        intent_id: str,
+        *,
+        feature: Optional[str] = None,
+        situation: Optional[str] = None,
+        motivation: Optional[str] = None,
+        goal: Optional[str] = None,
+        linked_req: Optional[str] = None,
+        linked_plan: Optional[str] = None,
+        related_intent: Optional[Sequence[str]] = None,
+        tags: Optional[Sequence[str]] = None,
+        files: Optional[Sequence[str]] = None,
+        created_at: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete(self, intent_id: str) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def get(self, intent_id: str) -> Optional[Dict[str, Any]]:
         raise NotImplementedError
 
@@ -92,7 +114,7 @@ class FileIntentStore(IntentStore):
         if self._find_intent_path(normalized_id) is not None:
             raise IntentStoreError(f"Intent already exists: {normalized_id}")
 
-        created_at_value = created_at or datetime.now(timezone.utc).date().isoformat()
+        created_at_value = created_at or datetime.now(timezone.utc).isoformat()
         feature_value = feature.strip()
         if not feature_value:
             raise IntentStoreError("feature must not be empty")
@@ -125,6 +147,141 @@ class FileIntentStore(IntentStore):
             "path": str(intent_path),
             "file": intent_path.name,
             "metadata": metadata,
+        }
+
+    def update(
+        self,
+        intent_id: str,
+        *,
+        feature: Optional[str] = None,
+        situation: Optional[str] = None,
+        motivation: Optional[str] = None,
+        goal: Optional[str] = None,
+        linked_req: Optional[str] = None,
+        linked_plan: Optional[str] = None,
+        related_intent: Optional[Sequence[str]] = None,
+        tags: Optional[Sequence[str]] = None,
+        files: Optional[Sequence[str]] = None,
+        created_at: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        normalized_id = _normalize_intent_id(intent_id)
+        intent_path = self._find_intent_path(normalized_id)
+        if intent_path is None:
+            raise IntentStoreError(f"{normalized_id} not found")
+
+        metadata, body, raw_text = self._read_intent(intent_path)
+        raw_frontmatter, _ = _split_frontmatter(raw_text)
+        raw_metadata = _parse_frontmatter(raw_frontmatter, intent_path)
+        sections = _extract_jtbd_sections(body)
+
+        feature_value = metadata.get("feature", "")
+        if feature is not None:
+            feature_value = feature.strip()
+            if not feature_value:
+                raise IntentStoreError("feature must not be empty")
+
+        updated_metadata = dict(raw_metadata)
+        updated_metadata["id"] = normalized_id
+        updated_metadata["feature"] = feature_value
+        if linked_req is not None:
+            updated_metadata["linked_req"] = _normalize_optional_string(linked_req)
+        elif "linked_req" not in updated_metadata:
+            updated_metadata["linked_req"] = metadata.get("linked_req")
+        if linked_plan is not None:
+            updated_metadata["linked_plan"] = _normalize_optional_string(linked_plan)
+        elif "linked_plan" not in updated_metadata:
+            updated_metadata["linked_plan"] = metadata.get("linked_plan")
+        if related_intent is not None:
+            updated_metadata["related_intent"] = _normalize_string_list(related_intent)
+        else:
+            updated_metadata["related_intent"] = _normalize_string_list(updated_metadata.get("related_intent", metadata.get("related_intent", [])))
+        if tags is not None:
+            updated_metadata["tags"] = _normalize_string_list(tags)
+        else:
+            updated_metadata["tags"] = _normalize_string_list(updated_metadata.get("tags", metadata.get("tags", [])))
+        if files is not None:
+            updated_metadata["files"] = _normalize_string_list(files)
+        else:
+            updated_metadata["files"] = _normalize_string_list(updated_metadata.get("files", metadata.get("files", [])))
+        if created_at is not None:
+            created_at_value = _normalize_optional_string(created_at) or ""
+            if created_at_value:
+                try:
+                    datetime.fromisoformat(created_at_value)
+                except (TypeError, ValueError) as exc:
+                    raise IntentStoreError(
+                        f"Invalid ISO-8601 datetime: {created_at_value}"
+                    ) from exc
+            updated_metadata["created_at"] = created_at_value
+        elif "created_at" not in updated_metadata:
+            updated_metadata["created_at"] = metadata.get("created_at", "")
+
+        updated_situation = (situation if situation is not None else sections["situation"]).strip()
+        updated_motivation = (motivation if motivation is not None else sections["motivation"]).strip()
+        updated_goal = (goal if goal is not None else sections["goal"]).strip()
+        updated_body = _compose_jtbd_body(
+            situation=updated_situation,
+            motivation=updated_motivation,
+            goal=updated_goal,
+            tail=sections.get("tail", ""),
+        )
+        if yaml is not None:
+            rendered_frontmatter = yaml.safe_dump(
+                updated_metadata,
+                allow_unicode=True,
+                sort_keys=False,
+            ).strip()
+        else:
+            rendered_frontmatter = "\n".join(
+                f"{key}: {json.dumps(value, ensure_ascii=False)}"
+                for key, value in updated_metadata.items()
+            )
+
+        updated_text = f"---\n{rendered_frontmatter}\n---\n\n{updated_body.rstrip()}\n"
+
+        target_path = self.intent_dir / f"{normalized_id}-{_slugify(feature_value)}.md"
+        if target_path != intent_path and target_path.exists():
+            raise IntentStoreError(f"Intent already exists: {target_path.name}")
+
+        self.intent_dir.mkdir(parents=True, exist_ok=True)
+        temp_path = self.intent_dir / (
+            f".{normalized_id}.tmp-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.md"
+        )
+        try:
+            temp_path.write_text(updated_text, encoding="utf-8")
+            temp_path.replace(intent_path)
+            if target_path != intent_path:
+                intent_path.replace(target_path)
+        except OSError as exc:
+            raise IntentStoreError(f"Failed to update {normalized_id}: {exc}") from exc
+        finally:
+            if temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+
+        self.rebuild_index()
+        return {
+            "id": normalized_id,
+            "path": str(target_path),
+            "file": target_path.name,
+            "metadata": updated_metadata,
+        }
+
+    def delete(self, intent_id: str) -> Dict[str, Any]:
+        normalized_id = _normalize_intent_id(intent_id)
+        intent_path = self._find_intent_path(normalized_id)
+        if intent_path is None:
+            raise IntentStoreError(f"{normalized_id} not found")
+
+        try:
+            intent_path.unlink()
+        except OSError as exc:
+            raise IntentStoreError(f"Failed to delete {normalized_id}: {exc}") from exc
+
+        self.rebuild_index()
+        return {
+            "id": normalized_id,
+            "path": str(intent_path),
+            "file": intent_path.name,
         }
 
     def get(self, intent_id: str) -> Optional[Dict[str, Any]]:
@@ -379,6 +536,76 @@ def _to_index_entry(metadata: Dict[str, Any], file_name: str) -> Dict[str, Any]:
         "files": _normalize_string_list(metadata.get("files")),
         "created_at": _normalize_optional_string(metadata.get("created_at")) or "",
     }
+
+
+def _render_intent_document(*, metadata: Dict[str, Any], body: str) -> str:
+    lines = [
+        "---",
+        f'id: {json.dumps(_normalize_optional_string(metadata.get("id")) or "", ensure_ascii=False)}',
+        f'feature: {json.dumps(_normalize_optional_string(metadata.get("feature")) or "", ensure_ascii=False)}',
+        f'linked_req: {_yaml_scalar(_normalize_optional_string(metadata.get("linked_req")))}',
+        f'linked_plan: {_yaml_scalar(_normalize_optional_string(metadata.get("linked_plan")))}',
+        f'related_intent: {json.dumps(_normalize_string_list(metadata.get("related_intent")), ensure_ascii=False)}',
+        f'tags: {json.dumps(_normalize_string_list(metadata.get("tags")), ensure_ascii=False)}',
+        f'files: {json.dumps(_normalize_string_list(metadata.get("files")), ensure_ascii=False)}',
+        f'created_at: {json.dumps(_normalize_optional_string(metadata.get("created_at")) or "", ensure_ascii=False)}',
+        "---",
+        "",
+        body.rstrip(),
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _extract_jtbd_sections(body: str) -> Dict[str, str]:
+    lines = body.splitlines()
+    when_heading = "## When I..."
+    motivation_heading = "## I want to..."
+    goal_heading = "## So I can..."
+
+    try:
+        when_idx = next(idx for idx, line in enumerate(lines) if line.strip() == when_heading)
+        motivation_idx = next(idx for idx, line in enumerate(lines) if line.strip() == motivation_heading)
+        goal_idx = next(idx for idx, line in enumerate(lines) if line.strip() == goal_heading)
+    except StopIteration as exc:
+        raise IntentStoreError("Invalid intent body format") from exc
+
+    if not (when_idx < motivation_idx < goal_idx):
+        raise IntentStoreError("Invalid intent body section order")
+
+    next_section_idx = len(lines)
+    for idx in range(goal_idx + 1, len(lines)):
+        if lines[idx].strip().startswith("## "):
+            next_section_idx = idx
+            break
+
+    situation = "\n".join(lines[when_idx + 1 : motivation_idx]).strip()
+    motivation = "\n".join(lines[motivation_idx + 1 : goal_idx]).strip()
+    goal = "\n".join(lines[goal_idx + 1 : next_section_idx]).strip()
+    tail = "\n".join(lines[next_section_idx:]).strip()
+    return {
+        "situation": situation,
+        "motivation": motivation,
+        "goal": goal,
+        "tail": tail,
+    }
+
+
+def _compose_jtbd_body(*, situation: str, motivation: str, goal: str, tail: str = "") -> str:
+    parts = [
+        "## When I...",
+        (situation or "").strip(),
+        "",
+        "## I want to...",
+        (motivation or "").strip(),
+        "",
+        "## So I can...",
+        (goal or "").strip(),
+    ]
+    text = "\n".join(parts).rstrip()
+    if tail:
+        text = f"{text}\n\n{tail.strip()}"
+    return text + "\n"
 
 
 def _split_frontmatter(raw_text: str) -> Tuple[str, str]:

@@ -16,9 +16,12 @@ Subcommands:
   plan inspect       <PLN-ID>
   plan complete      <PLN-ID>
   plan count         [--active | --all]
-  intent add         --feature TEXT --situation TEXT --motivation TEXT --goal TEXT [--req REQ-NNN] [--plan PLN-NNN]
+  intent add         --feature TEXT --situation TEXT --goal TEXT [--motivation TEXT] [--req REQ-NNN] [--plan PLN-NNN]
   intent get         <INTENT-ID>
-  intent list
+  intent list        [--req REQ-NNN] [--plan PLN-NNN]
+  intent update      <INTENT-ID> [--feature TEXT] [--situation TEXT] [--motivation TEXT] [--goal TEXT]
+                     [--req REQ-NNN] [--plan PLN-NNN] [--related-intent INTENT-ID] [--tag TAG] [--file PATH]
+  intent delete      <INTENT-ID>
   intent search      <KEYWORD>
   intent lookup      --files <PATH...>
   intent related     <INTENT-ID> [--depth N]
@@ -563,11 +566,12 @@ def cmd_intent_add(args):
 
     try:
         intent_id = _next_intent_id()
+        motivation = args.motivation if args.motivation is not None else args.goal
         created = store.add(
             intent_id,
             feature=args.feature,
             situation=args.situation,
-            motivation=args.motivation,
+            motivation=motivation,
             goal=args.goal,
             linked_req=args.req,
             linked_plan=args.plan,
@@ -632,6 +636,11 @@ def cmd_intent_list(args):
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
+    if args.req:
+        entries = [entry for entry in entries if entry.get("linked_req") == args.req]
+    if args.plan:
+        entries = [entry for entry in entries if entry.get("linked_plan") == args.plan]
+
     if args.json:
         print(json.dumps(entries, ensure_ascii=False, indent=2))
         return 0
@@ -647,6 +656,60 @@ def cmd_intent_list(args):
             f"{entry.get('id', ''):<12} {entry.get('created_at', ''):<12} "
             f"{entry.get('feature', '')}"
         )
+    return 0
+
+
+def cmd_intent_update(args):
+    store, store_error = _create_intent_store()
+    if store is None:
+        return 1
+
+    update_fields = {}
+    for key in ("feature", "situation", "motivation", "goal", "created_at"):
+        value = getattr(args, key, None)
+        if value is not None:
+            update_fields[key] = value
+    if args.req is not None:
+        update_fields["linked_req"] = args.req
+    if args.plan is not None:
+        update_fields["linked_plan"] = args.plan
+    if args.related_intent is not None:
+        update_fields["related_intent"] = args.related_intent
+    if args.tag is not None:
+        update_fields["tags"] = args.tag
+    if args.file is not None:
+        update_fields["files"] = args.file
+
+    if not update_fields:
+        print("Error: no fields to update", file=sys.stderr)
+        return 1
+
+    try:
+        updated = store.update(args.intent_id, **update_fields)
+    except store_error as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        output = {k: v for k, v in updated.items() if k not in ("path", "file")}
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        print(f"{updated['id']} -> {updated.get('path', updated['id'])}")
+    return 0
+
+
+def cmd_intent_delete(args):
+    store, store_error = _create_intent_store()
+    if store is None:
+        return 1
+
+    try:
+        deleted = store.delete(args.intent_id)
+    except store_error as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"Deleted {deleted['id']}")
     return 0
 
 
@@ -2744,7 +2807,7 @@ def build_parser():
     intent_add.add_argument("--plan", dest="plan")
     intent_add.add_argument("--feature", required=True)
     intent_add.add_argument("--situation", required=True)
-    intent_add.add_argument("--motivation", required=True)
+    intent_add.add_argument("--motivation")
     intent_add.add_argument("--goal", required=True)
     intent_add.add_argument("--related-intent", dest="related_intent", action="append", default=[])
     intent_add.add_argument("--tag", dest="tag", action="append", default=[])
@@ -2756,7 +2819,26 @@ def build_parser():
     intent_get.add_argument("--json", action="store_true")
 
     intent_list = intent_sub.add_parser("list")
+    intent_list.add_argument("--req", dest="req")
+    intent_list.add_argument("--plan", dest="plan")
     intent_list.add_argument("--json", action="store_true")
+
+    intent_update = intent_sub.add_parser("update")
+    intent_update.add_argument("intent_id")
+    intent_update.add_argument("--feature")
+    intent_update.add_argument("--situation")
+    intent_update.add_argument("--motivation")
+    intent_update.add_argument("--goal")
+    intent_update.add_argument("--req", dest="req")
+    intent_update.add_argument("--plan", dest="plan")
+    intent_update.add_argument("--related-intent", dest="related_intent", action="append")
+    intent_update.add_argument("--tag", dest="tag", action="append")
+    intent_update.add_argument("--file", dest="file", action="append")
+    intent_update.add_argument("--created-at", dest="created_at")
+    intent_update.add_argument("--json", action="store_true")
+
+    intent_delete = intent_sub.add_parser("delete")
+    intent_delete.add_argument("intent_id")
 
     intent_search = intent_sub.add_parser("search")
     intent_search.add_argument("keyword")
@@ -2974,6 +3056,8 @@ def main():
         ("intent", "add"): cmd_intent_add,
         ("intent", "get"): cmd_intent_get,
         ("intent", "list"): cmd_intent_list,
+        ("intent", "update"): cmd_intent_update,
+        ("intent", "delete"): cmd_intent_delete,
         ("intent", "search"): cmd_intent_search,
         ("intent", "lookup"): cmd_intent_lookup,
         ("intent", "related"): cmd_intent_related,
