@@ -595,9 +595,33 @@ while (실행 중인 태스크가 있음):
 > 이 규칙은 이 approve 스킬의 모든 후속 Step에 적용된다.
 
 각 태스크 완료 즉시 사전 검증 실행:
-1. spec §5의 테스트 명령어 실행
-2. spec §5의 타입 체크 명령어 실행
-3. 결과 분기:
+1. spec §5의 테스트 명령어 실행 (`test_output` 캡처 + exit code 확보)
+2. spec §5의 타입 체크 명령어 실행 (`tsc_output` 캡처 + exit code 확보)
+3. PASS/FAIL 분기 전에 `self_check` 객체를 생성하고 `request.json`의 현재 태스크(`tasks[].id == 현재 TASK_ID`)에 기록
+   ```pseudo
+   self_check = {
+     tsc: (tsc_exit_code == 0 ? "PASS" : "FAIL"),
+     test: (test_exit_code == 0 ? "PASS" : "FAIL"),
+     ran_at: now_in_iso8601_utc(),
+     tsc_output: tsc_output,
+     test_output: test_output,
+     retry_round: (request_json.pre_check_retries or 0)
+   }
+
+   try:
+     req = Read({PROJECT_ROOT}/.gran-maestro/requests/{REQ-ID}/request.json)
+     task = find(req.tasks, id == {TASK_ID})
+     if task exists:
+       task.self_check = self_check
+       Write(request.json, req)
+     else:
+       warn("[non-blocking] self_check 저장 대상 task를 찾지 못함: {TASK_ID}")
+   except err:
+     warn("[non-blocking] self_check 저장 실패: {err}")
+   ```
+   - `self_check`가 기존 request.json에 없어도 새 필드로 추가 기록하며, 미존재 상태와 완전 하위 호환되어야 한다.
+   - 저장 실패는 **non-blocking**: 경고만 출력하고 반드시 다음 분기로 진행한다.
+4. 결과 분기:
    - **PASS**: `status` → `review` → **즉시 Step 5.5 실행** (PM 커밋) — 텍스트만 출력하고 멈추지 않는다
    - **FAIL**: `status` → `pre_check_failed` → **즉시 Step 5b 실행** (재외주) — 텍스트만 출력하고 멈추지 않는다
 
@@ -706,6 +730,7 @@ else:
   - 해당 항목의 `retry_count` 값 읽기 (없으면 0으로 취급)
   - `retry_count` = (현재 값) + 1 로 업데이트
 - `request.json` 저장 (`pre_check_retries` + `retry_count` 동시 반영)
+- Step 5 복귀 시 `self_check.retry_round`는 증가된 `pre_check_retries` 값을 사용한다.
 - `status` → `executing`
 - 재외주 완료 후 **Step 5 복귀**
 
