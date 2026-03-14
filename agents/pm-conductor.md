@@ -143,7 +143,7 @@ Phase 1 runs in two modes:
      Otherwise: make the most reasonable assumption, document in spec.md "가정 사항".
      Keep going without pausing.
 5.5) **Debug intent detection**: If user request is about bug finding, error diagnosis, or debugging:
-   - Check `config.collaborative_debug.auto_trigger_from_start` setting
+   - Check `config.collaborative_debug.auto_trigger_from_request` setting
    - If `true`: invoke `/mst:debug` to launch parallel investigation with Codex/Gemini/Claude, then exit this workflow
    - If `false`: suggest `/mst:debug` to user and continue normal workflow
    - Detection cues: "bug", "error", "debug", "why doesn't it work", "root cause", issue descriptions with symptoms

@@ -164,7 +164,7 @@ Settings for collaborative debug mode.
 |----|--------|------|
 | `collaborative_debug.finding_char_limit` | `3000` | debug finding character limit |
 | `collaborative_debug.merge_wait_ms` | `60000` | agent join wait time (60 sec) |
-| `collaborative_debug.auto_trigger_from_start` | `true` | auto trigger debug when intent is detected in `/mst:request` |
+| `collaborative_debug.auto_trigger_from_request` | `true` | auto trigger debug when intent is detected in `/mst:request` |
 
 ---
 
@@ -484,7 +484,7 @@ Suitable for CI/CD pipelines or nightly batch jobs.
     "log_prompts": false
   },
   "collaborative_debug": {
-    "auto_trigger_from_start": false
+    "auto_trigger_from_request": false
   },
   "retry": {
     "max_cli_retries": 3,

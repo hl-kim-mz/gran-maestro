@@ -82,7 +82,7 @@ export const SETTING_DESCRIPTIONS: Record<string, string | SettingMeta> = {
   'prereview.agents.claude.tier': { description: 'Pre-review Claude tier (premium/economy)', options: ['premium', 'economy'] },
   'collaborative_debug.finding_char_limit': '조사 결과 글자 제한',
   'collaborative_debug.merge_wait_ms': '에이전트 합류 대기 시간 (60초)',
-  'collaborative_debug.auto_trigger_from_start': '/mst:start에서 디버그 의도 시 자동 트리거',
+  'collaborative_debug.auto_trigger_from_request': '/mst:request에서 디버그 의도 시 자동 트리거',
   'debug.agents.codex': 'Debug Codex 에이전트 설정 ({ count, tier } 또는 숫자 count 하위호환)',
   'debug.agents.codex.count': 'Debug 조사 Codex 에이전트 수 (0=제외)',
   'debug.agents.codex.tier': { description: 'Debug Codex tier (premium/economy)', options: ['premium', 'economy'] },

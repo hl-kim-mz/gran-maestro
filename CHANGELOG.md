@@ -4,6 +4,15 @@
 
 ---
 
+## [0.54.0] — 2026-03-14
+
+### Breaking Changes
+
+- `mst:start` 스킬 제거 — `/mst:start` 호출 불가, `/mst:request` 사용 필요
+- `collaborative_debug.auto_trigger_from_start` → `auto_trigger_from_request` 키 리네임 (구 키 런타임 호환 없음)
+
+---
+
 ## [0.53.2] — 2026-03-11
 
 ### 버그 수정

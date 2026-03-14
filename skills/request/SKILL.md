@@ -275,7 +275,7 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
             4. 결과를 `REQ-NNN/discussion/req-ambiguity-{synthesis|consensus}.md`에 저장
             5. spec.md `## 9. 팀 판단 기반 결정` 섹션에 기록
    f. **디버그 의도 감지 (LLM 판단)**: 버그/에러/원인분석 등 디버깅 의도 감지 시:
-      - `auto_trigger_from_start=true`: `/mst:debug` 자동 호출 후 이 워크플로우 종료
+      - `auto_trigger_from_request=true`: `/mst:debug` 자동 호출 후 이 워크플로우 종료
       - `false`: `/mst:debug` 사용 안내 후 일반 워크플로우 진행
    g. 접근 방식 결정 시 **Ideation 자동 트리거 (LLM 판단)**: 아래 중 하나 해당 시 `Skill(skill: "mst:ideation", args: "{주제} --from-request")` 호출:
       - Step 1d-arch(c-arch)에서 이미 ideation/discussion이 실행된 경우 이 단계는 **반드시 skip한다** (중복 실행 방지)
