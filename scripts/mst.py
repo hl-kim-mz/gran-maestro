@@ -16,6 +16,13 @@ Subcommands:
   plan inspect       <PLN-ID>
   plan complete      <PLN-ID>
   plan count         [--active | --all]
+  intent add         --feature TEXT --situation TEXT --motivation TEXT --goal TEXT [--req REQ-NNN] [--plan PLN-NNN]
+  intent get         <INTENT-ID>
+  intent list
+  intent search      <KEYWORD>
+  intent lookup      --files <PATH...>
+  intent related     <INTENT-ID> [--depth N]
+  intent rebuild-index
 
   archive run         [--type req|idn|dsc|dbg|exp|pln|des|cap] [--max N] [--dir PATH]
   archive run-all     [--max N]
@@ -23,8 +30,8 @@ Subcommands:
   archive restore     <ARCHIVE-ID>
   capture ttl-check
 
-  counter next        [--type req|idn|dsc|dbg|exp|pln|des|cap] [--dir PATH]
-  counter peek        [--type req|idn|dsc|dbg|exp|pln|des|cap]
+  counter next        [--type req|idn|dsc|dbg|exp|pln|des|cap|intent] [--dir PATH]
+  counter peek        [--type req|idn|dsc|dbg|exp|pln|des|cap|intent]
 
   version get
   version check
@@ -510,6 +517,214 @@ def cmd_plan_render_review(args):
     return 0 if generated else 1
 
 
+def _create_intent_store():
+    try:
+        from intent_store import FileIntentStore, IntentStoreError
+    except ImportError as exc:
+        print(
+            f"Error: intent store dependency missing ({exc}). Install with: pip install pyyaml",
+            file=sys.stderr,
+        )
+        return None, Exception
+    except Exception as exc:
+        print(f"Error: failed to initialize intent store ({exc})", file=sys.stderr)
+        return None, Exception
+    return FileIntentStore(BASE_DIR.parent), IntentStoreError
+
+
+def _next_intent_id():
+    cmd = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "counter",
+        "next",
+        "--type",
+        "intent",
+    ]
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=str(BASE_DIR.parent),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "counter next failed")
+
+    for line in reversed(result.stdout.splitlines()):
+        if line.strip():
+            return line.strip()
+    raise RuntimeError("counter next produced no id")
+
+
+def cmd_intent_add(args):
+    store, store_error = _create_intent_store()
+    if store is None:
+        return 1
+
+    try:
+        intent_id = _next_intent_id()
+        created = store.add(
+            intent_id,
+            feature=args.feature,
+            situation=args.situation,
+            motivation=args.motivation,
+            goal=args.goal,
+            linked_req=args.req,
+            linked_plan=args.plan,
+            related_intent=args.related_intent,
+            tags=args.tag,
+            files=args.file,
+        )
+    except RuntimeError as exc:
+        print(f"Error: failed to allocate intent id ({exc})", file=sys.stderr)
+        return 1
+    except store_error as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        output = {k: v for k, v in created.items() if k not in ("path", "file")}
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        print(f"{created['id']} -> {created.get('path', created['id'])}")
+    return 0
+
+
+def cmd_intent_get(args):
+    store, store_error = _create_intent_store()
+    if store is None:
+        return 1
+    try:
+        data = store.get(args.intent_id)
+    except store_error as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if data is None:
+        print(f"Error: {args.intent_id} not found.", file=sys.stderr)
+        return 1
+
+    if args.json:
+        output = {k: v for k, v in data.items() if k not in ("path", "file", "raw")}
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        meta = data.get("metadata", {})
+        body = data.get("body", data.get("raw", ""))
+        lines = ["---"]
+        for key in ("id", "feature", "linked_req", "linked_plan", "related_intent", "tags", "files", "created_at"):
+            val = meta.get(key)
+            if isinstance(val, list):
+                lines.append(f'{key}: {json.dumps(val, ensure_ascii=False)}')
+            else:
+                lines.append(f'{key}: {json.dumps(val, ensure_ascii=False)}')
+        lines.append("---")
+        lines.append(body)
+        print("\n".join(lines))
+    return 0
+
+
+def cmd_intent_list(args):
+    store, store_error = _create_intent_store()
+    if store is None:
+        return 1
+    try:
+        entries = store.list()
+    except store_error as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(entries, ensure_ascii=False, indent=2))
+        return 0
+
+    if not entries:
+        print("No intents found.")
+        return 0
+
+    print(f"{'ID':<12} {'Created':<12} {'Feature'}")
+    print("-" * 80)
+    for entry in entries:
+        print(
+            f"{entry.get('id', ''):<12} {entry.get('created_at', ''):<12} "
+            f"{entry.get('feature', '')}"
+        )
+    return 0
+
+
+def cmd_intent_search(args):
+    store, store_error = _create_intent_store()
+    if store is None:
+        return 1
+    try:
+        matches = store.search(args.keyword)
+    except store_error as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(matches, ensure_ascii=False, indent=2))
+        return 0
+
+    for match in matches:
+        print(f"{match.get('id')}:{match.get('line')}:{match.get('text')}")
+    return 0
+
+
+def cmd_intent_lookup(args):
+    store, store_error = _create_intent_store()
+    if store is None:
+        return 1
+    try:
+        entries = store.lookup(args.files)
+    except store_error as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(entries, ensure_ascii=False, indent=2))
+        return 0
+
+    for entry in entries:
+        files = ", ".join(entry.get("files", []))
+        print(f"{entry.get('id')}: {files}")
+    return 0
+
+
+def cmd_intent_related(args):
+    store, store_error = _create_intent_store()
+    if store is None:
+        return 1
+    try:
+        related = store.related(args.intent_id, depth=args.depth)
+    except store_error as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(related, ensure_ascii=False, indent=2))
+        return 0
+
+    print(f"Source: {related.get('source')} (depth={related.get('depth')})")
+    for item in related.get("related", []):
+        reasons = ", ".join(item.get("reasons", []))
+        print(f"{item.get('id')} [depth={item.get('depth')}] {reasons}")
+    return 0
+
+
+def cmd_intent_rebuild_index(args):
+    store, store_error = _create_intent_store()
+    if store is None:
+        return 1
+    try:
+        index = store.rebuild_index()
+    except store_error as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    entry_count = len(index.get("entries", []))
+    print(f"Rebuilt .gran-maestro/intent/index.json ({entry_count} entries)")
+    return 0
+
+
 def cmd_session_split_prompts(args):
     if not args.prompts_dir:
         print("Error: directory not found", file=sys.stderr)
@@ -568,6 +783,7 @@ TYPE_DIRS = {
     "pln": ("plans",     "PLN"),
     "des": ("designs",   "DES"),
     "cap": ("captures", "CAP"),
+    "intent": ("intent", "INTENT"),
 }
 JSON_FILE_MAP = {"req": "request.json", "cap": "capture.json"}
 
@@ -589,11 +805,13 @@ def cmd_counter_next(args):
     subdir, prefix = TYPE_DIRS.get(args.type, ("requests", "REQ"))
     scan_root = Path(args.dir) if args.dir else BASE_DIR / subdir
     disk_max = 0
-    for d in scan_root.glob(f"{prefix}-*"):
-        if not d.is_dir():
+    for path in scan_root.glob(f"{prefix}-*"):
+        if args.type != "intent" and not path.is_dir():
+            continue
+        if args.type == "intent" and not (path.is_dir() or path.is_file()):
             continue
         try:
-            n = int(d.name.split("-")[1])
+            n = int(path.name.split("-")[1])
         except (IndexError, ValueError):
             continue
         if n > disk_max:
@@ -2517,6 +2735,44 @@ def build_parser():
     plan_render_review.add_argument("--plan-draft-file", dest="plan_draft_file", default=None)
     plan_render_review.add_argument("--qa-summary", dest="qa_summary", default="")
 
+    # --- intent ---
+    intent = sub.add_parser("intent")
+    intent_sub = intent.add_subparsers(dest="subcommand")
+
+    intent_add = intent_sub.add_parser("add")
+    intent_add.add_argument("--req", dest="req")
+    intent_add.add_argument("--plan", dest="plan")
+    intent_add.add_argument("--feature", required=True)
+    intent_add.add_argument("--situation", required=True)
+    intent_add.add_argument("--motivation", required=True)
+    intent_add.add_argument("--goal", required=True)
+    intent_add.add_argument("--related-intent", dest="related_intent", action="append", default=[])
+    intent_add.add_argument("--tag", dest="tag", action="append", default=[])
+    intent_add.add_argument("--file", dest="file", action="append", default=[])
+    intent_add.add_argument("--json", action="store_true")
+
+    intent_get = intent_sub.add_parser("get")
+    intent_get.add_argument("intent_id")
+    intent_get.add_argument("--json", action="store_true")
+
+    intent_list = intent_sub.add_parser("list")
+    intent_list.add_argument("--json", action="store_true")
+
+    intent_search = intent_sub.add_parser("search")
+    intent_search.add_argument("keyword")
+    intent_search.add_argument("--json", action="store_true")
+
+    intent_lookup = intent_sub.add_parser("lookup")
+    intent_lookup.add_argument("--files", nargs="+", required=True)
+    intent_lookup.add_argument("--json", action="store_true")
+
+    intent_related = intent_sub.add_parser("related")
+    intent_related.add_argument("intent_id")
+    intent_related.add_argument("--depth", type=int, default=1)
+    intent_related.add_argument("--json", action="store_true")
+
+    intent_sub.add_parser("rebuild-index")
+
     # --- counter ---
     ctr = sub.add_parser("counter")
     ctr_sub = ctr.add_subparsers(dest="subcommand")
@@ -2524,7 +2780,7 @@ def build_parser():
     ctr_next = ctr_sub.add_parser("next")
     ctr_next.add_argument(
         "--type",
-        choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des", "cap"],
+        choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des", "cap", "intent"],
         default="req",
     )
     ctr_next.add_argument("--dir")
@@ -2532,7 +2788,7 @@ def build_parser():
     ctr_peek = ctr_sub.add_parser("peek")
     ctr_peek.add_argument(
         "--type",
-        choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des", "cap"],
+        choices=["req", "idn", "dsc", "dbg", "exp", "pln", "des", "cap", "intent"],
         default="req",
     )
     ctr_peek.add_argument("--dir")
@@ -2715,6 +2971,13 @@ def main():
         ("plan", "complete"): cmd_plan_complete,
         ("plan", "sync"): cmd_plan_sync,
         ("plan", "render-review"): cmd_plan_render_review,
+        ("intent", "add"): cmd_intent_add,
+        ("intent", "get"): cmd_intent_get,
+        ("intent", "list"): cmd_intent_list,
+        ("intent", "search"): cmd_intent_search,
+        ("intent", "lookup"): cmd_intent_lookup,
+        ("intent", "related"): cmd_intent_related,
+        ("intent", "rebuild-index"): cmd_intent_rebuild_index,
         ("counter", "next"): cmd_counter_next,
         ("counter", "peek"): cmd_counter_peek,
         ("version", "get"):    cmd_version_get,
