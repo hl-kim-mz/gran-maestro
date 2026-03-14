@@ -2,7 +2,7 @@
 name: intent
 description: "기능 의도(Intent) 문서를 자연어로 빠르게 생성/조회/수정/삭제합니다. 사용자가 'intent', '의도 저장', '의도 조회'를 말하거나 /mst:intent를 호출할 때 사용."
 user-invocable: true
-argument-hint: "{add|get|list|update|delete|search|lookup|related|rebuild-index ...}"
+argument-hint: "{add|get|list|update|delete|search|lookup|related|rebuild ...}"
 ---
 
 # maestro:intent
@@ -75,10 +75,10 @@ argument-hint: "{add|get|list|update|delete|search|lookup|related|rebuild-index 
 - 검색: `python3 {PLUGIN_ROOT}/scripts/mst.py intent search "키워드"`
 - 파일 역조회: `python3 {PLUGIN_ROOT}/scripts/mst.py intent lookup --files src/foo.py`
 - 연관 탐색: `python3 {PLUGIN_ROOT}/scripts/mst.py intent related INTENT-001 --depth 2 --json`
-- 인덱스 재생성: `python3 {PLUGIN_ROOT}/scripts/mst.py intent rebuild-index`
+- DB 재구성: `python3 {PLUGIN_ROOT}/scripts/mst.py intent rebuild`
 
 ## 문제 해결
 
 - `No module named 'yaml'` 오류: `pip install pyyaml`
 - `Intent not found`: `/mst:intent list`로 ID 확인 후 재시도
-- 검색 결과 없음: `intent rebuild-index` 실행 후 다시 조회
+- 검색 결과 없음: `intent rebuild` 실행 후 다시 조회

@@ -25,7 +25,7 @@ Subcommands:
   intent search      <KEYWORD>
   intent lookup      --files <PATH...>
   intent related     <INTENT-ID> [--depth N]
-  intent rebuild-index
+  intent rebuild
 
   archive run         [--type req|idn|dsc|dbg|exp|pln|des|cap] [--max N] [--dir PATH]
   archive run-all     [--max N]
@@ -522,7 +522,8 @@ def cmd_plan_render_review(args):
 
 def _create_intent_store():
     try:
-        from intent_store import FileIntentStore, IntentStoreError
+        from intent_store import IntentStoreError, SqliteIntentStore
+        store = SqliteIntentStore(BASE_DIR.parent)
     except ImportError as exc:
         print(
             f"Error: intent store dependency missing ({exc}). Install with: pip install pyyaml",
@@ -532,7 +533,7 @@ def _create_intent_store():
     except Exception as exc:
         print(f"Error: failed to initialize intent store ({exc})", file=sys.stderr)
         return None, Exception
-    return FileIntentStore(BASE_DIR.parent), IntentStoreError
+    return store, IntentStoreError
 
 
 def _next_intent_id():
@@ -773,18 +774,18 @@ def cmd_intent_related(args):
     return 0
 
 
-def cmd_intent_rebuild_index(args):
+def cmd_intent_rebuild(args):
     store, store_error = _create_intent_store()
     if store is None:
         return 1
     try:
-        index = store.rebuild_index()
+        index = store.rebuild()
     except store_error as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     entry_count = len(index.get("entries", []))
-    print(f"Rebuilt .gran-maestro/intent/index.json ({entry_count} entries)")
+    print(f"Rebuilt .gran-maestro/intent/intent.db ({entry_count} entries)")
     return 0
 
 
@@ -2853,7 +2854,7 @@ def build_parser():
     intent_related.add_argument("--depth", type=int, default=1)
     intent_related.add_argument("--json", action="store_true")
 
-    intent_sub.add_parser("rebuild-index")
+    intent_sub.add_parser("rebuild")
 
     # --- counter ---
     ctr = sub.add_parser("counter")
@@ -3061,7 +3062,7 @@ def main():
         ("intent", "search"): cmd_intent_search,
         ("intent", "lookup"): cmd_intent_lookup,
         ("intent", "related"): cmd_intent_related,
-        ("intent", "rebuild-index"): cmd_intent_rebuild_index,
+        ("intent", "rebuild"): cmd_intent_rebuild,
         ("counter", "next"): cmd_counter_next,
         ("counter", "peek"): cmd_counter_peek,
         ("version", "get"):    cmd_version_get,

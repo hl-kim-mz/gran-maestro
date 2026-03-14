@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Intent store abstraction and file-backed implementation."""
+"""Intent store abstraction and SQLite-backed implementation."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import deque
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import ast
 import json
 from pathlib import Path
 import re
+import sqlite3
+import tempfile
 from typing import Any, Deque, Dict, Iterable, List, Optional, Sequence, Tuple
 
 try:
@@ -84,16 +87,19 @@ class IntentStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def rebuild_index(self) -> Dict[str, Any]:
+    def rebuild(self) -> Dict[str, Any]:
         raise NotImplementedError
 
 
-class FileIntentStore(IntentStore):
+class SqliteIntentStore(IntentStore):
     def __init__(self, project_root: Path):
         self.project_root = Path(project_root).resolve()
         self.intent_dir = self.project_root / ".gran-maestro" / "intent"
-        self.index_path = self.intent_dir / "index.json"
+        self.db_path = self.intent_dir / "intent.db"
+        self.legacy_index_path = self.intent_dir / "index.json"
         self.template_path = self.project_root / "templates" / "intent-template.md"
+        self._fts_enabled: Optional[bool] = None
+        self._initialize()
 
     def add(
         self,
@@ -111,42 +117,38 @@ class FileIntentStore(IntentStore):
         created_at: Optional[str] = None,
     ) -> Dict[str, Any]:
         normalized_id = _normalize_intent_id(intent_id)
-        if self._find_intent_path(normalized_id) is not None:
-            raise IntentStoreError(f"Intent already exists: {normalized_id}")
-
-        created_at_value = created_at or datetime.now(timezone.utc).isoformat()
-        feature_value = feature.strip()
+        feature_value = (feature or "").strip()
         if not feature_value:
             raise IntentStoreError("feature must not be empty")
 
-        metadata = {
+        record = {
             "id": normalized_id,
             "feature": feature_value,
+            "situation": (situation or "").strip(),
+            "motivation": (motivation or "").strip(),
+            "goal": (goal or "").strip(),
             "linked_req": _normalize_optional_string(linked_req),
             "linked_plan": _normalize_optional_string(linked_plan),
             "related_intent": _normalize_string_list(related_intent),
             "tags": _normalize_string_list(tags),
             "files": _normalize_string_list(files),
-            "created_at": created_at_value,
+            "created_at": created_at or datetime.now(timezone.utc).isoformat(),
+            "file_name": f"{normalized_id}-{_slugify(feature_value)}.md",
         }
 
-        intent_path = self.intent_dir / f"{normalized_id}-{_slugify(feature_value)}.md"
-        intent_text = self._render_intent_template(
-            metadata=metadata,
-            situation=situation,
-            motivation=motivation,
-            goal=goal,
-        )
-
         self.intent_dir.mkdir(parents=True, exist_ok=True)
-        intent_path.write_text(intent_text, encoding="utf-8")
+        with self._connect() as conn:
+            if self._fetch_row(conn, normalized_id) is not None:
+                raise IntentStoreError(f"Intent already exists: {normalized_id}")
+            self._upsert_intent(conn, record)
+            self._sync_markdown_record(record)
 
-        self.rebuild_index()
+        self._remove_legacy_index()
         return {
             "id": normalized_id,
-            "path": str(intent_path),
-            "file": intent_path.name,
-            "metadata": metadata,
+            "path": str(self.intent_dir / record["file_name"]),
+            "file": record["file_name"],
+            "metadata": self._metadata_from_record(record),
         }
 
     def update(
@@ -165,165 +167,126 @@ class FileIntentStore(IntentStore):
         created_at: Optional[str] = None,
     ) -> Dict[str, Any]:
         normalized_id = _normalize_intent_id(intent_id)
-        intent_path = self._find_intent_path(normalized_id)
-        if intent_path is None:
-            raise IntentStoreError(f"{normalized_id} not found")
+        with self._connect() as conn:
+            current = self._fetch_row(conn, normalized_id)
+            if current is None:
+                raise IntentStoreError(f"{normalized_id} not found")
 
-        metadata, body, raw_text = self._read_intent(intent_path)
-        raw_frontmatter, _ = _split_frontmatter(raw_text)
-        raw_metadata = _parse_frontmatter(raw_frontmatter, intent_path)
-        sections = _extract_jtbd_sections(body)
+            updated = dict(current)
+            if feature is not None:
+                feature_value = feature.strip()
+                if not feature_value:
+                    raise IntentStoreError("feature must not be empty")
+                updated["feature"] = feature_value
+                updated["file_name"] = f"{normalized_id}-{_slugify(feature_value)}.md"
+            if situation is not None:
+                updated["situation"] = situation.strip()
+            if motivation is not None:
+                updated["motivation"] = motivation.strip()
+            if goal is not None:
+                updated["goal"] = goal.strip()
+            if linked_req is not None:
+                updated["linked_req"] = _normalize_optional_string(linked_req)
+            if linked_plan is not None:
+                updated["linked_plan"] = _normalize_optional_string(linked_plan)
+            if related_intent is not None:
+                updated["related_intent"] = _normalize_string_list(related_intent)
+            if tags is not None:
+                updated["tags"] = _normalize_string_list(tags)
+            if files is not None:
+                updated["files"] = _normalize_string_list(files)
+            if created_at is not None:
+                created_at_value = _normalize_optional_string(created_at) or ""
+                if created_at_value:
+                    try:
+                        datetime.fromisoformat(created_at_value)
+                    except (TypeError, ValueError) as exc:
+                        raise IntentStoreError(
+                            f"Invalid ISO-8601 datetime: {created_at_value}"
+                        ) from exc
+                updated["created_at"] = created_at_value
 
-        feature_value = metadata.get("feature", "")
-        if feature is not None:
-            feature_value = feature.strip()
-            if not feature_value:
-                raise IntentStoreError("feature must not be empty")
+            old_path = self.intent_dir / current["file_name"]
+            target_path = self.intent_dir / updated["file_name"]
+            if target_path != old_path and target_path.exists():
+                raise IntentStoreError(f"Intent already exists: {target_path.name}")
 
-        updated_metadata = dict(raw_metadata)
-        updated_metadata["id"] = normalized_id
-        updated_metadata["feature"] = feature_value
-        if linked_req is not None:
-            updated_metadata["linked_req"] = _normalize_optional_string(linked_req)
-        elif "linked_req" not in updated_metadata:
-            updated_metadata["linked_req"] = metadata.get("linked_req")
-        if linked_plan is not None:
-            updated_metadata["linked_plan"] = _normalize_optional_string(linked_plan)
-        elif "linked_plan" not in updated_metadata:
-            updated_metadata["linked_plan"] = metadata.get("linked_plan")
-        if related_intent is not None:
-            updated_metadata["related_intent"] = _normalize_string_list(related_intent)
-        else:
-            updated_metadata["related_intent"] = _normalize_string_list(updated_metadata.get("related_intent", metadata.get("related_intent", [])))
-        if tags is not None:
-            updated_metadata["tags"] = _normalize_string_list(tags)
-        else:
-            updated_metadata["tags"] = _normalize_string_list(updated_metadata.get("tags", metadata.get("tags", [])))
-        if files is not None:
-            updated_metadata["files"] = _normalize_string_list(files)
-        else:
-            updated_metadata["files"] = _normalize_string_list(updated_metadata.get("files", metadata.get("files", [])))
-        if created_at is not None:
-            created_at_value = _normalize_optional_string(created_at) or ""
-            if created_at_value:
-                try:
-                    datetime.fromisoformat(created_at_value)
-                except (TypeError, ValueError) as exc:
-                    raise IntentStoreError(
-                        f"Invalid ISO-8601 datetime: {created_at_value}"
-                    ) from exc
-            updated_metadata["created_at"] = created_at_value
-        elif "created_at" not in updated_metadata:
-            updated_metadata["created_at"] = metadata.get("created_at", "")
+            self._upsert_intent(conn, updated)
+            self._sync_markdown_record(updated, previous_path=old_path)
 
-        updated_situation = (situation if situation is not None else sections["situation"]).strip()
-        updated_motivation = (motivation if motivation is not None else sections["motivation"]).strip()
-        updated_goal = (goal if goal is not None else sections["goal"]).strip()
-        updated_body = _compose_jtbd_body(
-            situation=updated_situation,
-            motivation=updated_motivation,
-            goal=updated_goal,
-            tail=sections.get("tail", ""),
-        )
-        if yaml is not None:
-            rendered_frontmatter = yaml.safe_dump(
-                updated_metadata,
-                allow_unicode=True,
-                sort_keys=False,
-            ).strip()
-        else:
-            rendered_frontmatter = "\n".join(
-                f"{key}: {json.dumps(value, ensure_ascii=False)}"
-                for key, value in updated_metadata.items()
-            )
-
-        updated_text = f"---\n{rendered_frontmatter}\n---\n\n{updated_body.rstrip()}\n"
-
-        target_path = self.intent_dir / f"{normalized_id}-{_slugify(feature_value)}.md"
-        if target_path != intent_path and target_path.exists():
-            raise IntentStoreError(f"Intent already exists: {target_path.name}")
-
-        self.intent_dir.mkdir(parents=True, exist_ok=True)
-        temp_path = self.intent_dir / (
-            f".{normalized_id}.tmp-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.md"
-        )
-        try:
-            temp_path.write_text(updated_text, encoding="utf-8")
-            temp_path.replace(intent_path)
-            if target_path != intent_path:
-                intent_path.replace(target_path)
-        except OSError as exc:
-            raise IntentStoreError(f"Failed to update {normalized_id}: {exc}") from exc
-        finally:
-            if temp_path.exists():
-                temp_path.unlink(missing_ok=True)
-
-        self.rebuild_index()
+        self._remove_legacy_index()
         return {
             "id": normalized_id,
-            "path": str(target_path),
-            "file": target_path.name,
-            "metadata": updated_metadata,
+            "path": str(self.intent_dir / updated["file_name"]),
+            "file": updated["file_name"],
+            "metadata": self._metadata_from_record(updated),
         }
 
     def delete(self, intent_id: str) -> Dict[str, Any]:
         normalized_id = _normalize_intent_id(intent_id)
-        intent_path = self._find_intent_path(normalized_id)
-        if intent_path is None:
-            raise IntentStoreError(f"{normalized_id} not found")
+        with self._connect() as conn:
+            current = self._fetch_row(conn, normalized_id)
+            if current is None:
+                raise IntentStoreError(f"{normalized_id} not found")
 
-        try:
-            intent_path.unlink()
-        except OSError as exc:
-            raise IntentStoreError(f"Failed to delete {normalized_id}: {exc}") from exc
+            conn.execute("DELETE FROM intents WHERE id = ?", (normalized_id,))
+            if self._fts_enabled:
+                conn.execute("DELETE FROM intents_fts WHERE id = ?", (normalized_id,))
+            self._delete_markdown_file(self.intent_dir / current["file_name"])
 
-        self.rebuild_index()
+        self._remove_legacy_index()
         return {
             "id": normalized_id,
-            "path": str(intent_path),
-            "file": intent_path.name,
+            "path": str(self.intent_dir / current["file_name"]),
+            "file": current["file_name"],
         }
 
     def get(self, intent_id: str) -> Optional[Dict[str, Any]]:
         normalized_id = _normalize_intent_id(intent_id)
-        intent_path = self._find_intent_path(normalized_id)
-        if intent_path is None:
+        with self._connect() as conn:
+            record = self._fetch_row(conn, normalized_id)
+        if record is None:
             return None
-        metadata, body, raw_text = self._read_intent(intent_path)
+
+        intent_path = self.intent_dir / record["file_name"]
+        body = self._render_body_for_output(record, intent_path)
+        raw = self._read_file_if_exists(intent_path)
+        if raw is None:
+            raw = _render_intent_document(
+                metadata=self._metadata_from_record(record),
+                body=body,
+            )
         return {
             "id": normalized_id,
             "path": str(intent_path),
-            "file": intent_path.name,
-            "metadata": metadata,
+            "file": record["file_name"],
+            "metadata": self._metadata_from_record(record),
             "body": body,
-            "raw": raw_text,
+            "raw": raw,
         }
 
     def list(self) -> List[Dict[str, Any]]:
-        entries = self._load_entries_from_index_or_scan()
-        return sorted(entries, key=lambda item: item.get("id", ""))
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, feature, linked_req, linked_plan, related_intent, tags, files, created_at, file_name
+                FROM intents
+                ORDER BY id
+                """
+            ).fetchall()
+        return [self._entry_from_row(row) for row in rows]
 
     def search(self, keyword: str) -> List[Dict[str, Any]]:
         needle = (keyword or "").strip()
         if not needle:
             return []
 
+        with self._connect() as conn:
+            candidates = self._search_candidates(conn, needle)
+
         matches: List[Dict[str, Any]] = []
-        for intent_path in self._iter_intent_files():
-            intent_id = _intent_id_from_filename(intent_path.name)
-            try:
-                for line_no, line in enumerate(intent_path.read_text(encoding="utf-8").splitlines(), start=1):
-                    if needle in line:
-                        matches.append(
-                            {
-                                "id": intent_id,
-                                "file": intent_path.name,
-                                "line": line_no,
-                                "text": line,
-                            }
-                        )
-            except OSError as exc:
-                raise IntentStoreError(f"Failed to read {intent_path}: {exc}") from exc
+        for candidate in candidates:
+            matches.extend(self._scan_lines_for_keyword(candidate, needle))
         return matches
 
     def lookup(self, files: Sequence[str]) -> List[Dict[str, Any]]:
@@ -332,7 +295,7 @@ class FileIntentStore(IntentStore):
             return []
 
         results: List[Dict[str, Any]] = []
-        for entry in self._load_entries_from_index_or_scan():
+        for entry in self.list():
             entry_files = {_normalize_file_path(item) for item in _normalize_string_list(entry.get("files"))}
             if entry_files.intersection(requested):
                 results.append(entry)
@@ -341,7 +304,7 @@ class FileIntentStore(IntentStore):
     def related(self, intent_id: str, depth: int = 1) -> Dict[str, Any]:
         root_id = _normalize_intent_id(intent_id)
         max_depth = max(1, int(depth))
-        entries = self._load_entries_from_index_or_scan()
+        entries = self.list()
         by_id: Dict[str, Dict[str, Any]] = {
             _normalize_intent_id(entry.get("id", "")): entry for entry in entries if entry.get("id")
         }
@@ -381,25 +344,211 @@ class FileIntentStore(IntentStore):
             "related": discovered,
         }
 
-    def rebuild_index(self) -> Dict[str, Any]:
+    def rebuild(self) -> Dict[str, Any]:
         entries: List[Dict[str, Any]] = []
-        for intent_path in self._iter_intent_files():
-            metadata, _, _ = self._read_intent(intent_path)
-            entries.append(_to_index_entry(metadata, intent_path.name))
+        self.intent_dir.mkdir(parents=True, exist_ok=True)
+        with self._connect() as conn:
+            conn.execute("DELETE FROM intents")
+            if self._fts_enabled:
+                conn.execute("DELETE FROM intents_fts")
+            for intent_path in self._iter_intent_files():
+                record = self._record_from_markdown(intent_path)
+                self._upsert_intent(conn, record)
+                entries.append(_to_index_entry(self._metadata_from_record(record), record["file_name"]))
 
-        entries.sort(key=lambda item: item.get("id", ""))
-        index_data = {
-            "version": 1,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "entries": entries,
+        self._remove_legacy_index()
+        return {
+            "entries": sorted(entries, key=lambda item: item.get("id", "")),
+            "database": str(self.db_path),
         }
 
+    def _initialize(self) -> None:
         self.intent_dir.mkdir(parents=True, exist_ok=True)
-        self.index_path.write_text(
-            json.dumps(index_data, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+        with self._connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS intents (
+                    id TEXT PRIMARY KEY,
+                    feature TEXT NOT NULL,
+                    situation TEXT NOT NULL,
+                    motivation TEXT NOT NULL,
+                    goal TEXT NOT NULL,
+                    linked_req TEXT,
+                    linked_plan TEXT,
+                    related_intent TEXT NOT NULL,
+                    tags TEXT NOT NULL,
+                    files TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    file_name TEXT NOT NULL
+                )
+                """
+            )
+            self._ensure_fts(conn)
+        self._remove_legacy_index()
+
+    @contextmanager
+    def _connect(self):
+        try:
+            conn = sqlite3.connect(self.db_path)
+        except sqlite3.Error as exc:
+            raise IntentStoreError(f"Failed to open SQLite DB: {exc}") from exc
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def _ensure_fts(self, conn: sqlite3.Connection) -> None:
+        if self._fts_enabled is not None:
+            return
+        try:
+            conn.execute(
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS intents_fts
+                USING fts5(id UNINDEXED, feature, situation, motivation, goal)
+                """
+            )
+            self._fts_enabled = True
+        except sqlite3.OperationalError:
+            self._fts_enabled = False
+
+    def _upsert_intent(self, conn: sqlite3.Connection, record: Dict[str, Any]) -> None:
+        payload = (
+            record["id"],
+            record["feature"],
+            record["situation"],
+            record["motivation"],
+            record["goal"],
+            record.get("linked_req"),
+            record.get("linked_plan"),
+            json.dumps(_normalize_string_list(record.get("related_intent")), ensure_ascii=False),
+            json.dumps(_normalize_string_list(record.get("tags")), ensure_ascii=False),
+            json.dumps(_normalize_string_list(record.get("files")), ensure_ascii=False),
+            record.get("created_at") or "",
+            record["file_name"],
         )
-        return index_data
+        conn.execute(
+            """
+            INSERT INTO intents (
+                id, feature, situation, motivation, goal, linked_req, linked_plan,
+                related_intent, tags, files, created_at, file_name
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                feature = excluded.feature,
+                situation = excluded.situation,
+                motivation = excluded.motivation,
+                goal = excluded.goal,
+                linked_req = excluded.linked_req,
+                linked_plan = excluded.linked_plan,
+                related_intent = excluded.related_intent,
+                tags = excluded.tags,
+                files = excluded.files,
+                created_at = excluded.created_at,
+                file_name = excluded.file_name
+            """
+            ,
+            payload,
+        )
+        row = self._fetch_row(conn, record["id"])
+        if row is None:
+            raise IntentStoreError(f"Failed to persist {record['id']}")
+        if self._fts_enabled:
+            conn.execute("DELETE FROM intents_fts WHERE id = ?", (record["id"],))
+            conn.execute(
+                """
+                INSERT INTO intents_fts(id, feature, situation, motivation, goal)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"],
+                    row["feature"],
+                    row["situation"],
+                    row["motivation"],
+                    row["goal"],
+                ),
+            )
+
+    def _fetch_row(self, conn: sqlite3.Connection, intent_id: str) -> Optional[Dict[str, Any]]:
+        row = conn.execute(
+            """
+            SELECT rowid, id, feature, situation, motivation, goal, linked_req, linked_plan,
+                   related_intent, tags, files, created_at, file_name
+            FROM intents
+            WHERE id = ?
+            """,
+            (intent_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._record_from_row(row)
+
+    def _record_from_row(self, row: sqlite3.Row) -> Dict[str, Any]:
+        return {
+            "rowid": row["rowid"],
+            "id": _normalize_intent_id(row["id"]),
+            "feature": _normalize_optional_string(row["feature"]) or "",
+            "situation": _normalize_optional_string(row["situation"]) or "",
+            "motivation": _normalize_optional_string(row["motivation"]) or "",
+            "goal": _normalize_optional_string(row["goal"]) or "",
+            "linked_req": _normalize_optional_string(row["linked_req"]),
+            "linked_plan": _normalize_optional_string(row["linked_plan"]),
+            "related_intent": _json_list(row["related_intent"]),
+            "tags": _json_list(row["tags"]),
+            "files": _json_list(row["files"]),
+            "created_at": _normalize_optional_string(row["created_at"]) or "",
+            "file_name": row["file_name"],
+        }
+
+    def _entry_from_row(self, row: sqlite3.Row) -> Dict[str, Any]:
+        return {
+            "id": _normalize_intent_id(row["id"]),
+            "file": row["file_name"],
+            "feature": _normalize_optional_string(row["feature"]) or "",
+            "linked_req": _normalize_optional_string(row["linked_req"]),
+            "linked_plan": _normalize_optional_string(row["linked_plan"]),
+            "related_intent": _json_list(row["related_intent"]),
+            "tags": _json_list(row["tags"]),
+            "files": _json_list(row["files"]),
+            "created_at": _normalize_optional_string(row["created_at"]) or "",
+        }
+
+    def _metadata_from_record(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "id": record["id"],
+            "feature": record["feature"],
+            "linked_req": _normalize_optional_string(record.get("linked_req")),
+            "linked_plan": _normalize_optional_string(record.get("linked_plan")),
+            "related_intent": _normalize_string_list(record.get("related_intent")),
+            "tags": _normalize_string_list(record.get("tags")),
+            "files": _normalize_string_list(record.get("files")),
+            "created_at": _normalize_optional_string(record.get("created_at")) or "",
+        }
+
+    def _render_body_for_output(self, record: Dict[str, Any], intent_path: Path) -> str:
+        raw = self._read_file_if_exists(intent_path)
+        if raw is not None:
+            try:
+                _, body = _split_frontmatter(raw)
+                return body
+            except IntentStoreError:
+                pass
+        return _compose_jtbd_body(
+            situation=record["situation"],
+            motivation=record["motivation"],
+            goal=record["goal"],
+        )
+
+    def _read_file_if_exists(self, path: Path) -> Optional[str]:
+        if not path.exists():
+            return None
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise IntentStoreError(f"Failed to read {path}: {exc}") from exc
 
     def _iter_intent_files(self) -> Iterable[Path]:
         if not self.intent_dir.exists():
@@ -410,14 +559,7 @@ class FileIntentStore(IntentStore):
             if path.is_file()
         )
 
-    def _find_intent_path(self, intent_id: str) -> Optional[Path]:
-        candidates = sorted(self.intent_dir.glob(f"{intent_id}-*.md"))
-        for candidate in candidates:
-            if candidate.is_file():
-                return candidate
-        return None
-
-    def _read_intent(self, intent_path: Path) -> Tuple[Dict[str, Any], str, str]:
+    def _record_from_markdown(self, intent_path: Path) -> Dict[str, Any]:
         try:
             raw_text = intent_path.read_text(encoding="utf-8")
         except OSError as exc:
@@ -425,35 +567,144 @@ class FileIntentStore(IntentStore):
 
         frontmatter, body = _split_frontmatter(raw_text)
         metadata = _parse_frontmatter(frontmatter, intent_path)
-
-        normalized = {
+        sections = _extract_jtbd_sections(body)
+        return {
             "id": _normalize_intent_id(metadata.get("id") or _intent_id_from_filename(intent_path.name)),
             "feature": _normalize_optional_string(metadata.get("feature")) or "",
+            "situation": sections["situation"],
+            "motivation": sections["motivation"],
+            "goal": sections["goal"],
             "linked_req": _normalize_optional_string(metadata.get("linked_req")),
             "linked_plan": _normalize_optional_string(metadata.get("linked_plan")),
             "related_intent": _normalize_string_list(metadata.get("related_intent")),
             "tags": _normalize_string_list(metadata.get("tags")),
             "files": _normalize_string_list(metadata.get("files")),
             "created_at": _normalize_optional_string(metadata.get("created_at")) or "",
+            "file_name": intent_path.name,
         }
-        return normalized, body, raw_text
 
-    def _load_entries_from_index_or_scan(self) -> List[Dict[str, Any]]:
-        if self.index_path.exists():
+    def _sync_markdown_record(
+        self,
+        record: Dict[str, Any],
+        *,
+        previous_path: Optional[Path] = None,
+    ) -> None:
+        target_path = self.intent_dir / record["file_name"]
+        text = self._render_intent_template(
+            metadata=self._metadata_from_record(record),
+            situation=record["situation"],
+            motivation=record["motivation"],
+            goal=record["goal"],
+        )
+        if previous_path is not None and previous_path.exists():
+            tail = ""
+            raw = self._read_file_if_exists(previous_path)
+            if raw is not None:
+                try:
+                    _, body = _split_frontmatter(raw)
+                    tail = _extract_jtbd_sections(body).get("tail", "")
+                except IntentStoreError:
+                    tail = ""
+            if tail:
+                body_text = _compose_jtbd_body(
+                    situation=record["situation"],
+                    motivation=record["motivation"],
+                    goal=record["goal"],
+                    tail=tail,
+                )
+                text = _render_intent_document(
+                    metadata=self._metadata_from_record(record),
+                    body=body_text,
+                )
+
+        try:
+            fd = tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=str(self.intent_dir),
+                suffix=".tmp", delete=False,
+            )
             try:
-                index_data = json.loads(self.index_path.read_text(encoding="utf-8"))
-                entries = index_data.get("entries", []) if isinstance(index_data, dict) else []
-                if isinstance(entries, list):
-                    return [_to_index_entry(entry, entry.get("file", "")) for entry in entries]
-            except (json.JSONDecodeError, OSError):
+                fd.write(text)
+                fd.flush()
+                fd.close()
+                import os
+                os.replace(fd.name, str(target_path))
+            except BaseException:
+                Path(fd.name).unlink(missing_ok=True)
+                raise
+            if previous_path is not None and previous_path != target_path and previous_path.exists():
+                previous_path.unlink()
+        except OSError as exc:
+            raise IntentStoreError(f"Failed to write {target_path}: {exc}") from exc
+
+    def _delete_markdown_file(self, path: Path) -> None:
+        if not path.exists():
+            return
+        try:
+            path.unlink()
+        except OSError as exc:
+            raise IntentStoreError(f"Failed to delete {path}: {exc}") from exc
+
+    def _search_candidates(self, conn: sqlite3.Connection, needle: str) -> List[Dict[str, Any]]:
+        if self._fts_enabled:
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT i.rowid, i.id, i.feature, i.situation, i.motivation, i.goal, i.linked_req,
+                           i.linked_plan, i.related_intent, i.tags, i.files, i.created_at, i.file_name
+                    FROM intents AS i
+                    JOIN intents_fts ON intents_fts.id = i.id
+                    WHERE intents_fts MATCH ?
+                    ORDER BY i.id
+                    """,
+                    (needle,),
+                ).fetchall()
+                return [self._record_from_row(row) for row in rows]
+            except sqlite3.OperationalError:
                 pass
 
-        scanned: List[Dict[str, Any]] = []
-        for intent_path in self._iter_intent_files():
-            metadata, _, _ = self._read_intent(intent_path)
-            scanned.append(_to_index_entry(metadata, intent_path.name))
-        scanned.sort(key=lambda item: item.get("id", ""))
-        return scanned
+        wildcard = f"%{needle}%"
+        rows = conn.execute(
+            """
+            SELECT rowid, id, feature, situation, motivation, goal, linked_req, linked_plan,
+                   related_intent, tags, files, created_at, file_name
+            FROM intents
+            WHERE feature LIKE ? OR situation LIKE ? OR motivation LIKE ? OR goal LIKE ?
+            ORDER BY id
+            """,
+            (wildcard, wildcard, wildcard, wildcard),
+        ).fetchall()
+        return [self._record_from_row(row) for row in rows]
+
+    def _scan_lines_for_keyword(self, record: Dict[str, Any], needle: str) -> List[Dict[str, Any]]:
+        intent_path = self.intent_dir / record["file_name"]
+        raw = self._read_file_if_exists(intent_path)
+        if raw is None:
+            raw = _render_intent_document(
+                metadata=self._metadata_from_record(record),
+                body=_compose_jtbd_body(
+                    situation=record["situation"],
+                    motivation=record["motivation"],
+                    goal=record["goal"],
+                ),
+            )
+
+        tokens = [t.strip().lower() for t in re.split(r'\bOR\b|\bAND\b|\bNOT\b', needle, flags=re.IGNORECASE) if t.strip()]
+        if not tokens:
+            tokens = [needle.lower()]
+
+        matches: List[Dict[str, Any]] = []
+        for line_no, line in enumerate(raw.splitlines(), start=1):
+            line_lower = line.lower()
+            if any(token in line_lower for token in tokens):
+                matches.append(
+                    {
+                        "id": record["id"],
+                        "file": record["file_name"],
+                        "line": line_no,
+                        "text": line,
+                    }
+                )
+        return matches
 
     def _build_related_graph(self, entries: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, set]]:
         by_id: Dict[str, Dict[str, Any]] = {}
@@ -522,6 +773,9 @@ class FileIntentStore(IntentStore):
         if not rendered.endswith("\n"):
             rendered += "\n"
         return rendered
+
+    def _remove_legacy_index(self) -> None:
+        self.legacy_index_path.unlink(missing_ok=True)
 
 
 def _to_index_entry(metadata: Dict[str, Any], file_name: str) -> Dict[str, Any]:
@@ -789,7 +1043,6 @@ def _parse_scalar_or_list(value: str) -> Any:
                     return [str(item) for item in parsed]
                 return parsed
             except (ValueError, SyntaxError):
-                # YAML flow sequence with unquoted scalars (e.g. [core, api])
                 inner = value[1:-1].strip()
                 if not inner:
                     return []
@@ -803,3 +1056,20 @@ def _strip_quotes(value: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] and value[0] in ("\"", "'"):
         return value[1:-1]
     return value
+
+
+def _json_list(raw: Any) -> List[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return _normalize_string_list(raw)
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return _normalize_string_list(raw)
+        return _normalize_string_list(parsed)
+    return _normalize_string_list(raw)
