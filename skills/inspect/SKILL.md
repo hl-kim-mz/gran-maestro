@@ -2,12 +2,12 @@
 name: inspect
 description: "특정 요청의 상세 상태를 표시합니다. 사용자가 '상세 상태', '자세히 보여줘', '상태 확인'을 말하거나 /mst:inspect를 호출할 때 사용. 전체 목록은 /mst:list를 사용."
 user-invocable: true
-argument-hint: "{REQ-ID}"
+argument-hint: "{REQ-ID | PLN-ID}"
 ---
 
 # maestro:inspect
 
-특정 요청의 Phase 진행 상황, 태스크 상태, 에이전트 활동, 피드백 라운드 이력을 터미널에 표시합니다.
+특정 요청(REQ) 또는 계획(PLN)의 연결 상태를 터미널에 표시합니다.
 
 ## 실행 프로토콜
 
@@ -17,9 +17,15 @@ argument-hint: "{REQ-ID}"
 > PROJECT_ROOT=$(pwd)
 > ```
 
-**스크립트 우선 실행**: `python3 {PLUGIN_ROOT}/scripts/mst.py request inspect {REQ-ID}` 실행. 성공 시 출력 그대로 사용. 실패 시 fallback.
+**REQ-ID 입력 시 스크립트 우선 실행**: `python3 {PLUGIN_ROOT}/scripts/mst.py request inspect {REQ-ID}` 실행. 성공 시 출력 그대로 사용. 실패 시 fallback.
 
-**Fallback:** `$ARGUMENTS`에서 REQ ID 파싱 → `request.json` 읽기 → 각 태스크 `status.json` 읽기 → 포맷팅 후 출력
+**Fallback (REQ-ID):** `$ARGUMENTS`에서 REQ ID 파싱 → `request.json` 읽기 → 각 태스크 `status.json` 읽기 → 포맷팅 후 출력
+
+**PLN-ID 입력 시 (예: `PLN-233`)**:
+- `{PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/plan.json`과 `plan.md`를 읽어 plan 제목/상태를 수집한다.
+- `{PROJECT_ROOT}/.gran-maestro/requests/*/request.json`을 스캔해 `source_plan == "PLN-NNN"`인 child REQ를 추출한다.
+- child REQ별로 `id`, `title`, `status`를 출력한다.
+- child가 없으면 "연결된 REQ 없음"으로 출력한다.
 
 
 ## 스킬 실행 마커 (MANDATORY)
@@ -68,7 +74,20 @@ Phase 진행:
   blocks: [REQ-002]
 ```
 
+```
+Gran Maestro — PLN-233 파생 요청
+═══════════════════════════════════════
+
+Plan: "plan → request 전환 사용성 개선"
+Status: active
+
+Child REQ:
+  - REQ-349  "REQ-349 본 요청"  |  status: spec_ready
+  - REQ-351  "후속 태스크"       |  status: pending
+```
+
 ## 문제 해결
 
-- "REQ-ID를 찾을 수 없음" → `REQ-NNN` 형식 확인; `/mst:list`로 목록 조회
+- "ID를 찾을 수 없음" → `REQ-NNN` 또는 `PLN-NNN` 형식 확인
 - `request.json` 읽기 실패 → 파일 손상 가능; `.gran-maestro/requests/{REQ-ID}/` 확인
+- `plan.json` 읽기 실패 → plan 파일 손상 또는 경로 오타 가능; `.gran-maestro/plans/{PLN-ID}/` 확인

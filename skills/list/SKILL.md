@@ -11,9 +11,12 @@ argument-hint: "[--all | --active | --completed]"
 
 ## 실행 프로토콜
 
-**스크립트 우선 실행**: `python3 {PLUGIN_ROOT}/scripts/mst.py request list --active` 실행. 성공(exit 0)이면 출력 그대로 사용. 실패 시 아래 fallback으로 진행.
+**스크립트 우선 실행**: `python3 {PLUGIN_ROOT}/scripts/mst.py request list --active` 실행. 성공(exit 0)이면 출력을 사용하되, 각 REQ의 `source_plan` 필드를 확인해 `"[from PLN-NNN]"` 태그를 보강한다. 실패 시 아래 fallback으로 진행.
 
 **Fallback:** `requests/` 스캔 → 각 `request.json` 읽기 → 상태별 분류/포맷팅
+- 출력 규칙:
+  - `source_plan == "PLN-NNN"`이면 REQ 제목 줄에 `"[from PLN-NNN]"` 태그를 표시
+  - `source_plan == null` 또는 필드 부재(레거시)면 태그를 표시하지 않음
 
 
 ## 스킬 실행 마커 (MANDATORY)
@@ -36,7 +39,7 @@ argument-hint: "[--all | --active | --completed]"
 Gran Maestro — 요청 현황
 ═══════════════════════════════════════
 
-REQ-001  "사용자 인증 기능 추가"
+REQ-001  "사용자 인증 기능 추가" [from PLN-233]
   Phase: 2 (외주 실행)  |  Tasks: 3  |  진행: 1/3
   ├── 01: [codex] 실행 중 — JWT 미들웨어 구현
   ├── 02: [gemini] 대기 — 로그인 UI 구현

@@ -910,6 +910,78 @@ Phase 3 리뷰 PASS 후 `workflow.auto_accept_result` 설정에 따라 동작합
 
 설정 변경: `/mst:settings workflow.auto_accept_result false`
 
+### 최종 수락 후 DAG 자동 연쇄 실행
+
+최종 수락(`mst:accept`) 직후, 아래 조건을 모두 충족하면 같은 plan의 후속 REQ를 자동 연쇄 실행합니다.
+
+- `workflow.auto_accept_result == true`: approve가 `mst:accept` 성공 직후 본 섹션을 실행
+- `workflow.auto_accept_result == false`: approve는 수동 수락 안내 후 종료하며, 동일 DAG 연쇄 규칙은 `mst:accept`(Step 5.6)에서 실행
+
+#### 실행 조건
+
+1. 현재 REQ의 `request.json`에서 `source_plan`이 `"PLN-NNN"` 형태로 존재
+2. 현재 REQ의 `request.json`에서 `dag_auto_chain == true`
+3. 현재 REQ 상태가 `done` 또는 `completed` 또는 `accepted`
+
+하나라도 불충족이면 DAG 연쇄 실행 단계는 skip하고 기존 approve 종료 동작을 유지합니다.
+
+#### 다음 REQ 탐색 규칙
+
+1. 매 반복마다 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.json` Read 후 `linked_requests` 전체를 plan 정의 순서대로 재평가
+2. 후보 필터:
+   - 현재 REQ 및 이미 연쇄 완료(`chain_results`)된 REQ는 제외
+   - 완료/종료 상태(`done`, `completed`, `accepted`, `cancelled`)는 제외
+   - 실행 가능 상태(`pending_dependency`, `phase1_analysis`, `spec_ready`)만 후보로 인정
+3. `blockedBy` 해소 판정:
+   - 후보 REQ의 `dependencies.blockedBy` 내 각 선행 REQ 상태를 확인
+   - 모든 선행 REQ가 `done`/`completed`/`accepted`이면 "실행 가능"으로 판단
+4. 실행 가능한 첫 번째 후보를 "다음 REQ"로 선택
+
+#### 자동 연쇄 실행 루프
+
+```pseudo
+chain_results = [{ req_id: CURRENT_REQ_ID, status: "completed" }]
+
+while true:
+  plan = Read({PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.json)
+  next_req = first runnable req from plan.linked_requests (full scan each loop)
+  if not next_req:
+    break
+
+  출력: "[DAG 연쇄] 다음 실행: {next_req.id} ({next_req.title})"
+
+  # 다음 REQ를 request -> approve 라이프사이클로 시작 (기존 REQ 재개 계약)
+  Skill(skill: "mst:request", args: "--plan {source_plan} --resume {next_req.id} -a")
+
+  refreshed = Read({PROJECT_ROOT}/.gran-maestro/requests/{next_req.id}/request.json)
+  if refreshed.status in ["done", "completed", "accepted"]:
+    chain_results.append({ req_id: next_req.id, status: "completed" })
+    continue
+
+  # 실패/중단 감지 시 즉시 중단
+  pending_tail = remaining non-terminal req ids in same plan
+  출력: "[DAG 연쇄 중단] {next_req.id} 실패. 후속 REQ: {pending_tail.join(', ')}"
+  종료
+
+if all linked_requests are done/completed/accepted:
+  출력: "[DAG 연쇄 완료] {source_plan}의 모든 REQ가 완료되었습니다. {REQ-A}(완료), {REQ-B}(완료), ..."
+else:
+  출력: "[DAG 연쇄 종료] 실행 가능한 다음 REQ가 없어 종료했습니다. 남은 REQ는 미완료 상태입니다."
+```
+
+#### 실패 처리 규칙 (MANDATORY)
+
+- 연쇄 중 `mst:request --resume REQ-NNN` 호출 실패/중단/비정상 종료 시 즉시 중단
+- 실패한 REQ 이후 후속 REQ는 절대 자동 시작하지 않음
+- 중단 보고는 아래 형식을 따른다:
+  - `[DAG 연쇄 중단] REQ-B 실패. 후속 REQ: REQ-C, REQ-D`
+
+#### 완료 보고 규칙 (MANDATORY)
+
+- 같은 plan의 `linked_requests` 전체가 `done`/`completed`/`accepted`이면 DAG 완주로 간주
+- 완주 시 아래 형식으로 요약 보고:
+  - `[DAG 연쇄 완료] PLN-NNN의 모든 REQ가 완료되었습니다. REQ-A(완료), REQ-B(완료), REQ-C(완료)`
+
 
 ## 스킬 실행 마커 (MANDATORY)
 

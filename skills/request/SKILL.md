@@ -2,7 +2,7 @@
 name: request
 description: "요구사항을 분석하고 구현 스펙(spec.md)을 작성합니다. 실행 승인은 /mst:approve로 별도 진행합니다. 사용자가 '구현해줘', '만들어줘', '개발해줘', '추가해줘'를 말하거나 /mst:request를 호출할 때 사용."
 user-invocable: true
-argument-hint: "[--auto|-a] {요청 내용}"
+argument-hint: "[--auto|-a] [--resume REQ-NNN | REQ-NNN | {요청 내용}]"
 ---
 
 # maestro:request
@@ -74,19 +74,38 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
    - `"[config] auto_mode.request=true — 자동 승인 모드 활성화"` 메시지를 표시한다.
 3. CLI 인자에 `--auto` / `-a`가 있으면 config 값은 무시한다 (CLI 우선).
 
-### Step 1: 요청 생성
+### Step 1: 요청 생성/재개
 
-1. 새 요청 ID 채번 (REQ-NNN):
-   - **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py counter next` → 출력 ID 사용 (counter.json 자동 업데이트)
-   - **Fallback (counter.json 기반)**:
-   - `{PROJECT_ROOT}/.gran-maestro/requests/counter.json` 파일 Read
-   - **파일 존재 시**: `next_id = last_id + 1`
-   - **파일 미존재 시** (최초 또는 복구):
-     a. `requests/`, `requests/completed/`, `archive/requests-*` tar.gz 파일명에서 최대 번호 결정
-     b. `counter.json` 생성: `{ "last_id": {max_number} }`, `next_id = last_id + 1`
-   - `counter.json` 업데이트: `{ "last_id": {next_id} }`
-2. `{PROJECT_ROOT}/.gran-maestro/requests/REQ-NNN/` 디렉토리 생성 (NNN은 3자리 zero-padded), 하위 `tasks/`, `discussion/`, `design/` 서브디렉토리도 함께 생성
-3. 요청 메타데이터 기록 (`request.json`):
+1. 재개 대상 감지:
+   - CLI 인자에 `--resume REQ-NNN`이 있으면 `RESUME_REQ_ID=REQ-NNN`으로 설정
+   - `--resume`이 없어도, 자유 인자에 단일 `REQ-NNN` 패턴이 있으면 하위 호환으로 `RESUME_REQ_ID=REQ-NNN`으로 해석
+   - `--resume` 값과 자유 인자 REQ-ID가 동시에 존재하고 서로 다르면 오류로 중단
+2. `RESUME_REQ_ID`가 설정된 경우(기존 REQ 재개 분기):
+   - `{PROJECT_ROOT}/.gran-maestro/requests/{RESUME_REQ_ID}/request.json` Read
+   - 파일이 없으면 오류 출력 후 중단 (`신규 REQ 생성 금지`)
+   - `status` 검증:
+     - 허용: `pending_dependency`, `phase1_analysis`, `spec_ready`
+     - 거부: `done`, `completed`, `accepted`, `cancelled` (이미 완료/종료된 REQ 재개 금지)
+   - `pending_dependency` 상태면 `dependencies.blockedBy`를 확인:
+     - 비어있지 않으면 아직 의존성 대기 상태이므로 중단
+     - 비어있으면 `status`를 `phase1_analysis`로 전이 후 진행
+   - `--plan PLN-NNN`이 함께 제공된 경우 `source_plan` 정합성 확인:
+     - 기존 `source_plan`이 없으면 `source_plan: "PLN-NNN"`으로 보강
+     - 기존 `source_plan`이 다른 값이면 오류로 중단
+   - `request.json.auto_approve`는 현재 실행 컨텍스트의 `AUTO_APPROVE` 값으로 동기화
+   - 이 분기에서는 **REQ 채번/디렉토리 생성/신규 request.json 생성을 수행하지 않는다**
+3. `RESUME_REQ_ID`가 없는 경우(신규 REQ 생성 분기):
+   - 새 요청 ID 채번 (REQ-NNN):
+     - **스크립트 우선**: `python3 {PLUGIN_ROOT}/scripts/mst.py counter next` → 출력 ID 사용 (counter.json 자동 업데이트)
+     - **Fallback (counter.json 기반)**:
+     - `{PROJECT_ROOT}/.gran-maestro/requests/counter.json` 파일 Read
+     - **파일 존재 시**: `next_id = last_id + 1`
+     - **파일 미존재 시** (최초 또는 복구):
+       a. `requests/`, `requests/completed/`, `archive/requests-*` tar.gz 파일명에서 최대 번호 결정
+       b. `counter.json` 생성: `{ "last_id": {max_number} }`, `next_id = last_id + 1`
+     - `counter.json` 업데이트: `{ "last_id": {next_id} }`
+   - `{PROJECT_ROOT}/.gran-maestro/requests/REQ-NNN/` 디렉토리 생성 (NNN은 3자리 zero-padded), 하위 `tasks/`, `discussion/`, `design/` 서브디렉토리도 함께 생성
+   - 요청 메타데이터 기록 (`request.json`):
 
    > ⏱️ **타임스탬프 취득 (MANDATORY)**:
    > `TS=$(python3 {PLUGIN_ROOT}/scripts/mst.py timestamp now)`
@@ -102,6 +121,8 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
      "current_phase": 1,
      "created_at": "{TS — mst.py timestamp now 출력값}",
      "auto_approve": false,
+     "source_plan": null,
+     "dag_auto_chain": false,
      "tasks": [],
      "dependencies": { "blockedBy": [], "relatedTo": [], "blocks": [] },
      "stitch_screens": []
@@ -111,6 +132,14 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
      - CLI `--auto` / `-a` 플래그 인자 내 어느 위치든 감지 시 `AUTO_APPROVE=true` (최우선)
      - CLI 플래그가 없고 `config.auto_mode.request=true`이면 `AUTO_APPROVE=true`
      - 그 외 `AUTO_APPROVE=false`
+   - `request.json`의 `source_plan` 필드는 **항상 기록**한다:
+     - `null`: plan 없이 생성된 신규 REQ
+     - `"PLN-NNN"`: plan 기반 생성 REQ
+     - (레거시) 필드 부재: 구버전 데이터로 간주
+   - `request.json`의 `dag_auto_chain` 필드는 **선택 기록**한다:
+     - `false`(기본): 현재 REQ만 실행 (기존 동작)
+     - `true`: 같은 plan의 연결된 REQ를 DAG 순서로 자동 연쇄 실행
+     - (레거시) 필드 부재: `false`로 간주
 4. PM Conductor 역할로 Phase 1 분석 수행 (`agents/pm-conductor.md`의 `<phase1_protocol>` 준수):
    a. 요청 파싱 및 복잡도 분류 (simple | standard | complex)
    b. Simple → 단독 분석 / Standard·Complex → Analysis Squad 팀 소환
@@ -190,9 +219,26 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - `request.json`에 `"linked_debug": "DBG-NNN"` 필드 추가
       - `spec.md` 작성 시 `## 디버그 연계` 섹션 자동 삽입 (참조 세션/근본 원인/수정 제안/영향 파일)
       - `--from-debug`와 `--plan` 동시 시: `--plan` 우선, debug_context는 보조 유지
+   d-0. **active plan resolver** (`--plan` 미지정 시, Step d 직전):
+      - 실행 조건: CLI 인자와 자연어 본문에서 `PLN-NNN`이 감지되지 않은 경우
+      - `plans/*/plan.json`을 스캔해 `status == "active"`인 plan만 후보로 수집한다.
+      - 후보는 `updated_at` 내림차순으로 정렬한다 (동률 시 ID 역순).
+      - 후보 0건: resolver skip, `source_plan: null` 유지, 일반 request 플로우 진행
+      - 후보 1건:
+        - 최신 1건을 자동 제안: `[제안] 활성 plan {PLN-NNN} ({title})`
+        - `AUTO_APPROVE=false`: `AskUserQuestion`으로 확인
+          - **"{PLN-NNN}으로 진행"**: `resolved_plan_id = "PLN-NNN"`
+          - **"plan 없이 진행"**: resolver 종료 (`source_plan: null` 유지)
+        - `AUTO_APPROVE=true`: `resolved_plan_id = "PLN-NNN"` 자동 채택
+      - 후보 2건 이상:
+        - `AUTO_APPROVE=false`: `AskUserQuestion`으로 후보 선택 (최신순) + "plan 없이 진행"
+          - **"{PLN-NNN}으로 진행"**: 선택된 `PLN-NNN`을 `resolved_plan_id`로 설정
+          - **"plan 없이 진행"**: resolver 종료 (`source_plan: null` 유지)
+        - `AUTO_APPROVE=true`: 최신 1건 자동 채택, 해당 `PLN-NNN`을 `resolved_plan_id`로 설정, 나머지는 로그에 후보로 기록
+      - `resolved_plan_id`가 설정되면 Step d에서 `--plan PLN-NNN`과 동일하게 처리한다.
    d. `--plan` 제공 여부 처리:
-      - `--plan PLN-NNN` 또는 자연어 `PLN-NNN` 감지 시 `plans/PLN-NNN/plan.json` + `plan.md` Read
-      - `request.json`에 `source_plan: "PLN-NNN"` 기록; `plan.json`의 `linked_requests`에 REQ-NNN 추가, `status` `active` → `in_progress`
+      - `--plan PLN-NNN` 또는 자연어 `PLN-NNN` 또는 `resolved_plan_id` 감지 시 `plans/PLN-NNN/plan.json` + `plan.md` Read
+      - plan Read 성공 시: `request.json`에 `source_plan: "PLN-NNN"` 기록; `plan.json`의 `linked_requests`에 REQ-NNN 추가, `status` `active` → `in_progress`
       - plan.md 결정사항·범위·제약을 Phase 1 인풋으로 사용
       - **§0 Context Manifest 후보 수집 (MANDATORY)**:
         - 1차 소스: plan.md의 범위 섹션(`## 범위` 또는 `## 2. 범위`)에서 `시작점 힌트` 파일 목록을 추출하여 `context_manifest_files` 변수에 저장
@@ -261,9 +307,22 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         - `linked_intent` 미존재 시 skip (비차단); 명령 실패 시 warn만 출력, 워크플로우 차단 금지
       - **분리 실행 감지**: plan.md의 `## 분리 실행` 섹션에 2개 이상 단계 시 다중 REQ 생성 모드:
         1. REQ-NNN = 1단계(①), 2단계부터 REQ 채번·생성 (`status: "pending_dependency"`, `blockedBy` 설정)
+           - 모든 단계 REQ의 `request.json`에 `source_plan: "PLN-NNN"`를 동일하게 기록한다.
         2. 1단계 `request.json`에 `dependencies.blocks` 설정, `plan.json`에 모든 REQ ID 추가
-        3. 사용자에게 생성 결과 요약 표시; spec 생성은 **REQ-NNN (1단계)에만** 수행
-      - plan.json/plan.md 미존재 시 경고 후 사일런트 모드로 전환
+        3. **첫 REQ DAG 자동 연쇄 실행 확인** (1단계 REQ만):
+           - 조건: 후속 REQ가 1개 이상 (`pending_dependency`)
+           - `AUTO_APPROVE=true`:
+             - 명시 동의 원칙상 AskUserQuestion 생략
+             - 1단계 `request.json`의 `dag_auto_chain`은 기본값 `false` 유지
+           - `AUTO_APPROVE=false`:
+             - AskUserQuestion:
+               - 질문: `"연결된 REQ {N}개({REQ-ID 목록})를 자동으로 연이어 실행할까요?"`
+               - 선택지 1: `"예 — DAG 순서로 자동 연쇄"`
+               - 선택지 2: `"아니오 — 이 REQ만 실행"`
+             - "예" 선택 시: 1단계 `request.json`에 `dag_auto_chain: true` 기록
+             - "아니오" 선택 시: `dag_auto_chain: false` 유지
+        4. 사용자에게 생성 결과 요약 표시; spec 생성은 **REQ-NNN (1단계)에만** 수행
+      - plan.json/plan.md 미존재 시 경고 후 사일런트 모드로 전환 (`source_plan`은 기존 값 유지: 기본 `null`)
    e. **모호한 요구사항 처리**:
       - [--plan]: plan.md 결정 사항을 따름
       - [--plan 없음]: PM이 모호함 수준 평가:
@@ -377,7 +436,7 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
          ```
    1.8. **구현 세부 Q&A Pass** (Step 1g 완료 직후, Step h-0 이전):
       - `AUTO_APPROVE=true`면 이 단계 전체를 완전 skip하고 Step h-0으로 즉시 진행
-      - `AUTO_APPROVE=false`면 아래 7개 카테고리를 **고정 순서로 순차 질문**한다:
+      - `AUTO_APPROVE=false`면 아래 7개 카테고리를 **고정 순서로 순차 처리**한다:
         1) 에러/실패 처리
         2) 엣지케이스
         3) 데이터 변경
@@ -385,14 +444,18 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         5) 성능
         6) 테스트 범위
         7) 배포 전략
-      - 각 카테고리는 `AskUserQuestion` **동시 1개만** 호출한다.
+      - `--plan PLN-NNN`(또는 `resolved_plan_id`)이 있는 경우:
+        - 각 카테고리마다 plan.md(`제약사항`, `우선순위(MoSCoW)`, 관련 결정 섹션)에서 대응 값을 먼저 탐색한다.
+        - 값이 명확히 매핑되면 질문을 생략하고 `"plan에서 확인됨"` 요약만 출력한다.
+        - 값이 없거나 매핑이 불확실하면 기본 동작으로 `AskUserQuestion`을 실행한다 (추정 금지).
+      - `--plan`이 없으면 기존 규칙대로 7개 카테고리를 모두 `AskUserQuestion`으로 질문한다.
+      - `AskUserQuestion`을 호출하는 카테고리는 동시 1개만 질문한다.
       - 각 질문에는 반드시 `"해당 없음"` 선택지를 포함한다.
       - 선택지 수는 총 6개 이내를 유지한다 (핵심 선택지 + 보조 선택지 합산).
       - **모호한 답변 처리 (카테고리별 최대 3회)**:
         - 답변이 불명확하면, 직전 답변을 반영해 더 구체적인 선택지로 재질문한다.
         - 3회 내 명확한 답변이 확보되지 않으면 PM이 해당 카테고리를 **가장 안전한 선택**으로 자동 결정한다.
         - 자동 결정 시 결정 사유를 내부 메모에 남기고 다음 카테고리로 진행한다.
-      - `--plan PLN-NNN`이 제공된 경우에도 이 단계는 동일하게 실행한다 (`AUTO_APPROVE=false` 기준).
       - 수집된 Q&A 결과는 spec.md 작성 시 반드시 반영:
         - §3 수락 조건(AC) 상세에 반영
         - §3.5 Constraints에 반영
@@ -619,6 +682,9 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
 - `--auto` / `-a`: 스펙 자동 승인 모드 (사용자 승인 단계 스킵, `auto_approve: true`)
   - 요청 앞(`/mst:request --auto "요청"`) 또는 뒤(`/mst:request "요청" --auto`) 모두 허용
   - `--auto` / `-a` 모드 또는 `config.auto_mode.request=true`(`AUTO_APPROVE=true`)에서는 Spec Pre-review Pass(h-2)를 skip한다
+- `--resume REQ-NNN`: 기존 REQ 재개 모드 (신규 REQ 생성 금지)
+  - approve DAG 연쇄 호출 계약: `Skill(skill: "mst:request", args: "--plan PLN-NNN --resume REQ-NNN -a")`
+  - 하위 호환: `--resume` 없이 `REQ-NNN` 단독 인자도 재개로 해석
 - `--prereview`: config 설정 무관하게 Pre-review Pass 강제 실행
 - `--no-prereview`: config 설정 무관하게 Pre-review Pass skip
 
@@ -629,6 +695,8 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
 /mst:request --auto "로그인 버튼 색상을 파란색으로 변경"
 /mst:request -a "로그인 버튼 색상을 파란색으로 변경"
 /mst:request "사용자 프로필 페이지에 아바타 업로드 기능 추가" --auto
+/mst:request --plan PLN-233 --resume REQ-352 -a
+/mst:request --plan PLN-233 -a REQ-352
 ```
 
 ## 문제 해결
