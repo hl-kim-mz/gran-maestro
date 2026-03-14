@@ -194,6 +194,11 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - `--plan PLN-NNN` 또는 자연어 `PLN-NNN` 감지 시 `plans/PLN-NNN/plan.json` + `plan.md` Read
       - `request.json`에 `source_plan: "PLN-NNN"` 기록; `plan.json`의 `linked_requests`에 REQ-NNN 추가, `status` `active` → `in_progress`
       - plan.md 결정사항·범위·제약을 Phase 1 인풋으로 사용
+      - **§0 Context Manifest 후보 수집 (MANDATORY)**:
+        - 1차 소스: plan.md의 범위 섹션(`## 범위` 또는 `## 2. 범위`)에서 `시작점 힌트` 파일 목록을 추출하여 `context_manifest_files` 변수에 저장
+        - 1차 소스가 비어있으면 fallback: Step 1c 탐색 결과의 핵심 진입 파일 + 요청 분석 결과에서 1~3개 파일 경로를 추론해 채움 (디렉토리 경로는 대표 진입 파일로 정규화)
+        - 파일 존재 검증은 수행하지 않음 (hint 성격)
+        - `context_manifest_files`는 최소 1개 이상 유지 (빈 목록 금지)
       - **linked_designs 감지** (`plan.json`의 `linked_designs` 배열 비어있지 않을 때):
         - 각 DES-NNN에 대해 `{PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/design.json` Read
           - 파일 미존재 시: 해당 DES skip (silent)
@@ -403,6 +408,11 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       > - **포함**: AC (완료 기준), 범위 경계, 제약 조건, 패턴 힌트, 시작점 1~3개, 의존성
       > - **제외**: 수정 파일 exhaustive 목록, 단계별 구현 절차, 에지케이스 사전 열거
       > 구체적인 구현 방법은 에이전트가 worktree를 직접 탐색하며 결정합니다.
+      - **`## §0 Context Manifest` 자동 채움 규칙 (MANDATORY)**:
+        - Step d에서 수집한 `context_manifest_files`를 bullet 목록으로 삽입한다.
+        - `--plan`이 없는 경우에도 동일 규칙 적용: Step 1c 탐색 결과 + 요청 분석 기반으로 `context_manifest_files`를 구성한다.
+        - §0 본문 가이드라인 문구(완전하지 않을 수 있음 + 자율 탐색 유지)는 템플릿 문구를 그대로 유지한다.
+        - 최종 spec.md의 §0 목록은 최소 1개 이상 파일 경로를 포함해야 한다.
    h-1. **다중 태스크 분해 처리** (PM 자율 판단 — plan 유무와 무관):
       - plan.md에 `## 태스크 분해` 섹션이 있더라도 무시한다. 태스크 분해는 plan의 관심사가 아니며 코드베이스 탐색 결과를 바탕으로 아래 기준에 따라 PM이 독자적으로 결정한다.
       - pm-conductor.md Step 6.6 판단 따름; 2단계 이상 결정 시 동일 절차
