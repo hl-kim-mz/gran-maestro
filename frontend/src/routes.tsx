@@ -7,6 +7,7 @@ import { IdeationView } from './views/IdeationView';
 import { DebugView } from './views/DebugView';
 import { DesignView } from './views/DesignView';
 import { DocumentsView } from './views/DocumentsView';
+import { IntentsView } from './views/IntentsView';
 import { SettingsView } from './views/SettingsView';
 import { ArchivesView } from './views/ArchivesView';
 
@@ -31,6 +32,8 @@ export function AppRoutes() {
       <Route path="/designs" element={<DesignView />} />
       <Route path="/designs/:designId" element={<DesignView />} />
       <Route path="/documents" element={<DocumentsView />} />
+      <Route path="/intents" element={<IntentsView />} />
+      <Route path="/intents/:intentId" element={<IntentsView />} />
       <Route path="/archives" element={<ArchivesView />} />
       <Route path="/settings" element={<SettingsView />} />
       <Route path="*" element={<Navigate to="/overview" replace />} />

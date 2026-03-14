@@ -145,6 +145,23 @@ export interface CaptureUpdatePayload {
   status: "pending" | "selected" | "consumed" | "done" | "cancelled";
 }
 
+export interface IntentMeta {
+  id: string;
+  feature?: string;
+  situation?: string;
+  motivation?: string;
+  goal?: string;
+  linked_req?: string | null;
+  linked_plan?: string | null;
+  related_intent?: string[];
+  tags?: string[];
+  files?: string[];
+  created_at?: string;
+  body?: string;
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface IdeationSession {
   id: string;
   topic: string;

@@ -7,6 +7,7 @@ import {
   Bug,
   Palette,
   Files,
+  BookOpen,
   Crosshair,
   Settings,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ export const TABS = [
   { id: 'debug', label: 'Debug', icon: Bug, key: '5', path: '/debug' },
   { id: 'designs', label: 'Designs', icon: Palette, key: '6', path: '/designs' },
   { id: 'documents', label: 'Documents', icon: Files, key: '7', path: '/documents' },
+  { id: 'intents', label: 'Intents', icon: BookOpen, key: 'i', path: '/intents' },
   { id: 'settings', label: 'Settings', icon: Settings, key: '8', path: '/settings' },
 ];
 
