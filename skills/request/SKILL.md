@@ -238,6 +238,22 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         - 다수 캡처 참조 (10개 이상): 상위 5개만 인라인 테이블에 포함 + "추가 N개 캡처 — `{PROJECT_ROOT}/.gran-maestro/captures/` 디렉토리의 개별 `capture.json` 참조" 안내
           - 상위 5개 정렬 순서: plan.md 테이블 나열 순서 (사용자가 배치한 순서)
         - `## 캡처 참조` 섹션이 비어있거나 존재하지 않으면 전체 블록 skip (silent) — spec.md에 `## 캡처 컨텍스트` 섹션 미삽입
+      - **linked_intent 주입** (`plan.json` Read 성공 + `linked_intent` 필드가 존재할 때, --plan 미제공 또는 plan.json Read 실패(사일런트 모드 시) 이 블록 전체 skip):
+        - `plan.json`의 `linked_intent` 필드를 읽어 INTENT_ID 취득
+        - 실행:
+          ```bash
+          python3 {PLUGIN_ROOT}/scripts/mst.py intent get {INTENT_ID} --json
+          ```
+        - 반환된 metadata(feature, situation, motivation, goal)를 spec.md `## Intent (JTBD)` 섹션에 주입:
+          ```markdown
+          ## Intent (JTBD)
+
+          - When I: {situation}
+          - I want to: {feature}
+          - So I can: {goal}
+          - Motivation: {motivation}
+          ```
+        - `linked_intent` 미존재 시 skip (비차단); 명령 실패 시 warn만 출력, 워크플로우 차단 금지
       - **분리 실행 감지**: plan.md의 `## 분리 실행` 섹션에 2개 이상 단계 시 다중 REQ 생성 모드:
         1. REQ-NNN = 1단계(①), 2단계부터 REQ 채번·생성 (`status: "pending_dependency"`, `blockedBy` 설정)
         2. 1단계 `request.json`에 `dependencies.blocks` 설정, `plan.json`에 모든 REQ ID 추가

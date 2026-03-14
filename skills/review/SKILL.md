@@ -57,7 +57,25 @@ argument-hint: "[REQ-ID] [--auto]"
    - 수집된 Plan AC는 Spec AC와 **분리하여 관리** (Pass A에서 별도 섹션으로 검증).
 2. **변경 파일 목록 수집**: `git log --name-only` 또는 `git diff <base>..HEAD --name-only` 기반으로 REQ 관련 변경 파일 목록 작성.
 3. **AC별 파일 매핑 준비**: 각 AC 항목과 관련 변경 파일 연결.
-4. **config 로드**: `config.resolved.json`에서 아래 값을 확인.
+4. **Intent lookup (비차단)**: 변경 파일 목록을 기반으로 관련 Intent를 조회한다.
+   - 실행:
+     ```bash
+     python3 {PLUGIN_ROOT}/scripts/mst.py intent lookup --files {changed_files}
+     # {changed_files}: 공백 구분 파일 경로 목록 (예: --files file1.ts file2.md)
+     # git diff 출력 변환: $(git diff master..HEAD --name-only | tr '\n' ' ')
+     # 주의: 경로에 공백 포함 시 개별 인자로 전달 필요; 파일 수 과다(100개+) 시 상위 20개만 사용
+     ```
+   - 조회된 INTENT가 존재하면 해당 내용(feature, situation, motivation, goal)을 각 리뷰어 프롬프트에 **의도 위반 체크** 컨텍스트로 주입:
+     ```
+     [Intent 컨텍스트]
+     - When I: {situation}
+     - I want to: {feature}
+     - So I can: {goal}
+     - Motivation: {motivation}
+     → 구현이 위 의도에 부합하는지 "의도 위반 체크" 관점에서 검토하세요.
+     ```
+   - INTENT 조회 결과 없으면 skip (비차단); 명령 실패 시 warn만 출력, 워크플로우 차단 금지
+5. **config 로드**: `config.resolved.json`에서 아래 값을 확인.
    - `review.roles.*` 에이전트 키
    - `review.max_iterations` 키 경로: `config.review.max_iterations` (미정의 시 기본값 10 사용)
    - `auto_mode.review` 키 경로: `config.auto_mode.review` (true이면 `AUTO_MODE=true`, `--auto` 플래그와 동일 동작)
