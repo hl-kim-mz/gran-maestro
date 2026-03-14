@@ -344,6 +344,15 @@
       }
     }
   },
+  "intent_fidelity": {
+    "enabled": true,
+    "mode": "advisory",
+    "exclude_dirs": [
+      "reference",
+      "research",
+      "old"
+    ]
+  },
   "phase1_exploration": {
     "roles": {
       "symbol_tracing": {
