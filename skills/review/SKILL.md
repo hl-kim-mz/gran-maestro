@@ -75,8 +75,16 @@ argument-hint: "[REQ-ID] [--auto]"
      → 구현이 위 의도에 부합하는지 "의도 위반 체크" 관점에서 검토하세요.
      ```
    - INTENT 조회 결과 없으면 skip (비차단); 명령 실패 시 warn만 출력, 워크플로우 차단 금지
+4-b. **Intent Trace 컨텍스트 수집 (intent_fidelity 전용)**: 현재 태스크 `spec.md`에서 `## 3.2 Intent Trace` 섹션 추출.
+   - 섹션 존재 시: 섹션 원문을 `{INTENT_TRACE_SECTION}`으로 보관하고, `intent_fidelity` 프롬프트에 포함한다.
+   - `request.json.source_plan` 존재 시: `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`에서 `## 요청 (Refined)` + `## Intent (JTBD)`를 추출하여 `{PLAN_INTENT_CONTEXT}`로 보관한다.
+   - docs 컨텍스트: `Intent Trace`의 `근거 출처`에 포함된 `docs/` 경로 + `intent_snapshot`(존재 시)의 docs 경로를 dedup 후 Read하여 `{INTENT_DOCS_CONTEXT}`로 보관한다. docs가 없으면 skip.
+   - 섹션 미존재 시: `intent_fidelity_skip_reason = "Intent Fidelity 리뷰 skip (Intent Trace 없음)"`를 설정하고 intent_fidelity dispatch를 auto-skip 처리한다.
 5. **config 로드**: `config.resolved.json`에서 아래 값을 확인.
    - `review.roles.*` 에이전트 키
+   - `review.roles.intent_fidelity.agent` / `review.roles.intent_fidelity.tier`
+   - `intent_fidelity.enabled` (기본값: `true`)
+   - `intent_fidelity.mode` (기본값: `"advisory"`)
    - `review.max_iterations` 키 경로: `config.review.max_iterations` (미정의 시 기본값 10 사용)
    - `auto_mode.review` 키 경로: `config.auto_mode.review` (true이면 `AUTO_MODE=true`, `--auto` 플래그와 동일 동작)
    - `auto_mode.max_review_iterations` 키 경로: `config.auto_mode.max_review_iterations`
@@ -98,16 +106,17 @@ argument-hint: "[REQ-ID] [--auto]"
 
 ### Step 4: Pass B — 코드 품질 검증
 
-> 이 Step의 목적: Pass A 통과 산출물을 기반으로 코드/설계/UI 품질 갭을 찾는다 / 핵심 출력물: `ac-results.md`, `review-code.md`, `review-arch.md`, `review-ui.md`
+> 이 Step의 목적: Pass A 통과 산출물을 기반으로 코드/설계/UI/의도 충실도 갭을 찾는다 / 핵심 출력물: `ac-results.md`, `review-code.md`, `review-arch.md`, `review-ui.md`, `review-intent-fidelity.md`
 **조건**: Pass A 전체 통과 후에만 진행 (MUST AC 실패 시 이 단계 건너뜀)
 
-Pass B는 Claude(인컨텍스트)와 background 에이전트 3개를 동시 시작합니다.
+Pass B는 Claude(인컨텍스트)와 background 에이전트 4개를 동시 시작합니다.
 
 ```
 Claude (인컨텍스트):   spec §3 AC 체크리스트 순차 검증  ─┐
 code-reviewer (bg):   구현 레벨 리뷰                  ─┤─→ Step 5에서 PM 취합 → review-report.md
 arch-reviewer (bg):   설계/계획 레벨 리뷰              ─┤
-ui-reviewer (bg):     UI 설계 검토 (조건부)            ─┘
+ui-reviewer (bg):     UI 설계 검토 (조건부)            ─┤
+intent-fidelity (bg): 원본 의도 대비 구현 일치 검증     ─┘
 ```
 
 #### Claude 인컨텍스트: AC 검증
@@ -148,8 +157,10 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
 | `code_reviewer` | 누락 로직, 버그, 엣지케이스, 테스트 누락 | `review.roles.code_reviewer.agent` | `providers[agent][review.roles.code_reviewer.tier \|\| default_tier]`로 resolve |
 | `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 + Scope Audit(필수): `SCOPE_CREEP`(spec.md에 없는 구현), `OMISSION`(spec.md에는 있으나 구현 누락) 점검. plan.md가 있는 경우 상위 목표·방향 대비 구현 적합성도 반드시 확인. 불필요한 파일 변경(범위 외 수정) 여부 점검. 미발견 시에도 `"확인 완료 — 해당 없음"` 명시 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
 | `ui_reviewer` | Stitch 시안 vs 실제 UI, UX 흐름 일관성 | `review.roles.ui_reviewer.agent` | `providers[agent][review.roles.ui_reviewer.tier \|\| default_tier]`로 resolve |
+| `intent_fidelity` | 원본 의도(plan 요청 + docs) 대비 구현 일치 검증. spec §3.2 Intent Trace의 각 항목을 구현 증거와 대조. Missing/Partial/Verified 분류. advisory 모드: 기존 pass/fail에 영향 없음 | `review.roles.intent_fidelity.agent` | `providers[agent][review.roles.intent_fidelity.tier \|\| default_tier]`로 resolve |
 
 각 리뷰어(code_reviewer, arch_reviewer, ui_reviewer)는 발견한 이슈에 반드시 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 등급을 태깅해야 한다 (`templates/review-request.md`의 등급 판별 가이드 및 보안 오버라이드 규칙 적용).
+intent_fidelity는 등급 대신 `Verified/Partial/Missing` + `INTENT-GAP` 카운트를 출력한다.
 
 arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에는 위 Scope Audit 지시(`SCOPE_CREEP`, `OMISSION`, 미발견 시 `"확인 완료 — 해당 없음"` 명시)를 반드시 포함해 전달한다.
 
@@ -157,9 +168,38 @@ arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에
 - code_reviewer → `reviews/RV-NNN/review-code.md`
 - arch_reviewer → `reviews/RV-NNN/review-arch.md`
 - ui_reviewer → `reviews/RV-NNN/review-ui.md`
+- intent_fidelity → `reviews/RV-NNN/review-intent-fidelity.md`
 
 - `{{SPEC_PATH}}`: 해당 태스크의 `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/tasks/{NN}/spec.md` 절대 경로
 - `{{PLAN_PATH}}`: `request.json.source_plan` 존재 시 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`, 미존재 시 `"N/A"`
+
+#### intent_fidelity dispatch 입력 규칙
+
+- `intent_fidelity.enabled != true`이면 skip.
+- `spec.md`에 `## 3.2 Intent Trace`가 없으면 auto-skip하고 취합 시 `"Intent Fidelity 리뷰 skip (Intent Trace 없음)"`를 표시한다.
+- 실행 시 아래 컨텍스트를 함께 전달한다.
+  - `spec.md` 원문
+  - 구현 diff (`git diff <base>..HEAD`)
+  - plan 원본 요청 (`plan.md`의 `## 요청 (Refined)` + `## Intent (JTBD)`)
+  - spec `§3.2 Intent Trace` 원문
+  - docs 컨텍스트 (`Intent Trace` 근거 출처 및 `intent_snapshot`에서 식별된 관련 docs)
+- 출력 파일은 반드시 `reviews/RV-NNN/review-intent-fidelity.md`로 저장한다.
+- 리포트 형식은 아래 템플릿을 따른다.
+  ```markdown
+  # Intent Fidelity 리포트 — RV-NNN
+
+  ## 검증 요약
+  - ✅ Verified: N개
+  - ⚠️ Partial: N개
+  - ❌ Missing: N개
+  - ℹ️ INTENT-GAP (근거 없는 AC): N개
+
+  ## 상세
+
+  | AC-ID | 의도 근거 | 구현 증거 | 판정 | 비고 |
+  |-------|-----------|-----------|------|------|
+  | AC-001 | {의도 문장} | {코드/테스트 위치} | Verified/Partial/Missing | {차이점} |
+  ```
 
 #### 프롬프트 파일 사전 저장 (MANDATORY)
 
@@ -205,14 +245,15 @@ Agent(
 ```
 
 **ui_reviewer 스킵 조건**: `request.json.stitch_screens` 배열이 비어있고 `frontend/` 디렉토리 변경 파일이 없으면 auto-skip. 취합 시 "UI 리뷰 skip (변경 없음)" 표시.
+**intent_fidelity 스킵 조건**: `intent_fidelity.enabled=false` 또는 `## 3.2 Intent Trace` 미존재 시 auto-skip. 취합 시 각각 "Intent Fidelity 리뷰 skip (비활성화)" 또는 "Intent Fidelity 리뷰 skip (Intent Trace 없음)" 표시.
 
 ### Step 5: 완료 대기 및 취합
 
 > 이 Step의 목적: Pass B 산출물을 수집·요약해 리뷰 결과를 단일 리포트로 정리한다 / 핵심 출력물: `review-report.md`
 
-1. **완료 폴링**: background 에이전트 3개(또는 skip된 에이전트 제외) 완료 대기. approve SKILL.md Step 4d 완료 감지 패턴 동일 적용.
+1. **완료 폴링**: background 에이전트 4개(또는 skip된 에이전트 제외) 완료 대기. approve SKILL.md Step 4d 완료 감지 패턴 동일 적용.
    - 에이전트 실패 시: 해당 역할 리뷰 "에이전트 실패" 표시 후 나머지 취합 계속 진행.
-2. **취합 파일**: `ac-results.md` + `review-code.md` + `review-arch.md` + `review-ui.md` (skip 시 미생성).
+2. **취합 파일**: `ac-results.md` + `review-code.md` + `review-arch.md` + `review-ui.md` + `review-intent-fidelity.md` (skip 시 미생성).
 3. **review-report.md 작성**: `reviews/RV-NNN/review-report.md`
    ```markdown
    # 리뷰 리포트 — RV-NNN (REQ-NNN 반복 N)
@@ -236,6 +277,12 @@ Agent(
 
    ## UI 리뷰 주요 발견 사항
    <review-ui.md 핵심 항목 또는 "UI 리뷰 skip (변경 없음)">
+
+   ## Intent Fidelity 검증 결과
+   - 모드: advisory | blocking
+   - advisory 모드면 `(advisory — pass/fail 미반영)` 라벨 표기
+   - ✅ Verified N개 / ⚠️ Partial N개 / ❌ Missing N개 / ℹ️ INTENT-GAP N개
+   - 상세: `review-intent-fidelity.md` 또는 skip 사유
    ```
 
 ### Step 6: 갭 처리 분기
@@ -246,7 +293,18 @@ AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 5개 분기로 
 
 > **Step 5 완료 시 공통 절차**: 분기 처리가 완료되면 `request.json.review_iterations` 배열에서 현재 회차 항목의 `status`를 `"in_progress"` → `"completed"`로 갱신합니다.
 
-#### (a) 갭 없음 + 코드리뷰 이슈 없음
+#### Intent Fidelity 결과 반영 규칙 (Step 6 공통)
+
+1. `review-intent-fidelity.md`가 존재하면 `Verified/Partial/Missing/INTENT-GAP` 카운트를 파싱한다.
+2. 파싱 결과를 `request.json`의 현재 태스크에 기록한다.
+   - 경로: `tasks[현재 태스크].self_check.intent_fidelity_result`
+   - 스키마: `{ "verified": N, "partial": N, "missing": N, "intent_gaps": N, "report_path": "reviews/RV-NNN/review-intent-fidelity.md" }`
+3. `intent_fidelity.mode == "advisory"`이면 리포트만 출력하고 기존 review pass/fail 판정에는 영향을 주지 않는다.
+4. `intent_fidelity.mode == "blocking"`이면 기존 review 판정과 AND 조건으로 결합한다.
+   - `partial_count + missing_count > 0`이면 `review.json.status = "gap_found"`로 처리하고 `(c)` 경로를 따른다.
+   - `partial_count == 0` 그리고 `missing_count == 0`일 때만 intent_fidelity 통과로 간주한다.
+
+#### (a) 갭 없음 + 코드리뷰 이슈 없음 (+ blocking 모드면 intent_fidelity 통과)
 
 - `review.json.status = "passed"`
 - `request.json.review_summary = { "iteration": N, "status": "passed" }` 업데이트
@@ -326,7 +384,7 @@ AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 5개 분기로 
    - `request.json.tasks` 항목 필드: `{ "id": "NN", "title": "<갭 설명>", "status": "pending", "agent": null, "spec": "tasks/NN/spec.md", "generated_by": "review" }`
 2. `request.json.tasks` 배열 업데이트 (신규 태스크 추가).
 3. `request.json.review_summary = { "iteration": N, "status": "gap_fixing" }` 업데이트.
-4. `review.json` 업데이트: `{ "status": "gap_found", "gaps_found": M, "tasks_created": ["NN", "NN+1", ...] }`.
+4. `review.json` 업데이트: `{ "status": "gap_found", "gaps_found": M, "tasks_created": ["NN", "NN+1", ...], "gap_source": "ac_gap | code_review_issues | intent_fidelity" }`.
 5. approve 스킬에 갭 목록 + 새 태스크 ID 반환 → approve가 Phase 2 재실행 제어.
 
 #### (d) 갭 있음 + iteration > max_iterations
@@ -425,7 +483,21 @@ approve 루프 밖에서 직접 호출 시 Step 1~4 동일 실행 후 Step 5 결
   "review_summary": {
     "iteration": 1,
     "status": "gap_fixing"
-  }
+  },
+  "tasks": [
+    {
+      "id": "02",
+      "self_check": {
+        "intent_fidelity_result": {
+          "verified": 3,
+          "partial": 1,
+          "missing": 0,
+          "intent_gaps": 1,
+          "report_path": "reviews/RV-001/review-intent-fidelity.md"
+        }
+      }
+    }
+  ]
 }
 ```
 
@@ -441,6 +513,18 @@ approve 루프 밖에서 직접 호출 시 Step 1~4 동일 실행 후 Step 5 결
 | `tasks_created` | 갭으로 생성된 태스크 ID 배열. 갭 없으면 `[]`. |
 | `status` | Step 1에서 `"in_progress"`로 초기화, Step 5 완료 후 `"completed"`로 갱신. 갭 여부는 `gaps_found > 0`으로 구분. |
 | `review_issues_summary` | (선택) 등급별 코드리뷰 이슈 요약. 이슈가 존재하면 `review.json.review_issues_summary`와 동일 구조로 기록. |
+
+### tasks[].self_check.intent_fidelity_result
+
+intent_fidelity 리뷰 결과를 현재 태스크 단위로 기록한다.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `verified` | number | Intent Trace 대비 구현 증거가 충분한 항목 수 |
+| `partial` | number | 의도 근거 대비 구현 증거가 불충분한 항목 수 |
+| `missing` | number | 의도 근거 대비 구현 누락 항목 수 |
+| `intent_gaps` | number | 의도 근거가 없는 AC(`[INTENT-GAP]`) 수 |
+| `report_path` | string | intent-fidelity 리포트 경로 (`reviews/RV-NNN/review-intent-fidelity.md`) |
 
 ### review_summary 객체
 
@@ -471,7 +555,7 @@ approve 루프 밖에서 직접 호출 시 Step 1~4 동일 실행 후 Step 5 결
   "created_at": "<ISO8601>",
   "gaps_found": 0,
   "tasks_created": [],
-  "gap_source": "ac_gap | code_review_issues | null",
+  "gap_source": "ac_gap | code_review_issues | intent_fidelity | null",
   "review_issues_summary": {
     "critical": 0,
     "major": 0,
@@ -520,6 +604,7 @@ Step 5(b) 등급별 분류 결과를 기록합니다. `review.json`과 `request.
 |------|------|
 | `"ac_gap"` | AC 미충족으로 인한 갭 (Step 5 (c)/(d) 분기). |
 | `"code_review_issues"` | 코드리뷰 이슈로 인한 갭 (Step 5 (b) 분기). |
+| `"intent_fidelity"` | blocking 모드 intent-fidelity 실패로 인한 갭 (Step 6 공통 규칙). |
 | `null` | 갭 없음 (`status: "passed"`일 때). |
 
 ### approve → review_issues_summary 데이터 전달 경로

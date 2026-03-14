@@ -403,6 +403,34 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         → Stitch 완료 후 spec.md 작성 계속
       - 그 외(새 화면 추가/약한 신호): approve Phase 2.5에서 제안, 이 단계 skip
    h-0.5. **Assigned Agent 기본값 보관**: spec.md 작성 직전, `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `workflow.default_agent` 값을 읽어 Assigned Agent 필드의 기본값으로 설정한다. `templates/spec.md`의 Decision Tree(0~3단계)는 이 기본값의 override 조건으로만 동작한다. config 미참조 시 `claude-dev` 자동 선택은 금지. `config.resolved.json`이 없으면 `templates/defaults/config.json`의 `agent_assignments`를 fallback으로 Read한다. 이때 `workflow.default_agent`도 `templates/defaults/config.json`에서 함께 Read하여 DEFAULT_AGENT로 사용한다.
+   h-0.6. **Intent Context Load (MANDATORY)**:
+      - `intent_fidelity.enabled` 값을 먼저 확인한다.
+        - 1순위: `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `intent_fidelity.enabled`
+        - 2순위 fallback: `templates/defaults/config.json`의 `intent_fidelity.enabled`
+        - 둘 다 없으면 기본값 `true`
+      - `intent_fidelity.enabled=false`면 이 단계 전체를 skip한다 (`intent_context`, `docs_context`, `intent_snapshot` 모두 비활성; 에러 아님).
+      - `--plan PLN-NNN` 제공 시:
+        - plan.md에서 `## 요청 (Refined)` + `## Intent (JTBD)` + `## 인수 기준 초안`을 Read하여 `intent_context`로 보관한다.
+        - docs 후보를 plan.md에서 수집한다:
+          - `## 연관 컨텍스트` 표에 포함된 `docs/` 경로
+          - plan.md 본문 내 `docs/`로 시작하는 문서 경로
+        - docs 후보가 비어있으면 `docs_context`는 빈 목록으로 유지하고 graceful skip 처리한다.
+      - `--plan` 미제공 시:
+        - 사용자 요청 원문(`request.json.original_request`)을 `intent_context`로 보관한다.
+        - docs 후보는 아래 두 소스만 사용한다:
+          - Step 1c 코드베이스 탐색에서 발견한 `docs/` 파일
+          - 사용자 요청에서 명시적으로 언급한 문서 경로
+        - 별도의 `docs/` 전체 스캔은 수행하지 않는다.
+      - `docs_context` 구성 규칙:
+        - docs 후보를 dedupe한 뒤 존재하는 파일만 Read한다 (미존재 경로는 warn 후 skip).
+        - 후보가 최종적으로 0개면 에러 없이 graceful skip한다.
+        - 각 docs 항목마다 아래 정보를 추출해 저장한다:
+          - `path`
+          - `last_modified` (`git log -1 --format=%cI {path}` 우선, 실패 시 `stat` fallback)
+          - `핵심 요구사항` 1~3줄 요약
+      - 활성화 판정:
+        - `intent_context_active=true`: `--plan`으로 intent 섹션을 확보했거나 `docs_context`가 1개 이상일 때
+        - `intent_context_active=false`: 그 외 (예: docs 없는 프로젝트에서 `--plan` 없이 단순 요청)
    h. **Implementation Spec 작성** (`templates/spec.md` 템플릿 사용); `--plan` 없으면 `## 가정 사항` 섹션 포함
       > ⚠️ **spec.md 작성 원칙**: spec은 "무엇을 달성해야 하는가 + 알아야 할 맥락"만 기술합니다.
       > - **포함**: AC (완료 기준), 범위 경계, 제약 조건, 패턴 힌트, 시작점 1~3개, 의존성
@@ -413,6 +441,15 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         - `--plan`이 없는 경우에도 동일 규칙 적용: Step 1c 탐색 결과 + 요청 분석 기반으로 `context_manifest_files`를 구성한다.
         - §0 본문 가이드라인 문구(완전하지 않을 수 있음 + 자율 탐색 유지)는 템플릿 문구를 그대로 유지한다.
         - 최종 spec.md의 §0 목록은 최소 1개 이상 파일 경로를 포함해야 한다.
+      - **`## 3.2 Intent Trace` 작성 규칙 (MANDATORY)**:
+        - `intent_context_active=true`일 때만 §3.2를 채운다.
+        - 각 AC마다 최소 1개 의도 근거를 연결한다 (근거 출처: plan.md `§요청 (Refined)`/`§Intent (JTBD)`/`§인수 기준 초안` 또는 `docs_context`의 문서 경로).
+        - AC 근거를 찾지 못하면 `의도 근거` 칸에 `[INTENT-GAP]`을 표기한다.
+        - docs를 근거로 사용한 경우 `intent_snapshot`에 아래 3개를 기록한다:
+          - `doc_path`
+          - `last_modified`
+          - `spec_generated_at`
+        - `intent_context_active=false`면 §3.2 섹션 전체를 skip한다 (에러 아님).
    h-1. **다중 태스크 분해 처리** (PM 자율 판단 — plan 유무와 무관):
       - plan.md에 `## 태스크 분해` 섹션이 있더라도 무시한다. 태스크 분해는 plan의 관심사가 아니며 코드베이스 탐색 결과를 바탕으로 아래 기준에 따라 PM이 독자적으로 결정한다.
       - pm-conductor.md Step 6.6 판단 따름; 2단계 이상 결정 시 동일 절차

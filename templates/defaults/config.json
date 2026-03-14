@@ -341,8 +341,21 @@
       "ui_reviewer": {
         "agent": "gemini",
         "tier": "premium"
+      },
+      "intent_fidelity": {
+        "agent": "claude",
+        "tier": "premium"
       }
     }
+  },
+  "intent_fidelity": {
+    "enabled": true,
+    "mode": "advisory",
+    "exclude_dirs": [
+      "reference",
+      "research",
+      "old"
+    ]
   },
   "phase1_exploration": {
     "roles": {
