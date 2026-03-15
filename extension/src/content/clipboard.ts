@@ -1,8 +1,6 @@
-const CLIPBOARD_MAX_MEMO_LENGTH = 50;
-
 function getClipboardMemo(memo: string, fallbackSelector: string): string {
   const source = memo.trim() || fallbackSelector.trim();
-  return source.length > CLIPBOARD_MAX_MEMO_LENGTH ? source.slice(0, CLIPBOARD_MAX_MEMO_LENGTH) : source;
+  return source;
 }
 
 export function buildCaptureClipboardText(captureId: string, memo: string, selector: string): string {

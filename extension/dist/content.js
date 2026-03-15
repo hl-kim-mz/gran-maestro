@@ -1658,10 +1658,9 @@ async function captureScreenshotToWebP() {
 }
 
 // src/content/clipboard.ts
-var CLIPBOARD_MAX_MEMO_LENGTH = 50;
 function getClipboardMemo(memo, fallbackSelector) {
   const source = memo.trim() || fallbackSelector.trim();
-  return source.length > CLIPBOARD_MAX_MEMO_LENGTH ? source.slice(0, CLIPBOARD_MAX_MEMO_LENGTH) : source;
+  return source;
 }
 function buildCaptureClipboardText(captureId, memo, selector) {
   return `/mst:plan [${captureId}] ${getClipboardMemo(memo, selector)}`.trim();
