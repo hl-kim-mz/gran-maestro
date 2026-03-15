@@ -393,10 +393,14 @@ const ReadonlyFieldCard = React.memo(function ReadonlyFieldCard({
   fieldKey,
   value,
   description,
+  onValueChange,
+  fullPath,
 }: {
   fieldKey: string;
   value: any;
   description?: string;
+  onValueChange?: (path: string[], value: any) => void;
+  fullPath?: string[];
 }) {
   return (
     <Card>
@@ -406,7 +410,18 @@ const ReadonlyFieldCard = React.memo(function ReadonlyFieldCard({
           {description && <div className="text-xs text-muted-foreground">{description}</div>}
         </div>
         <div className="flex-1 max-w-md flex justify-end items-center">
-          <Input value={formatReadonlyValue(value)} readOnly className="text-left font-mono" />
+          {Array.isArray(value) && onValueChange && fullPath ? (
+            value.every((entry) => !isObject(entry) && !Array.isArray(entry)) ? (
+              <TagInput
+                tags={value.map(String)}
+                onChange={(tags) => onValueChange(fullPath, tags)}
+              />
+            ) : (
+              <Input value={JSON.stringify(value)} readOnly className="text-left font-mono" />
+            )
+          ) : (
+            <Input value={formatReadonlyValue(value)} readOnly className="text-left font-mono" />
+          )}
         </div>
       </CardContent>
     </Card>
@@ -1351,6 +1366,8 @@ export function SettingsView() {
                               fieldKey={row.key}
                               value={row.value}
                               description={row.description}
+                              onValueChange={handleFieldChange}
+                              fullPath={row.fullPath}
                             />
                           ))}
                           <p className="text-xs text-muted-foreground">
