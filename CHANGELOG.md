@@ -4,12 +4,50 @@
 
 ---
 
-## [0.54.0] — 2026-03-14
+## [0.54.0] — 2026-03-15
 
 ### Breaking Changes
 
 - `mst:start` 스킬 제거 — `/mst:start` 호출 불가, `/mst:request` 사용 필요
 - `collaborative_debug.auto_trigger_from_start` → `auto_trigger_from_request` 키 리네임 (구 키 런타임 호환 없음)
+
+### 새 기능
+
+- **Intent 시스템**: 기능 의도(Intent) 저장소 도입 — SQLite 기반 CRUD, 검색, 연관 탐색 지원 (`mst:intent`)
+- **Intent 통합**: plan/request/review/accept 스킬에서 Intent 자동 참조 및 대조 검증
+- **대시보드 Intent 관리 UI**: 목록/검색/CRUD/연관 탐색 화면 추가
+- **대시보드 Overview 개선**: Hero KPI + 활성 목록 + Quick Actions → Next Steps + Project Pulse 교체
+- **mst:gardening 스킬**: stale plan/spec/intent 자동 스캔 리포트
+- **mst:plan 강화**: INVEST 방법론 적용, 보조 선택지(ideation/discussion/explore) 필수화, 저오버헤드 방법론 4종 반영
+- **plan → request 전환 개선**: DAG 자동 연쇄 실행 지원
+- **설정 UI**: Agent 중심 재구성, 워크플로우 동작 제어 탭 분리, 모델 공급자 프리미엄/이코노미 인라인 편집
+- **설정 Find & Replace**: 배열 필드 검색/교체 지원
+- **Picks 탭 개선**: All 필터 전체 표시, 기본 필터 pending, 캡처 취소 기능 추가
+- **Stitch 스킬**: 대시보드 디자인 링크 출력 추가 (멀티스타일/사용자보고/Redesign 통합)
+
+### 개선
+
+- approve Step 5 self-check 결과를 request.json에 기록
+- approve 에이전트 친화적 에러 메시지 포맷터
+- spec.md §0 Context Manifest 섹션 추가
+- accept squash-merge 커밋 메시지 양식 자동 감지
+- A-lite 파일 체크포인트 + mst:recover Step 수준 확장
+- 스킬 실행 단일 마커 통합 + 서브스킬 반환 프로토콜 통일
+- plan 스킬 CONTINUATION GUARD 강화 — 서브스킬 반환 후 즉시 재실행 규칙 명확화
+- 리뷰 프롬프트에 spec/plan 참조 추가 + background reviewer 파이프 방식 버그 수정
+- 설정 역할 테이블 Enabled ON/OFF 배지 토글 기능
+- 설정 워크플로우 탭 배열 필드 TagInput(칩) UI 전환
+- Settings readonly Input 시각적 표시 강화
+- Settings/Intents 헤더 버튼 아이콘화 + 툴팁 전환
+- pending_dependency 자동 해제 훅 — done 전환 시 자동 호출
+
+### 버그 수정
+
+- Extension 즉시모드 클립보드 메모 잘림 버그 수정
+- Intents API cwd 경로 버그 수정 (500 에러 해소)
+- 리뷰 에이전트 샌드박스 파일 저장 실패 해결
+- wait-files / merge 타임아웃 10분으로 증가 (안정성 개선)
+- mst.py P0 스크립트화: config get + capture mark-consumed subcommand 추가
 
 ---
 
