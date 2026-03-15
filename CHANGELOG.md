@@ -4,6 +4,16 @@
 
 ---
 
+## [0.54.1] — 2026-03-15
+
+### 개선
+
+- **워크플로우 info 노드 편집**: ReadonlyFieldCard에 타입별 편집 컴포넌트 적용 (boolean→Switch, number→Input, string→Select/Input)
+- **서브스킬 반환 후 멈춤 방지**: CONTINUATION GUARD를 request/accept/recover/picks/debug/plan 스킬에 일괄 추가 + Stop hook 범용 안전망
+- **Intent 스킬 DB 단일화**: md 파일 이중 저장 제거, `_sync_markdown_record`/`template` 삭제, rebuild FTS 전환
+
+---
+
 ## [0.54.0] — 2026-03-15
 
 ### Breaking Changes
