@@ -1,6 +1,6 @@
 import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 import { acquireLock, releaseLock } from "../core/concurrency.ts";
-import { resolveBaseDir } from "../config.ts";
+import { PLUGIN_ROOT, resolveBaseDir } from "../config.ts";
 import type { IntentMeta } from "../types.ts";
 
 const projectIntentsApi = new Hono();
@@ -22,7 +22,7 @@ async function runIntentCommand<T>(
   args: string[],
   json = true,
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
-  const commandArgs = ["scripts/mst.py", "intent", ...args];
+  const commandArgs = [`${PLUGIN_ROOT}/scripts/mst.py`, "intent", ...args];
   if (json) {
     commandArgs.push("--json");
   }
@@ -30,7 +30,7 @@ async function runIntentCommand<T>(
   try {
     const output = await new Deno.Command("python3", {
       args: commandArgs,
-      cwd: baseDir,
+      cwd: PLUGIN_ROOT,
       stdout: "piped",
       stderr: "piped",
       signal: AbortSignal.timeout(10_000),
