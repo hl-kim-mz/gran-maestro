@@ -107,15 +107,14 @@ export function PicksView() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [filterValue, setFilterValue] = useState<FilterOption['value']>('all');
+  const [filterValue, setFilterValue] = useState<FilterOption['value']>('pending');
   const [isSnippetExpanded, setIsSnippetExpanded] = useState(false);
   const [screenshotError, setScreenshotError] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const filteredCaptures = useMemo(() => {
     if (filterValue === 'all') {
-      return captures.filter(
-        (capture) => !['consumed', 'done', 'archived'].includes(capture.status),
-      );
+      return captures;
     }
     return captures.filter((capture) => capture.status === filterValue);
   }, [captures, filterValue]);
@@ -242,6 +241,28 @@ export function PicksView() {
       setIsRefreshing(false);
     }
   };
+
+  const handleCancelCapture = useCallback(async () => {
+    if (!projectId || !selectedCapture || selectedCapture.status !== 'pending' || isCancelling) {
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      const updated = await apiFetch<CaptureMeta>(`/api/captures/${selectedCapture.id}`, projectId, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+
+      setCaptures((prev) => prev.map((capture) => (capture.id === updated.id ? updated : capture)));
+      setSelectedCapture((prev) => (prev && prev.id === updated.id ? updated : prev));
+    } catch (err) {
+      console.error('Failed to cancel capture:', err);
+      alert('캡처 취소에 실패했습니다.');
+    } finally {
+      setIsCancelling(false);
+    }
+  }, [isCancelling, projectId, selectedCapture]);
 
   const handleSelectionToggle = (captureId: string, checked: boolean) => {
     setSelectedIds((prev) => {
@@ -436,6 +457,16 @@ export function PicksView() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {selectedCapture.status === 'pending' && (
+                  <button
+                    type="button"
+                    onClick={handleCancelCapture}
+                    disabled={isCancelling}
+                    className="text-xs px-2 py-1 rounded-md border bg-background hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    취소
+                  </button>
+                )}
                 {selectedCapture.linked_plan && (
                   <button
                     type="button"

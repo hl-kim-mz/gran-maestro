@@ -42,6 +42,7 @@ function canTransitionStatus(from: CaptureStatus, to: CaptureStatus): boolean {
 
   return (
     (from === "pending" && to === "selected") ||
+    (from === "pending" && to === "cancelled") ||
     (from === "selected" && to === "consumed") ||
     (from === "consumed" && to === "done") ||
     (from === "consumed" && to === "cancelled")
