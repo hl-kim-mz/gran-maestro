@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const HIDDEN_FIELDS = ['version', 'plugin_name', 'branding'];
+const BEHAVIOR_SECTIONS = ['workflow', 'auto_mode', 'concurrency', 'review', 'plan_review'];
 const AGENT_PROVIDERS = ['codex', 'gemini', 'claude'] as const;
 
 type AgentProvider = typeof AGENT_PROVIDERS[number];
@@ -787,7 +788,7 @@ export function SettingsView() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [openSections, setOpenSections] = useState<string[]>(['workflow']);
-  const [activeTab, setActiveTab] = useState<'workflow' | 'advanced'>('workflow');
+  const [activeTab, setActiveTab] = useState<'workflow' | 'behavior' | 'advanced'>('workflow');
   const [selectedNodeId, setSelectedNodeId] = useState<string>('ideation');
 
   useEffect(() => {
@@ -1058,13 +1059,21 @@ export function SettingsView() {
   };
 
   const visibleSections = Object.entries(merged).filter(([key]) => !HIDDEN_FIELDS.includes(key));
+  const behaviorSections = visibleSections.filter(([key]) => BEHAVIOR_SECTIONS.includes(key));
+  const advancedSections = visibleSections.filter(([key]) => !BEHAVIOR_SECTIONS.includes(key));
 
   const AGENT_SECTIONS = ['discussion', 'ideation', 'collaborative_debug', 'debug', 'explore', 'prereview', 'roles'];
-  const agentIndices = visibleSections
+  const agentIndices = advancedSections
     .map(([key], index) => (AGENT_SECTIONS.includes(key) ? index : -1))
     .filter((index) => index !== -1);
   const firstAgentIndex = agentIndices.length > 0 ? agentIndices[0] : -1;
   const lastAgentIndex = agentIndices.length > 0 ? agentIndices[agentIndices.length - 1] : -1;
+  const activeAccordionSections =
+    activeTab === 'behavior'
+      ? behaviorSections
+      : activeTab === 'advanced'
+        ? advancedSections
+        : [];
 
   const selectedNode = WORKFLOW_NODE_MAP[selectedNodeId] ?? WORKFLOW_PHASES[0].nodes[0];
   const selectedNodeRows = getNodeRows(merged, selectedNode);
@@ -1090,14 +1099,14 @@ export function SettingsView() {
               </div>
               <div className="flex gap-2">
                 <TooltipProvider>
-                  {activeTab === 'advanced' && (
+                  {(activeTab === 'behavior' || activeTab === 'advanced') && (
                     <>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => setOpenSections(visibleSections.map(([key]) => key))}
+                            onClick={() => setOpenSections(activeAccordionSections.map(([key]) => key))}
                             disabled={saving}
                             aria-label="전부 열기 : 모든 설정 섹션을 펼칩니다"
                           >
@@ -1210,9 +1219,10 @@ export function SettingsView() {
               </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={(tab) => setActiveTab(tab as 'workflow' | 'advanced')}>
+            <Tabs value={activeTab} onValueChange={(tab) => setActiveTab(tab as 'workflow' | 'behavior' | 'advanced')}>
               <TabsList>
                 <TabsTrigger value="workflow">워크플로우</TabsTrigger>
+                <TabsTrigger value="behavior">동작</TabsTrigger>
                 <TabsTrigger value="advanced">고급</TabsTrigger>
               </TabsList>
 
@@ -1498,10 +1508,49 @@ export function SettingsView() {
                 </div>
               </TabsContent>
 
+              <TabsContent value="behavior" className="mt-4">
+                <div className="space-y-4">
+                  <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="w-full space-y-4">
+                    {behaviorSections.map(([sectionKey, sectionData]) => {
+                      const { fieldCount, modifiedCount } = getSectionCounts(sectionKey, sectionData);
+
+                      return (
+                        <AccordionItem key={sectionKey} value={sectionKey} className="border rounded-md bg-card shadow-sm">
+                          <AccordionTrigger className="py-2 px-3 text-sm font-bold uppercase tracking-wider hover:no-underline">
+                            <div className="flex items-center gap-2">
+                              {sectionKey}
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                {fieldCount}
+                              </Badge>
+                              {modifiedCount > 0 && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-orange-600 border-orange-400 dark:text-orange-400 dark:border-orange-500">
+                                  {modifiedCount} modified
+                                </Badge>
+                              )}
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="p-3 pt-0 border-t">
+                            <div className="grid grid-cols-1 gap-2 mt-3">
+                              {isObject(sectionData) ? (
+                                Object.entries(sectionData as object).map(([key, value]) =>
+                                  renderField([sectionKey], key, value)
+                                )
+                              ) : (
+                                renderField([], sectionKey, sectionData)
+                              )}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    })}
+                  </Accordion>
+                </div>
+              </TabsContent>
+
               <TabsContent value="advanced" className="mt-4">
                 <div className="space-y-4">
                   <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="w-full space-y-4">
-                    {visibleSections.map(([sectionKey, sectionData], index) => {
+                    {advancedSections.map(([sectionKey, sectionData], index) => {
                       const { fieldCount, modifiedCount } = getSectionCounts(sectionKey, sectionData);
                       const isFirstAgent = index === firstAgentIndex;
 
