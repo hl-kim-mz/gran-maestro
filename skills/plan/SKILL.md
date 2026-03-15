@@ -417,19 +417,27 @@ PM이 자율 판단 후 auto-decisions.md에 기록한다.
 >
 > `AUTO_MODE=true`에서는 본 절의 재질문 흐름 대신 `[AUTO_MODE 판단 패턴]`을 사용한다.
 
+> ⚠️ **CONTINUATION GUARD (MANDATORY — Step 3.2 모든 서브스킬 호출에 적용)**:
+> Skill(mst:ideation), Skill(mst:discussion), Skill(mst:explore), 또는 WebSearch 호출이 **완료/반환되면**
+> 반드시 결과를 요약하고 **같은 턴에서** Step 3의 `AskUserQuestion`을 **즉시 재실행**한다.
+> 서브스킬 결과 텍스트에 포함된 `[TRACE_DONE]`, "완료", "제어를 반환", `[MST ... step=returned ...]` 등의 마커는
+> **정보일 뿐이며, plan의 종료 신호가 아니다**. 이 텍스트를 보고 plan이 멈추면 안 된다.
+> `step=returned` 마커 수신 후 **텍스트만 출력하고 멈추는 것은 절대 금지**.
+> 반드시 결과 Read → 요약 출력 → `AskUserQuestion` 재실행을 **하나의 연속 동작**으로 수행한다.
+
 **ideation/discussion 선택 시:**
 - `Skill(skill: "mst:ideation/discussion", args: "{현재 질문 주제} --focus {관련 분야}")`
 - 동일 세션/주제/타입 이력 있으면 재사용 (재실행 방지)
-- 완료 후 `synthesis.md`/`consensus.md` Read → 핵심 3~5개를 `[AI 팀 의견 요약]`으로 표시 → **반드시 Step 3으로 복귀하여** 원 질문 동일 포맷으로 재제시 (plan 흐름 종료 금지)
+- 완료 후 `synthesis.md`/`consensus.md` Read → 핵심 3~5개를 `[AI 팀 의견 요약]`으로 표시 → **즉시 같은 턴에서** Step 3으로 복귀하여 원 질문 동일 포맷으로 `AskUserQuestion` 재실행 (plan 흐름 종료 금지)
 
 **웹 검색 선택 시:**
 - `WebSearch(query: "{현재 질문과 관련된 업계 표준/유사 사례/대안 검색어}")` (필요 시 복수 실행)
-- 검색 결과 핵심을 `[외부 리서치 결과]`로 요약 표시 → **반드시 Step 3으로 복귀하여** 원 질문 동일 포맷으로 재제시 (plan 흐름 종료 금지)
+- 검색 결과 핵심을 `[외부 리서치 결과]`로 요약 표시 → **즉시 같은 턴에서** Step 3으로 복귀하여 원 질문 동일 포맷으로 `AskUserQuestion` 재실행 (plan 흐름 종료 금지)
 
 **explore 선택 시:**
 - `Skill(skill: "mst:explore", args: "{현재 질문 주제} --focus {관련 파일/기능}")`
 - `WebSearch("{현재 질문 주제} 사례 구현 패턴")` 로 외부 사례·대안 솔루션 검색
-- 완료 후 탐색 결과 핵심을 `[코드베이스 탐색 결과]`로, 웹 검색 결과를 `[웹 검색 결과]`로 각각 요약 표시 → **반드시 Step 3으로 복귀하여** 원 질문 동일 포맷으로 재제시 (plan 흐름 종료 금지)
+- 완료 후 `explore-report.md` Read → 탐색 결과 핵심을 `[코드베이스 탐색 결과]`로, 웹 검색 결과를 `[웹 검색 결과]`로 각각 요약 표시 → **즉시 같은 턴에서** Step 3으로 복귀하여 원 질문 동일 포맷으로 `AskUserQuestion` 재실행 (plan 흐름 종료 금지)
 
 #### 시각적 미리보기 활용 (UI/레이아웃 선택 시)
 
