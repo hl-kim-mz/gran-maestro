@@ -615,10 +615,9 @@ def cmd_intent_add(args):
         return 1
 
     if args.json:
-        output = {k: v for k, v in created.items() if k not in ("path", "file")}
-        print(json.dumps(output, ensure_ascii=False, indent=2))
+        print(json.dumps(created, ensure_ascii=False, indent=2))
     else:
-        print(f"{created['id']} -> {created.get('path', created['id'])}")
+        print(created["id"])
     return 0
 
 
@@ -636,7 +635,7 @@ def cmd_intent_get(args):
         return 1
 
     if args.json:
-        output = {k: v for k, v in data.items() if k not in ("path", "file", "raw")}
+        output = {k: v for k, v in data.items() if k != "raw"}
         print(json.dumps(output, ensure_ascii=False, indent=2))
     else:
         meta = data.get("metadata", {})
@@ -719,10 +718,9 @@ def cmd_intent_update(args):
         return 1
 
     if args.json:
-        output = {k: v for k, v in updated.items() if k not in ("path", "file")}
-        print(json.dumps(output, ensure_ascii=False, indent=2))
+        print(json.dumps(updated, ensure_ascii=False, indent=2))
     else:
-        print(f"{updated['id']} -> {updated.get('path', updated['id'])}")
+        print(updated["id"])
     return 0
 
 

@@ -12,7 +12,6 @@ import json
 from pathlib import Path
 import re
 import sqlite3
-import tempfile
 from typing import Any, Deque, Dict, Iterable, List, Optional, Sequence, Tuple
 
 try:
@@ -97,7 +96,6 @@ class SqliteIntentStore(IntentStore):
         self.intent_dir = self.project_root / ".gran-maestro" / "intent"
         self.db_path = self.intent_dir / "intent.db"
         self.legacy_index_path = self.intent_dir / "index.json"
-        self.template_path = self.project_root / "templates" / "intent-template.md"
         self._fts_enabled: Optional[bool] = None
         self._initialize()
 
@@ -141,13 +139,10 @@ class SqliteIntentStore(IntentStore):
             if self._fetch_row(conn, normalized_id) is not None:
                 raise IntentStoreError(f"Intent already exists: {normalized_id}")
             self._upsert_intent(conn, record)
-            self._sync_markdown_record(record)
 
         self._remove_legacy_index()
         return {
             "id": normalized_id,
-            "path": str(self.intent_dir / record["file_name"]),
-            "file": record["file_name"],
             "metadata": self._metadata_from_record(record),
         }
 
@@ -206,19 +201,11 @@ class SqliteIntentStore(IntentStore):
                         ) from exc
                 updated["created_at"] = created_at_value
 
-            old_path = self.intent_dir / current["file_name"]
-            target_path = self.intent_dir / updated["file_name"]
-            if target_path != old_path and target_path.exists():
-                raise IntentStoreError(f"Intent already exists: {target_path.name}")
-
             self._upsert_intent(conn, updated)
-            self._sync_markdown_record(updated, previous_path=old_path)
 
         self._remove_legacy_index()
         return {
             "id": normalized_id,
-            "path": str(self.intent_dir / updated["file_name"]),
-            "file": updated["file_name"],
             "metadata": self._metadata_from_record(updated),
         }
 
@@ -232,13 +219,10 @@ class SqliteIntentStore(IntentStore):
             conn.execute("DELETE FROM intents WHERE id = ?", (normalized_id,))
             if self._fts_enabled:
                 conn.execute("DELETE FROM intents_fts WHERE id = ?", (normalized_id,))
-            self._delete_markdown_file(self.intent_dir / current["file_name"])
 
         self._remove_legacy_index()
         return {
             "id": normalized_id,
-            "path": str(self.intent_dir / current["file_name"]),
-            "file": current["file_name"],
         }
 
     def get(self, intent_id: str) -> Optional[Dict[str, Any]]:
@@ -248,18 +232,13 @@ class SqliteIntentStore(IntentStore):
         if record is None:
             return None
 
-        intent_path = self.intent_dir / record["file_name"]
-        body = self._render_body_for_output(record, intent_path)
-        raw = self._read_file_if_exists(intent_path)
-        if raw is None:
-            raw = _render_intent_document(
-                metadata=self._metadata_from_record(record),
-                body=body,
-            )
+        body = self._render_body_for_output(record)
+        raw = _render_intent_document(
+            metadata=self._metadata_from_record(record),
+            body=body,
+        )
         return {
             "id": normalized_id,
-            "path": str(intent_path),
-            "file": record["file_name"],
             "metadata": self._metadata_from_record(record),
             "body": body,
             "raw": raw,
@@ -345,20 +324,41 @@ class SqliteIntentStore(IntentStore):
         }
 
     def rebuild(self) -> Dict[str, Any]:
-        entries: List[Dict[str, Any]] = []
         self.intent_dir.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
-            conn.execute("DELETE FROM intents")
+            rows = conn.execute(
+                """
+                SELECT rowid, id, feature, situation, motivation, goal, linked_req, linked_plan,
+                       related_intent, tags, files, created_at, file_name
+                FROM intents
+                ORDER BY id
+                """
+            ).fetchall()
+            records = [self._record_from_row(row) for row in rows]
+            entries = [_to_index_entry(self._metadata_from_record(record)) for record in records]
+
             if self._fts_enabled:
                 conn.execute("DELETE FROM intents_fts")
-            for intent_path in self._iter_intent_files():
-                record = self._record_from_markdown(intent_path)
-                self._upsert_intent(conn, record)
-                entries.append(_to_index_entry(self._metadata_from_record(record), record["file_name"]))
+                conn.executemany(
+                    """
+                    INSERT INTO intents_fts(id, feature, situation, motivation, goal)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            record["id"],
+                            record["feature"],
+                            record["situation"],
+                            record["motivation"],
+                            record["goal"],
+                        )
+                        for record in records
+                    ],
+                )
 
         self._remove_legacy_index()
         return {
-            "entries": sorted(entries, key=lambda item: item.get("id", "")),
+            "entries": entries,
             "database": str(self.db_path),
         }
 
@@ -506,7 +506,6 @@ class SqliteIntentStore(IntentStore):
     def _entry_from_row(self, row: sqlite3.Row) -> Dict[str, Any]:
         return {
             "id": _normalize_intent_id(row["id"]),
-            "file": row["file_name"],
             "feature": _normalize_optional_string(row["feature"]) or "",
             "linked_req": _normalize_optional_string(row["linked_req"]),
             "linked_plan": _normalize_optional_string(row["linked_plan"]),
@@ -528,14 +527,7 @@ class SqliteIntentStore(IntentStore):
             "created_at": _normalize_optional_string(record.get("created_at")) or "",
         }
 
-    def _render_body_for_output(self, record: Dict[str, Any], intent_path: Path) -> str:
-        raw = self._read_file_if_exists(intent_path)
-        if raw is not None:
-            try:
-                _, body = _split_frontmatter(raw)
-                return body
-            except IntentStoreError:
-                pass
+    def _render_body_for_output(self, record: Dict[str, Any]) -> str:
         return _compose_jtbd_body(
             situation=record["situation"],
             motivation=record["motivation"],
@@ -583,67 +575,6 @@ class SqliteIntentStore(IntentStore):
             "file_name": intent_path.name,
         }
 
-    def _sync_markdown_record(
-        self,
-        record: Dict[str, Any],
-        *,
-        previous_path: Optional[Path] = None,
-    ) -> None:
-        target_path = self.intent_dir / record["file_name"]
-        text = self._render_intent_template(
-            metadata=self._metadata_from_record(record),
-            situation=record["situation"],
-            motivation=record["motivation"],
-            goal=record["goal"],
-        )
-        if previous_path is not None and previous_path.exists():
-            tail = ""
-            raw = self._read_file_if_exists(previous_path)
-            if raw is not None:
-                try:
-                    _, body = _split_frontmatter(raw)
-                    tail = _extract_jtbd_sections(body).get("tail", "")
-                except IntentStoreError:
-                    tail = ""
-            if tail:
-                body_text = _compose_jtbd_body(
-                    situation=record["situation"],
-                    motivation=record["motivation"],
-                    goal=record["goal"],
-                    tail=tail,
-                )
-                text = _render_intent_document(
-                    metadata=self._metadata_from_record(record),
-                    body=body_text,
-                )
-
-        try:
-            fd = tempfile.NamedTemporaryFile(
-                mode="w", encoding="utf-8", dir=str(self.intent_dir),
-                suffix=".tmp", delete=False,
-            )
-            try:
-                fd.write(text)
-                fd.flush()
-                fd.close()
-                import os
-                os.replace(fd.name, str(target_path))
-            except BaseException:
-                Path(fd.name).unlink(missing_ok=True)
-                raise
-            if previous_path is not None and previous_path != target_path and previous_path.exists():
-                previous_path.unlink()
-        except OSError as exc:
-            raise IntentStoreError(f"Failed to write {target_path}: {exc}") from exc
-
-    def _delete_markdown_file(self, path: Path) -> None:
-        if not path.exists():
-            return
-        try:
-            path.unlink()
-        except OSError as exc:
-            raise IntentStoreError(f"Failed to delete {path}: {exc}") from exc
-
     def _search_candidates(self, conn: sqlite3.Connection, needle: str) -> List[Dict[str, Any]]:
         if self._fts_enabled:
             try:
@@ -676,17 +607,10 @@ class SqliteIntentStore(IntentStore):
         return [self._record_from_row(row) for row in rows]
 
     def _scan_lines_for_keyword(self, record: Dict[str, Any], needle: str) -> List[Dict[str, Any]]:
-        intent_path = self.intent_dir / record["file_name"]
-        raw = self._read_file_if_exists(intent_path)
-        if raw is None:
-            raw = _render_intent_document(
-                metadata=self._metadata_from_record(record),
-                body=_compose_jtbd_body(
-                    situation=record["situation"],
-                    motivation=record["motivation"],
-                    goal=record["goal"],
-                ),
-            )
+        raw = _render_intent_document(
+            metadata=self._metadata_from_record(record),
+            body=self._render_body_for_output(record),
+        )
 
         tokens = [t.strip().lower() for t in re.split(r'\bOR\b|\bAND\b|\bNOT\b', needle, flags=re.IGNORECASE) if t.strip()]
         if not tokens:
@@ -737,51 +661,13 @@ class SqliteIntentStore(IntentStore):
 
         return graph
 
-    def _render_intent_template(
-        self,
-        *,
-        metadata: Dict[str, Any],
-        situation: str,
-        motivation: str,
-        goal: str,
-    ) -> str:
-        template_text = _default_template()
-        if self.template_path.exists():
-            try:
-                template_text = self.template_path.read_text(encoding="utf-8")
-            except OSError:
-                template_text = _default_template()
-
-        replacements = {
-            "INTENT_ID": json.dumps(metadata.get("id", ""), ensure_ascii=False),
-            "FEATURE": json.dumps(metadata.get("feature", ""), ensure_ascii=False),
-            "LINKED_REQ": _yaml_scalar(metadata.get("linked_req")),
-            "LINKED_PLAN": _yaml_scalar(metadata.get("linked_plan")),
-            "RELATED_INTENT": json.dumps(_normalize_string_list(metadata.get("related_intent")), ensure_ascii=False),
-            "TAGS": json.dumps(_normalize_string_list(metadata.get("tags")), ensure_ascii=False),
-            "FILES": json.dumps(_normalize_string_list(metadata.get("files")), ensure_ascii=False),
-            "CREATED_AT": json.dumps(metadata.get("created_at", ""), ensure_ascii=False),
-            "SITUATION": (situation or "").strip(),
-            "MOTIVATION": (motivation or "").strip(),
-            "GOAL": (goal or "").strip(),
-        }
-
-        rendered = template_text
-        for key, value in replacements.items():
-            rendered = rendered.replace(f"{{{{{key}}}}}", value)
-
-        if not rendered.endswith("\n"):
-            rendered += "\n"
-        return rendered
-
     def _remove_legacy_index(self) -> None:
         self.legacy_index_path.unlink(missing_ok=True)
 
 
-def _to_index_entry(metadata: Dict[str, Any], file_name: str) -> Dict[str, Any]:
+def _to_index_entry(metadata: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "id": _normalize_intent_id(metadata.get("id", "")),
-        "file": file_name,
         "feature": _normalize_optional_string(metadata.get("feature")) or "",
         "linked_req": _normalize_optional_string(metadata.get("linked_req")),
         "linked_plan": _normalize_optional_string(metadata.get("linked_plan")),
@@ -936,32 +822,6 @@ def _yaml_scalar(value: Optional[str]) -> str:
     if value is None:
         return "null"
     return json.dumps(value, ensure_ascii=False)
-
-
-def _default_template() -> str:
-    return """---
-id: {{INTENT_ID}}
-feature: {{FEATURE}}
-linked_req: {{LINKED_REQ}}
-linked_plan: {{LINKED_PLAN}}
-related_intent: {{RELATED_INTENT}}
-tags: {{TAGS}}
-files: {{FILES}}
-created_at: {{CREATED_AT}}
----
-
-## When I...
-{{SITUATION}}
-
-## I want to...
-{{MOTIVATION}}
-
-## So I can...
-{{GOAL}}
-
-## Implementation Decision
-
-"""
 
 
 def _parse_frontmatter(frontmatter: str, path: Path) -> Dict[str, Any]:
