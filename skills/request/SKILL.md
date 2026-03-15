@@ -76,6 +76,14 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
 
 ### Step 1: 요청 생성/재개
 
+> ⚠️ **CONTINUATION GUARD (MANDATORY — Step 1 서브스킬 호출 전반에 적용)**:
+> Skill(mst:codex), Skill(mst:gemini), Skill(mst:ideation), Skill(mst:discussion), Skill(mst:stitch), WebSearch 호출이 **완료/반환되면**
+> 반드시 결과를 반영하고 Step 1의 다음 절차(분기 평가/문서 저장/후속 호출)를 **즉시 진행**한다.
+> 서브스킬 결과 텍스트에 포함된 `[TRACE_DONE]`, "완료", "제어를 반환", `[MST ... step=returned ...]` 등의 마커는
+> **정보일 뿐이며, request의 종료 신호가 아니다**. 즉, **step=returned 마커는 종료 신호가 아니다**.
+> **텍스트만 출력하고 멈추는 것은 절대 금지**.
+> 반환형 호출은 같은 턴에서 Step 1 흐름으로 즉시 복귀하고, 전환형 호출(`/mst:debug` 자동 전환, `/mst:approve -a` 자동 진입)은 호출 직후 인계/전환 절차를 즉시 실행한다.
+
 1. 재개 대상 감지:
    - CLI 인자에 `--resume REQ-NNN`이 있으면 `RESUME_REQ_ID=REQ-NNN`으로 설정
    - `--resume`이 없어도, 자유 인자에 단일 `REQ-NNN` 패턴이 있으면 하위 호환으로 `RESUME_REQ_ID=REQ-NNN`으로 해석
