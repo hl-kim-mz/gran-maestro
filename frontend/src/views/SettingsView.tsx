@@ -1330,10 +1330,39 @@ export function SettingsView() {
                                   {selectedModelProviderRows.map((row) => (
                                     <tr key={row.provider} className="border-t">
                                       <td className="px-3 py-2 font-mono text-xs">{row.provider}</td>
-                                      <td className="px-3 py-2 font-mono text-xs">{row.premium}</td>
-                                      <td className="px-3 py-2 font-mono text-xs">{row.economy}</td>
                                       <td className="px-3 py-2">
-                                        <Input value={row.defaultTier} readOnly className="h-8 w-32 font-mono text-xs" />
+                                        <Input
+                                          value={row.premium}
+                                          className="h-8 font-mono text-xs"
+                                          onChange={(event) =>
+                                            handleFieldChange(['models', 'providers', row.provider, 'premium'], event.target.value)
+                                          }
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <Input
+                                          value={row.economy}
+                                          className="h-8 font-mono text-xs"
+                                          onChange={(event) =>
+                                            handleFieldChange(['models', 'providers', row.provider, 'economy'], event.target.value)
+                                          }
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <Select
+                                          value={row.defaultTier === 'economy' ? 'economy' : 'premium'}
+                                          onValueChange={(value) =>
+                                            handleFieldChange(['models', 'providers', row.provider, 'default_tier'], value)
+                                          }
+                                        >
+                                          <SelectTrigger className="h-8 w-32 font-mono text-xs">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="premium" className="font-mono">premium</SelectItem>
+                                            <SelectItem value="economy" className="font-mono">economy</SelectItem>
+                                          </SelectContent>
+                                        </Select>
                                       </td>
                                     </tr>
                                   ))}
@@ -1341,7 +1370,7 @@ export function SettingsView() {
                               </table>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              이 노드는 주요 설정을 읽기 전용으로 표시합니다. 상세 편집은 고급 탭에서 가능합니다.
+                              이 노드는 인라인 편집을 지원합니다. 값을 변경한 뒤 Save 버튼으로 저장하세요.
                             </p>
                           </div>
                         ) : (
