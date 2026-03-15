@@ -65,6 +65,7 @@ type WorkflowInfoFieldRow = {
   fullPath: string[];
   value: any;
   description?: string;
+  options?: string[];
 };
 
 type WorkflowModelProviderRow = {
@@ -394,15 +395,19 @@ const ReadonlyFieldCard = React.memo(function ReadonlyFieldCard({
   fieldKey,
   value,
   description,
+  options,
   onValueChange,
   fullPath,
 }: {
   fieldKey: string;
   value: any;
   description?: string;
+  options?: string[];
   onValueChange?: (path: string[], value: any) => void;
   fullPath?: string[];
 }) {
+  const isInvalidOption = options && options.length > 0 && typeof value === 'string' && !options.includes(value);
+
   return (
     <Card>
       <CardContent className="p-4 flex items-center justify-between gap-4">
@@ -420,6 +425,48 @@ const ReadonlyFieldCard = React.memo(function ReadonlyFieldCard({
             ) : (
               <Input value={JSON.stringify(value)} readOnly className="text-left font-mono" />
             )
+          ) : value === null && onValueChange && fullPath ? (
+            <Input
+              value=""
+              placeholder="null"
+              className="text-left font-mono"
+              onChange={(e) => {
+                const val = e.target.value === '' ? null : e.target.value;
+                onValueChange(fullPath, val);
+              }}
+            />
+          ) : typeof value === 'boolean' && onValueChange && fullPath ? (
+            <Switch checked={value} onCheckedChange={(checked) => onValueChange(fullPath, checked)} />
+          ) : options && options.length > 0 && typeof value === 'string' && value !== '' && onValueChange && fullPath ? (
+            <Select value={value} onValueChange={(val) => onValueChange(fullPath, val)}>
+              <SelectTrigger className="w-[180px] h-9 font-mono text-left">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {isInvalidOption && (
+                  <SelectItem value={value} className="text-red-500 font-mono">
+                    {value} (invalid)
+                  </SelectItem>
+                )}
+                {options.map((opt) => (
+                  <SelectItem key={opt} value={opt} className="font-mono">
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (typeof value === 'number' || typeof value === 'string') && onValueChange && fullPath ? (
+            <Input
+              value={value}
+              type={typeof value === 'number' ? 'number' : 'text'}
+              className="text-left font-mono"
+              onChange={(e) => {
+                const val = typeof value === 'number' ? Number(e.target.value) : e.target.value;
+                onValueChange(fullPath, val);
+              }}
+            />
+          ) : isObject(value) ? (
+            <Input value={JSON.stringify(value)} readOnly className="text-left font-mono" />
           ) : (
             <Input value={formatReadonlyValue(value)} readOnly className="text-left font-mono" />
           )}
@@ -732,22 +779,26 @@ function buildInfoFieldRows(config: any, node: WorkflowNode): WorkflowInfoFieldR
 
     return keys.map((key) => {
       const fullPath = [...node.configPath!, key];
+      const settingDescription = SETTING_DESCRIPTIONS[fullPath.join('.')];
       return {
         key,
         fullPath,
         value: sectionValue[key],
-        description: getDescription(SETTING_DESCRIPTIONS[fullPath.join('.')]),
+        description: getDescription(settingDescription),
+        options: getOptions(settingDescription),
       };
     });
   }
 
   const fallbackKey = node.configPath[node.configPath.length - 1] ?? node.id;
+  const settingDescription = SETTING_DESCRIPTIONS[node.configPath.join('.')];
   return [
     {
       key: fallbackKey,
       fullPath: [...node.configPath],
       value: sectionValue,
-      description: getDescription(SETTING_DESCRIPTIONS[node.configPath.join('.')]),
+      description: getDescription(settingDescription),
+      options: getOptions(settingDescription),
     },
   ];
 }
@@ -1420,12 +1471,13 @@ export function SettingsView() {
                               fieldKey={row.key}
                               value={row.value}
                               description={row.description}
+                              options={row.options}
                               onValueChange={handleFieldChange}
                               fullPath={row.fullPath}
                             />
                           ))}
                           <p className="text-xs text-muted-foreground">
-                            이 노드는 주요 설정을 읽기 전용으로 표시합니다. 상세 편집은 고급 탭에서 가능합니다.
+                            이 노드는 인라인 편집을 지원합니다. 값을 변경한 뒤 Save 버튼으로 저장하세요.
                           </p>
                         </div>
                       ) : (
