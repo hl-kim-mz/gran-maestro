@@ -70,6 +70,55 @@ def _propagate_to_captures(base_dir: Path, req_id: str, cap_status: str) -> None
             continue
 
 
+def _unblock_dependents(base_dir: Path, req_id: str) -> None:
+    """REQ 완료 시 dependencies.blocks의 후속 REQ blockedBy를 정리."""
+    if not req_id.upper().startswith("REQ-"):
+        return
+    req_path = _find_json_file(base_dir, req_id)
+    if not req_path:
+        return
+    try:
+        req_data = json.loads(req_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+
+    dependencies = req_data.get("dependencies")
+    if not isinstance(dependencies, dict):
+        return
+    blocks = dependencies.get("blocks")
+    if not isinstance(blocks, list) or not blocks:
+        return
+
+    now = timestamp_now()
+    for blocked_req_id in blocks:
+        if not isinstance(blocked_req_id, str) or not blocked_req_id.upper().startswith("REQ-"):
+            continue
+        blocked_path = _find_json_file(base_dir, blocked_req_id)
+        try:
+            if not blocked_path:
+                continue
+            blocked_data = json.loads(blocked_path.read_text(encoding="utf-8"))
+            blocked_dependencies = blocked_data.get("dependencies")
+            if not isinstance(blocked_dependencies, dict):
+                continue
+            blocked_by = blocked_dependencies.get("blockedBy")
+            if not isinstance(blocked_by, list):
+                continue
+            # 대소문자 불변 비교/제거
+            matched = [b for b in blocked_by if b.upper() == req_id.upper()]
+            if not matched:
+                continue
+            for m in matched:
+                blocked_by.remove(m)
+            if not blocked_by:
+                blocked_data["status"] = "phase1_analysis"
+                blocked_data["current_phase"] = 0
+            blocked_data["updated_at"] = now
+            blocked_path.write_text(json.dumps(blocked_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            continue
+
+
 def complete(base_dir: Path, id: str) -> None:
     """JSON 파일의 status를 completed로 변경하고 completed_at/updated_at 갱신."""
     path = _find_json_file(base_dir, id)
@@ -118,6 +167,8 @@ def set_phase(base_dir: Path, id: str, phase: int, status: str) -> None:
     data["status"] = status
     data["updated_at"] = timestamp_now()
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    if phase == 5 and status == "done":
+        _unblock_dependents(base_dir, id)
 
 
 if __name__ == "__main__":
