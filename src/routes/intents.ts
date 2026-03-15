@@ -1,4 +1,5 @@
 import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
+import { dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { acquireLock, releaseLock } from "../core/concurrency.ts";
 import { PLUGIN_ROOT, resolveBaseDir } from "../config.ts";
 import type { IntentMeta } from "../types.ts";
@@ -30,7 +31,7 @@ async function runIntentCommand<T>(
   try {
     const output = await new Deno.Command("python3", {
       args: commandArgs,
-      cwd: PLUGIN_ROOT,
+      cwd: dirname(baseDir),
       stdout: "piped",
       stderr: "piped",
       signal: AbortSignal.timeout(10_000),
