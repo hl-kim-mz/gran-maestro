@@ -15,6 +15,11 @@ def snapshot_path(base_dir: Path, session_id: str = "default") -> Path:
     return base_dir / "state" / session_id / "snapshot.json"
 
 
+def snapshots_dir(base_dir: Path) -> Path:
+    """Return session-end snapshots directory."""
+    return base_dir / "state" / "snapshots"
+
+
 def load_snapshot(base_dir: Path, session_id: str = "default") -> Optional[Dict[str, Any]]:
     """Load snapshot JSON. Return None when absent or invalid."""
     path = snapshot_path(base_dir, session_id)
@@ -38,6 +43,7 @@ def _base_snapshot(session_id: str) -> Dict[str, Any]:
         "currentSkill": "",
         "currentStep": 0,
         "totalSteps": 0,
+        "enterCount": 0,
         "skillStack": [],
         "status": "idle",
         "updatedAt": timestamp_now(),
@@ -70,6 +76,39 @@ def _parse_return_to(value: Optional[str]) -> Optional[Dict[str, Any]]:
     return parsed
 
 
+def _safe_session_id(value: str) -> str:
+    cleaned = []
+    for char in value:
+        if char.isalnum() or char in ("-", "_"):
+            cleaned.append(char)
+        else:
+            cleaned.append("_")
+    return "".join(cleaned) or "default"
+
+
+def _snapshot_file_suffix() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+
+
+def _write_session_snapshot(
+    base_dir: Path,
+    snapshot: Dict[str, Any],
+    *,
+    session_id: str,
+    reason: str,
+) -> None:
+    ended_at = timestamp_now()
+    stack = _normalize_stack(snapshot.get("skillStack"))
+    payload = dict(snapshot)
+    payload["sessionId"] = session_id
+    payload["skillStack"] = stack
+    payload["sessionEndedAt"] = ended_at
+    payload["sessionEndReason"] = reason
+    payload["stackDepth"] = len(stack)
+    file_name = f"{_safe_session_id(session_id)}-{_snapshot_file_suffix()}-{reason}.json"
+    _atomic_write_json(snapshots_dir(base_dir) / file_name, payload)
+
+
 def apply_event(
     snapshot: Optional[Dict[str, Any]],
     event: str,
@@ -84,6 +123,7 @@ def apply_event(
     data = dict(snapshot or _base_snapshot(session_id))
     data["sessionId"] = session_id
     stack = _normalize_stack(data.get("skillStack"))
+    event_time = timestamp_now()
 
     if event == "enter":
         if not isinstance(skill, str) or not skill:
@@ -99,7 +139,14 @@ def apply_event(
         data["currentSkill"] = skill
         data["currentStep"] = step
         data["totalSteps"] = total
+        existing_enter_count = data.get("enterCount")
+        if not isinstance(existing_enter_count, int) or existing_enter_count < 0:
+            existing_enter_count = 0
+        data["enterCount"] = existing_enter_count + 1
         data["status"] = "active"
+        data["enteredAt"] = event_time
+        data.pop("committedAt", None)
+        data.pop("failedAt", None)
 
         parsed_return_to = _parse_return_to(return_to)
         if parsed_return_to:
@@ -113,11 +160,17 @@ def apply_event(
             data["currentSkill"] = frame.get("skill", "")
             data["currentStep"] = frame.get("step", 0)
         data["status"] = "committed" if event == "commit" else "failed"
+        if event == "commit":
+            data["committedAt"] = event_time
+            data.pop("failedAt", None)
+        else:
+            data["failedAt"] = event_time
+            data.pop("committedAt", None)
     else:
         raise ValueError(f"unknown event: {event}")
 
     data["skillStack"] = stack
-    data["updatedAt"] = timestamp_now()
+    data["updatedAt"] = event_time
     return data
 
 
@@ -148,8 +201,11 @@ def commit(base_dir: Path, session_id: str = "default") -> Dict[str, Any]:
     snapshot = load_snapshot(base_dir, session_id)
     if snapshot is None:
         raise FileNotFoundError("snapshot not found")
+    stack_before = _normalize_stack(snapshot.get("skillStack"))
     updated = apply_event(snapshot, "commit", session_id=session_id)
     _atomic_write_json(snapshot_path(base_dir, session_id), updated)
+    if not stack_before:
+        _write_session_snapshot(base_dir, updated, session_id=session_id, reason="commit")
     return updated
 
 
@@ -157,8 +213,11 @@ def fail(base_dir: Path, session_id: str = "default") -> Dict[str, Any]:
     snapshot = load_snapshot(base_dir, session_id)
     if snapshot is None:
         raise FileNotFoundError("snapshot not found")
+    stack_before = _normalize_stack(snapshot.get("skillStack"))
     updated = apply_event(snapshot, "fail", session_id=session_id)
     _atomic_write_json(snapshot_path(base_dir, session_id), updated)
+    if not stack_before:
+        _write_session_snapshot(base_dir, updated, session_id=session_id, reason="fail")
     return updated
 
 
@@ -187,6 +246,13 @@ def get_snapshot(base_dir: Path, session_id: str = "default") -> Optional[Dict[s
 
 
 def clear_snapshot(base_dir: Path, session_id: str = "default") -> None:
+    snapshot = load_snapshot(base_dir, session_id)
+    if snapshot is not None:
+        stack = _normalize_stack(snapshot.get("skillStack"))
+        status = snapshot.get("status")
+        if stack or status not in ("committed", "failed"):
+            _write_session_snapshot(base_dir, snapshot, session_id=session_id, reason="clear")
+
     path = snapshot_path(base_dir, session_id)
     if path.exists():
         path.unlink()

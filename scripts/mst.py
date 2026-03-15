@@ -44,6 +44,7 @@ Subcommands:
   state set          --skill NAME --step N --total M [--return-to SKILL/STEP]
   state get
   state clear
+  measure stop-rate   [--snapshots-dir PATH] [--pretty]
 
   task set-commit     <TASK-ID> <commit hash> <commit message>
 
@@ -365,6 +366,29 @@ def cmd_state_clear(args):
     clear_snapshot(_skill_state_base_dir())
     print("스냅샷 초기화 완료")
     return 0
+
+
+def cmd_measure_stop_rate(args):
+    script_path = Path(__file__).resolve().parent / "measure_stop_rate.py"
+    cmd = [sys.executable, str(script_path)]
+
+    if args.snapshots_dir:
+        cmd.extend(["--snapshots-dir", args.snapshots_dir])
+    if args.pretty:
+        cmd.append("--pretty")
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=str(BASE_DIR.parent),
+    )
+
+    if result.stdout:
+        print(result.stdout.rstrip("\n"))
+    if result.stderr:
+        print(result.stderr.rstrip("\n"), file=sys.stderr)
+    return result.returncode
 
 
 def cmd_request_set_phase(args):
@@ -2771,6 +2795,13 @@ def build_parser():
     state_sub.add_parser("get")
     state_sub.add_parser("clear")
 
+    # --- measure ---
+    measure = sub.add_parser("measure")
+    measure_sub = measure.add_subparsers(dest="subcommand")
+    measure_stop_rate = measure_sub.add_parser("stop-rate")
+    measure_stop_rate.add_argument("--snapshots-dir")
+    measure_stop_rate.add_argument("--pretty", action="store_true")
+
     # --- plan ---
     plan = sub.add_parser("plan")
     plan_sub = plan.add_subparsers(dest="subcommand")
@@ -3048,6 +3079,7 @@ def main():
         ("state", "set"): cmd_state_set,
         ("state", "get"): cmd_state_get,
         ("state", "clear"): cmd_state_clear,
+        ("measure", "stop-rate"): cmd_measure_stop_rate,
         ("plan", "list"): cmd_plan_list,
         ("plan", "count"): cmd_plan_count,
         ("plan", "inspect"): cmd_plan_inspect,
