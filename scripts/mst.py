@@ -33,6 +33,7 @@ Subcommands:
   archive restore     <ARCHIVE-ID>
   gardening scan      [--json]
   capture ttl-check
+  capture mark-consumed --caps <CAP-ID[,CAP-ID...]> --plan <PLN-ID> [--json]
 
   counter next        [--type req|idn|dsc|dbg|exp|pln|des|cap|intent] [--dir PATH]
   counter peek        [--type req|idn|dsc|dbg|exp|pln|des|cap|intent]
@@ -62,6 +63,7 @@ Subcommands:
 
   wait-files          <file1> [file2 ...] [--timeout SECONDS]
   resolve-model       <provider> <tier_or_section>
+  config get          <key.path> [--default VALUE] [--json]
 """
 
 import argparse
@@ -1369,6 +1371,109 @@ def cmd_capture_ttl_check(args):
             print(name)
     else:
         print("No expired captures.")
+    return 0
+
+
+def _parse_capture_ids(raw_caps):
+    cap_ids = []
+    skipped = []
+    seen = set()
+    for token in str(raw_caps or "").split(","):
+        raw_token = token.strip()
+        if not raw_token:
+            continue
+        cap_id = raw_token.upper()
+        if cap_id in seen:
+            continue
+        seen.add(cap_id)
+        if not re.fullmatch(r"^CAP-\d+$", cap_id):
+            skipped.append(raw_token)
+            print(f"[WARN] invalid CAP ID format skipped: {raw_token}", file=sys.stderr)
+            continue
+        cap_ids.append(cap_id)
+    return cap_ids, skipped
+
+
+def _capture_status_enum():
+    schema_path = Path(__file__).resolve().parent.parent / "templates" / "defaults" / "capture-schema.json"
+    schema = load_json(schema_path)
+    if not isinstance(schema, dict):
+        return None
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return None
+    status_def = properties.get("status")
+    if not isinstance(status_def, dict):
+        return None
+    enum = status_def.get("enum")
+    if not isinstance(enum, list):
+        return None
+    statuses = {status for status in enum if isinstance(status, str)}
+    return statuses or None
+
+
+def cmd_capture_mark_consumed(args):
+    cap_ids, parse_skipped = _parse_capture_ids(args.caps)
+    if not cap_ids and not parse_skipped:
+        print("Error: --caps requires at least one CAP ID", file=sys.stderr)
+        return 1
+
+    plan_id = str(args.plan or "").strip().upper()
+    if not plan_id:
+        print("Error: --plan is required", file=sys.stderr)
+        return 1
+
+    now = datetime.now(timezone.utc).isoformat()
+    captures_dir = BASE_DIR / "captures"
+    schema_statuses = _capture_status_enum()
+    updated = []
+    skipped = list(parse_skipped)
+
+    if schema_statuses is None:
+        print("[WARN] capture status enum unavailable from schema; validation skipped", file=sys.stderr)
+
+    for cap_id in cap_ids:
+        cap_path = captures_dir / cap_id / "capture.json"
+        capture = load_json(cap_path)
+        if not isinstance(capture, dict):
+            skipped.append(cap_id)
+            print(f"[WARN] capture not found: {cap_id}", file=sys.stderr)
+            continue
+
+        current_status = capture.get("status")
+        if current_status == "consumed":
+            skipped.append(cap_id)
+            print(f"[WARN] capture already consumed: {cap_id}", file=sys.stderr)
+            continue
+        if schema_statuses is not None and current_status not in schema_statuses:
+            print(
+                f"[WARN] capture has invalid status: {cap_id} ({current_status!r})",
+                file=sys.stderr,
+            )
+
+        capture["status"] = "consumed"
+        capture["consumed_at"] = now
+        capture["linked_plan"] = plan_id
+        try:
+            save_json(cap_path, capture)
+        except Exception as exc:
+            skipped.append(cap_id)
+            print(f"[WARN] failed to save capture: {cap_id} ({exc})", file=sys.stderr)
+            continue
+        updated.append(cap_id)
+
+    if args.json:
+        print(json.dumps({"updated": updated, "skipped": skipped, "plan": plan_id}, ensure_ascii=False))
+        return 0
+
+    if updated:
+        print("Updated captures:")
+        for cap_id in updated:
+            print(cap_id)
+    if skipped:
+        print("Skipped captures:")
+        for cap_id in skipped:
+            print(cap_id)
     return 0
 
 
@@ -2744,6 +2849,57 @@ def cmd_config_resolve(args):
     return 0
 
 
+def _load_config_for_get():
+    resolved = load_json(BASE_DIR / "config.resolved.json")
+    if isinstance(resolved, dict):
+        return resolved
+
+    plugin_root = _plugin_root()
+    defaults = load_json(plugin_root / "templates" / "defaults" / "config.json")
+    overrides = load_json(BASE_DIR / "config.json")
+    if isinstance(defaults, dict) and isinstance(overrides, dict):
+        return deep_merge(defaults, overrides)
+    if isinstance(defaults, dict):
+        return defaults
+    if isinstance(overrides, dict):
+        return overrides
+    return {}
+
+
+def _get_dotted_path(data, dotted_path):
+    current = data
+    for part in dotted_path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return False, None
+        current = current[part]
+    return True, current
+
+
+def cmd_config_get(args):
+    key_path = str(args.key_path or "").strip()
+    if not key_path:
+        print("Error: key.path is required", file=sys.stderr)
+        return 1
+
+    config = _load_config_for_get()
+    found, value = _get_dotted_path(config, key_path)
+    if not found:
+        if args.default_value is None:
+            print(f"Error: key not found: {key_path}", file=sys.stderr)
+            return 1
+        value = args.default_value
+
+    if args.json:
+        print(json.dumps({"key": key_path, "value": value}, ensure_ascii=False))
+        return 0
+
+    if isinstance(value, (dict, list)):
+        print(json.dumps(value, ensure_ascii=False))
+    else:
+        print(value)
+    return 0
+
+
 def _load_preset(preset_id):
     plugin_root = _plugin_root()
     manifest = load_json(plugin_root / "templates" / "defaults" / "presets" / "manifest.json")
@@ -3280,6 +3436,10 @@ def build_parser():
     cap_sub = cap.add_subparsers(dest="subcommand")
     cap_ttl_check = cap_sub.add_parser("ttl-check")
     cap_ttl_check.set_defaults(func=cmd_capture_ttl_check)
+    cap_mark_consumed = cap_sub.add_parser("mark-consumed")
+    cap_mark_consumed.add_argument("--caps", required=True, help="comma-separated CAP IDs")
+    cap_mark_consumed.add_argument("--plan", required=True, help="PLN-ID")
+    cap_mark_consumed.add_argument("--json", action="store_true")
 
     # --- version ---
     ver = sub.add_parser("version")
@@ -3379,6 +3539,10 @@ def build_parser():
     cfg_sub = cfg.add_subparsers(dest="subcommand")
     cfg_resolve = cfg_sub.add_parser("resolve", help="defaults + overrides → config.resolved.json")
     cfg_resolve.set_defaults(func=cmd_config_resolve)
+    cfg_get = cfg_sub.add_parser("get", help="read config value by dot-path")
+    cfg_get.add_argument("key_path")
+    cfg_get.add_argument("--default", dest="default_value")
+    cfg_get.add_argument("--json", action="store_true")
     cfg_migrate = cfg_sub.add_parser("migrate", help="구 포맷 config를 신 포맷으로 마이그레이션")
     cfg_migrate.add_argument("--apply", action="store_true", help="실제 적용 (기본: dry-run)")
     cfg_migrate.set_defaults(func=cmd_config_migrate)
@@ -3454,6 +3618,7 @@ def main():
         ("agents", "check"):   cmd_agents_check,
         ("agents", "sync"):    cmd_agents_sync,
         ("capture", "ttl-check"): cmd_capture_ttl_check,
+        ("capture", "mark-consumed"): cmd_capture_mark_consumed,
         ("archive", "run"): cmd_archive_run,
         ("archive", "run-all"): cmd_archive_run_all,
         ("archive", "list"): cmd_archive_list,
@@ -3472,6 +3637,7 @@ def main():
         ("resolve-model", None): cmd_resolve_model,
         ("extension", "ensure-copy"): cmd_extension_ensure_copy,
         ("config", "resolve"): cmd_config_resolve,
+        ("config", "get"): cmd_config_get,
         ("config", "migrate"): cmd_config_migrate,
         ("preset", "list"): cmd_preset_list,
         ("preset", "apply"): cmd_preset_apply,
