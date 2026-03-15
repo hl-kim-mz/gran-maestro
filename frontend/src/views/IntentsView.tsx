@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Sheet,
   SheetContent,
@@ -452,13 +453,26 @@ export function IntentsView() {
         <div ref={sidebarRef} style={{ width: sidebarWidth }} className="border-r flex flex-col min-h-0 shrink-0">
           <div className="p-4 border-b bg-muted/30 flex justify-between items-center gap-2">
             <h2 className="font-semibold">Intents ({intents.length})</h2>
-            <div className="flex items-center gap-2">
-              <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={openCreateSheet}>
-                <Plus className="h-3.5 w-3.5" />
-                추가
-              </Button>
-              <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
-            </div>
+            <TooltipProvider>
+              <div className="flex items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={openCreateSheet}
+                      aria-label="추가 : 새 Intent를 생성합니다"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>추가 : 새 Intent를 생성합니다</p>
+                  </TooltipContent>
+                </Tooltip>
+                <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
+              </div>
+            </TooltipProvider>
           </div>
 
           <ListFilter
@@ -529,17 +543,43 @@ export function IntentsView() {
                     {asTrimmedString(detailMeta.created_at || selectedIntent?.created_at) && ` · ${asTrimmedString(detailMeta.created_at || selectedIntent?.created_at).slice(0, 10)}`}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status="active" />
-                  <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={openEditSheet}>
-                    <SquarePen className="h-3.5 w-3.5" />
-                    수정
-                  </Button>
-                  <Button size="sm" variant="destructive" className="h-8 gap-1.5" onClick={handleDelete}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                    삭제
-                  </Button>
-                </div>
+                <TooltipProvider>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status="active" />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-8"
+                          onClick={openEditSheet}
+                          aria-label="수정 : 선택한 Intent를 편집합니다"
+                        >
+                          <SquarePen className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>수정 : 선택한 Intent를 편집합니다</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="h-8 w-8"
+                          onClick={handleDelete}
+                          aria-label="삭제 : 선택한 Intent를 삭제합니다"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>삭제 : 선택한 Intent를 삭제합니다</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TooltipProvider>
               </div>
 
               <ScrollArea className="flex-1">

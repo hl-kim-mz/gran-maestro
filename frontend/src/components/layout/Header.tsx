@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { NotificationPanel } from './NotificationPanel';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function Header({ onShowShortcuts }: { onShowShortcuts: () => void }) {
   const { sseStatus, theme, setTheme, notifications, projectId, setProjectId, projects, modeStatus } = useAppContext();
@@ -94,46 +95,87 @@ export function Header({ onShowShortcuts }: { onShowShortcuts: () => void }) {
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleArchiveAll}
-          disabled={isArchiving}
-          title="세션 정리"
-        >
-          <Archive className="h-5 w-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        >
-          {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-        </Button>
-        <Button variant="ghost" size="icon" onClick={onShowShortcuts}>
-          <HelpCircle className="h-5 w-5" />
-        </Button>
+      <TooltipProvider>
+        <div className="flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleArchiveAll}
+                disabled={isArchiving}
+                aria-label="세션 정리 : 완료된 세션을 아카이브합니다"
+              >
+                <Archive className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>세션 정리 : 완료된 세션을 아카이브합니다</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                aria-label="테마 전환 : 다크/라이트 모드를 전환합니다"
+              >
+                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>테마 전환 : 다크/라이트 모드를 전환합니다</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onShowShortcuts}
+                aria-label="단축키 : 키보드 단축키 목록을 표시합니다"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>단축키 : 키보드 단축키 목록을 표시합니다</p>
+            </TooltipContent>
+          </Tooltip>
 
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px]" variant="destructive">
-                  {unreadCount}
-                </Badge>
-              )}
-            </Button>
-          </SheetTrigger>
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle>Notifications</SheetTitle>
-            </SheetHeader>
-            <NotificationPanel onNavigate={() => setSheetOpen(false)} />
-          </SheetContent>
-        </Sheet>
-      </div>
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SheetTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="relative"
+                    aria-label="알림 : 알림 패널을 열고 닫습니다"
+                  >
+                    <Bell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px]" variant="destructive">
+                        {unreadCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </SheetTrigger>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>알림 : 알림 패널을 열고 닫습니다</p>
+              </TooltipContent>
+            </Tooltip>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Notifications</SheetTitle>
+              </SheetHeader>
+              <NotificationPanel onNavigate={() => setSheetOpen(false)} />
+            </SheetContent>
+          </Sheet>
+        </div>
+      </TooltipProvider>
     </header>
   );
 }

@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
-import { Globe, RefreshCcw, Replace, Save, Wand2 } from 'lucide-react';
+import { FoldVertical, Globe, RefreshCcw, Replace, Save, UnfoldVertical, Wand2 } from 'lucide-react';
 import { SETTING_DESCRIPTIONS, getDescription, getOptions } from '@/config/settingDescriptions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
@@ -16,6 +16,7 @@ import { TagInput } from '@/components/shared/TagInput';
 import { SetupWizardModal } from '@/components/shared/SetupWizardModal';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const HIDDEN_FIELDS = ['version', 'plugin_name', 'branding'];
 const AGENT_PROVIDERS = ['codex', 'gemini', 'claude'] as const;
@@ -936,6 +937,7 @@ export function SettingsView() {
       : [];
   const selectedInfoRows = selectedNode.kind === 'info' ? buildInfoFieldRows(merged, selectedNode) : [];
   const selectedNodeEnabled = isNodeEnabled(merged, selectedNode);
+  const saveAriaLabel = isDirty ? 'Save : 미저장 변경사항이 있습니다' : 'Save : 변경된 설정을 저장합니다';
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -948,38 +950,124 @@ export function SettingsView() {
                 <p className="text-muted-foreground text-sm">System configuration and preferences.</p>
               </div>
               <div className="flex gap-2">
-                {activeTab === 'advanced' && (
-                  <>
-                    <Button variant="outline" onClick={() => setOpenSections(visibleSections.map(([key]) => key))} disabled={saving}>
-                      전부 열기
-                    </Button>
-                    <Button variant="outline" onClick={() => setOpenSections([])} disabled={saving}>
-                      전부 접기
-                    </Button>
-                  </>
-                )}
-                <Button
-                  variant={panelOpen ? 'secondary' : 'outline'}
-                  size="icon"
-                  onClick={() => setPanelOpen((open) => !open)}
-                  title="찾아 바꾸기"
-                  disabled={saving}
-                >
-                  <Replace className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" onClick={fetchConfig} disabled={saving}>
-                  <RefreshCcw className="h-4 w-4 mr-2" /> Reload
-                </Button>
-                <Button variant="outline" onClick={() => setWizardOpen(true)} disabled={saving}>
-                  <Wand2 className="h-4 w-4 mr-2" /> 설정 마법사
-                </Button>
-                <Button variant="outline" onClick={handleApplyAll} disabled={saving || !merged}>
-                  <Globe className="h-4 w-4 mr-2" /> Apply to All
-                </Button>
-                <Button onClick={() => handleSave()} disabled={saving} variant={isDirty ? 'default' : 'outline'}>
-                  <Save className="h-4 w-4 mr-2" />
-                  {saving ? 'Saving...' : isDirty ? 'Save Changes *' : 'Save Changes'}
-                </Button>
+                <TooltipProvider>
+                  {activeTab === 'advanced' && (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setOpenSections(visibleSections.map(([key]) => key))}
+                            disabled={saving}
+                            aria-label="전부 열기 : 모든 설정 섹션을 펼칩니다"
+                          >
+                            <UnfoldVertical className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>전부 열기 : 모든 설정 섹션을 펼칩니다</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setOpenSections([])}
+                            disabled={saving}
+                            aria-label="전부 접기 : 모든 설정 섹션을 닫습니다"
+                          >
+                            <FoldVertical className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>전부 접기 : 모든 설정 섹션을 닫습니다</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={panelOpen ? 'secondary' : 'outline'}
+                        size="icon"
+                        onClick={() => setPanelOpen((open) => !open)}
+                        disabled={saving}
+                        aria-label="찾아 바꾸기 : 설정값을 검색하고 일괄 교체합니다"
+                      >
+                        <Replace className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>찾아 바꾸기 : 설정값을 검색하고 일괄 교체합니다</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={fetchConfig}
+                        disabled={saving}
+                        aria-label="Reload : 서버에서 설정을 다시 불러옵니다"
+                      >
+                        <RefreshCcw className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Reload : 서버에서 설정을 다시 불러옵니다</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setWizardOpen(true)}
+                        disabled={saving}
+                        aria-label="설정 마법사 : 초기 설정을 단계별로 안내합니다"
+                      >
+                        <Wand2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>설정 마법사 : 초기 설정을 단계별로 안내합니다</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleApplyAll}
+                        disabled={saving || !merged}
+                        aria-label="Apply to All : 현재 설정을 모든 프로젝트에 적용합니다"
+                      >
+                        <Globe className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Apply to All : 현재 설정을 모든 프로젝트에 적용합니다</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => handleSave()}
+                        disabled={saving}
+                        variant={isDirty ? 'default' : 'outline'}
+                        size="icon"
+                        aria-label={saveAriaLabel}
+                      >
+                        <Save className={saving ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Save : 변경된 설정을 저장합니다</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
 
