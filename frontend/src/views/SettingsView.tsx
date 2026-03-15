@@ -946,6 +946,21 @@ export function SettingsView() {
     setIsDirty(true);
   }
 
+  function handleWorkflowRoleEnabledToggle(node: WorkflowNode, roleName: string) {
+    const rolesPath = node.rolesPath;
+    if (node.kind !== 'role-summary' || !rolesPath) {
+      return;
+    }
+
+    const enabledPath = [...rolesPath, roleName, 'enabled'];
+    setMerged((current: any) => {
+      const currentEnabled = getNestedValueWithArrays(current, enabledPath);
+      const nextEnabled = currentEnabled === false;
+      return deepSetWithArrays(current ?? {}, enabledPath, nextEnabled);
+    });
+    setIsDirty(true);
+  }
+
   function renderField(path: string[], key: string, value: any, depth = 0, label = key) {
     const indent = depth * 16;
     const fullPath = [...path, key];
@@ -1478,7 +1493,25 @@ export function SettingsView() {
                                   <tr key={row.name} className="border-t">
                                     <td className="px-3 py-2 font-mono text-xs">{row.name}</td>
                                     <td className="px-3 py-2">
-                                      <Badge variant={row.enabled ? 'default' : 'outline'} className="text-[10px]">
+                                      <Badge
+                                        variant={row.enabled ? 'default' : 'outline'}
+                                        className={
+                                          row.enabled
+                                            ? 'text-[10px] cursor-pointer'
+                                            : 'text-[10px] cursor-pointer border-muted-foreground/40 bg-muted/40 text-muted-foreground'
+                                        }
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => handleWorkflowRoleEnabledToggle(selectedNode, row.name)}
+                                        aria-pressed={row.enabled}
+                                        onKeyDown={(event) => {
+                                          if (event.repeat) return;
+                                          if (event.key === 'Enter' || event.key === ' ') {
+                                            event.preventDefault();
+                                            handleWorkflowRoleEnabledToggle(selectedNode, row.name);
+                                          }
+                                        }}
+                                      >
                                         {row.enabled ? 'ON' : 'OFF'}
                                       </Badge>
                                     </td>
