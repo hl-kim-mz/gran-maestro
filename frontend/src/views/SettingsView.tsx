@@ -66,14 +66,61 @@ type WorkflowInfoFieldRow = {
   description?: string;
 };
 
+type WorkflowModelProviderRow = {
+  provider: string;
+  premium: string;
+  economy: string;
+  defaultTier: string;
+};
+
+type WorkflowModelRoleAssignmentRow = {
+  role: string;
+  provider: string;
+  tier: string;
+};
+
+const MODEL_ROLE_DISPLAY_ORDER = ['pm_conductor', 'architect', 'developer', 'reviewer', 'developer_claude'] as const;
+
 const WORKFLOW_INFO_FOCUS_FIELDS: Partial<Record<WorkflowNode['id'], string[]>> = {
   stitch: ['enabled', 'auto_detect', 'auto_trigger', 'project_id', 'model_id', 'failure_policy'],
   code_review: ['enabled', 'agents', 'agent_roster', 'parallel'],
   collaborative_debug: ['finding_char_limit', 'merge_wait_ms', 'auto_trigger_from_request'],
   'workflow.feedback': ['max_feedback_rounds'],
+  'models.providers': ['codex', 'gemini', 'claude'],
+  'models.roles': ['pm_conductor', 'architect', 'developer', 'reviewer', 'developer_claude'],
+  auto_mode: ['plan', 'request', 'review', 'confidence_threshold', 'max_review_iterations'],
+  intent_fidelity: ['enabled', 'mode', 'exclude_dirs'],
 };
 
 const WORKFLOW_PHASES: WorkflowPhase[] = [
+  {
+    id: 'phase-0',
+    title: 'Models',
+    subtitle: '모델/역할',
+    nodes: [
+      {
+        id: 'models.providers',
+        label: 'models.providers',
+        description: 'Provider별 premium/economy 모델 및 기본 tier',
+        kind: 'info',
+        configPath: ['models', 'providers'],
+      },
+      {
+        id: 'models.roles',
+        label: 'models.roles',
+        description: 'Role별 provider/tier 매핑',
+        kind: 'info',
+        configPath: ['models', 'roles'],
+      },
+      {
+        id: 'auto_mode',
+        label: 'auto_mode',
+        description: '자동 실행 모드 설정',
+        kind: 'info',
+        configPath: ['auto_mode'],
+      },
+    ],
+  },
   {
     id: 'phase-1',
     title: 'Phase 1',
@@ -99,6 +146,21 @@ const WORKFLOW_PHASES: WorkflowPhase[] = [
         description: '토론 단계 에이전트 구성',
         kind: 'agent-matrix',
         agentsPath: ['discussion', 'agents'],
+      },
+      {
+        id: 'phase1_exploration',
+        label: 'phase1_exploration',
+        description: '탐색 역할별 agent/tier 배정',
+        kind: 'role-summary',
+        rolesPath: ['phase1_exploration', 'roles'],
+      },
+      {
+        id: 'intent_fidelity',
+        label: 'intent_fidelity',
+        description: '요청 의도 충실도 검증 설정',
+        kind: 'info',
+        enabledPath: ['intent_fidelity', 'enabled'],
+        configPath: ['intent_fidelity'],
       },
       {
         id: 'prereview',
@@ -171,6 +233,7 @@ const WORKFLOW_PHASES: WorkflowPhase[] = [
         label: 'debug',
         description: '디버깅 단계 에이전트 구성',
         kind: 'agent-matrix',
+        enabledPath: ['debug', 'enabled'],
         agentsPath: ['debug', 'agents'],
       },
       {
@@ -472,6 +535,13 @@ function getRoleSlotLabel(index: number) {
   return `slot_${index + 1}`;
 }
 
+function formatRoleDisplayName(roleName: string) {
+  return roleName
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function resolveDefaultTier(config: any, provider: AgentProvider): AgentTier {
   const defaultTier = getNestedValueWithArrays(config, ['models', 'providers', provider, 'default_tier']);
   return isTier(defaultTier) ? defaultTier : 'premium';
@@ -576,6 +646,58 @@ function buildRoleDetailsFromRolePath(config: any, path: string[]): WorkflowRole
       tier: typeof roleValue.tier === 'string' ? roleValue.tier : '-',
     };
   });
+}
+
+function buildModelProviderRows(config: any): WorkflowModelProviderRow[] {
+  const source = getNestedValueWithArrays(config, ['models', 'providers']);
+  return AGENT_PROVIDERS.map((provider) => {
+    const providerConfig = isObject(source?.[provider]) ? source[provider] as Record<string, unknown> : {};
+    return {
+      provider,
+      premium: typeof providerConfig.premium === 'string' ? providerConfig.premium : '-',
+      economy: typeof providerConfig.economy === 'string' ? providerConfig.economy : '-',
+      defaultTier: typeof providerConfig.default_tier === 'string' ? providerConfig.default_tier : '-',
+    };
+  });
+}
+
+function buildModelRoleAssignmentRows(config: any): WorkflowModelRoleAssignmentRow[] {
+  const source = getNestedValueWithArrays(config, ['models', 'roles']);
+  if (!isObject(source)) {
+    return [];
+  }
+
+  const orderedRoleNames = [
+    ...MODEL_ROLE_DISPLAY_ORDER.filter((roleName) => roleName in source),
+    ...Object.keys(source).filter((roleName) => !MODEL_ROLE_DISPLAY_ORDER.includes(roleName as typeof MODEL_ROLE_DISPLAY_ORDER[number])),
+  ];
+
+  const rows: WorkflowModelRoleAssignmentRow[] = [];
+
+  for (const roleName of orderedRoleNames) {
+    const roleValue = source[roleName];
+
+    if (Array.isArray(roleValue)) {
+      roleValue.forEach((slotValue, index) => {
+        const slot = isObject(slotValue) ? slotValue as Record<string, unknown> : {};
+        rows.push({
+          role: `${formatRoleDisplayName(roleName)} (${getRoleSlotLabel(index)})`,
+          provider: typeof slot.provider === 'string' ? slot.provider : '-',
+          tier: typeof slot.tier === 'string' ? slot.tier : '-',
+        });
+      });
+      continue;
+    }
+
+    const slot = isObject(roleValue) ? roleValue as Record<string, unknown> : {};
+    rows.push({
+      role: formatRoleDisplayName(roleName),
+      provider: typeof slot.provider === 'string' ? slot.provider : '-',
+      tier: typeof slot.tier === 'string' ? slot.tier : '-',
+    });
+  }
+
+  return rows;
 }
 
 function buildInfoFieldRows(config: any, node: WorkflowNode): WorkflowInfoFieldRow[] {
@@ -935,6 +1057,8 @@ export function SettingsView() {
     selectedNode.kind === 'role-summary' && selectedNode.rolesPath
       ? buildRoleDetailsFromRolePath(merged, selectedNode.rolesPath)
       : [];
+  const selectedModelProviderRows = selectedNode.id === 'models.providers' ? buildModelProviderRows(merged) : [];
+  const selectedModelRoleRows = selectedNode.id === 'models.roles' ? buildModelRoleAssignmentRows(merged) : [];
   const selectedInfoRows = selectedNode.kind === 'info' ? buildInfoFieldRows(merged, selectedNode) : [];
   const selectedNodeEnabled = isNodeEnabled(merged, selectedNode);
   const saveAriaLabel = isDirty ? 'Save : 미저장 변경사항이 있습니다' : 'Save : 변경된 설정을 저장합니다';
@@ -1082,7 +1206,7 @@ export function SettingsView() {
                   <div className="rounded-lg border bg-card p-4">
                     <div className="mb-4">
                       <h3 className="text-sm font-semibold">Workflow Pipeline</h3>
-                      <p className="text-xs text-muted-foreground">Phase 1 → 4 흐름에서 단계를 선택하세요.</p>
+                      <p className="text-xs text-muted-foreground">Models/Phase 1 → 4 흐름에서 단계를 선택하세요.</p>
                     </div>
 
                     <div className="space-y-1">
@@ -1149,7 +1273,77 @@ export function SettingsView() {
                     </div>
 
                     {selectedNode.kind === 'info' ? (
-                      selectedInfoRows.length > 0 ? (
+                      selectedNode.id === 'models.providers' ? (
+                        selectedModelProviderRows.length > 0 ? (
+                          <div className="space-y-3">
+                            <div className="rounded-md border overflow-hidden">
+                              <table className="w-full text-sm">
+                                <thead className="bg-muted/40">
+                                  <tr>
+                                    <th className="text-left px-3 py-2 text-xs font-semibold">Provider</th>
+                                    <th className="text-left px-3 py-2 text-xs font-semibold">Premium</th>
+                                    <th className="text-left px-3 py-2 text-xs font-semibold">Economy</th>
+                                    <th className="text-left px-3 py-2 text-xs font-semibold">Default Tier</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {selectedModelProviderRows.map((row) => (
+                                    <tr key={row.provider} className="border-t">
+                                      <td className="px-3 py-2 font-mono text-xs">{row.provider}</td>
+                                      <td className="px-3 py-2 font-mono text-xs">{row.premium}</td>
+                                      <td className="px-3 py-2 font-mono text-xs">{row.economy}</td>
+                                      <td className="px-3 py-2">
+                                        <Input value={row.defaultTier} readOnly className="h-8 w-32 font-mono text-xs" />
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              이 노드는 주요 설정을 읽기 전용으로 표시합니다. 상세 편집은 고급 탭에서 가능합니다.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
+                            연결된 설정 경로에 표시할 값이 없습니다.
+                          </div>
+                        )
+                      ) : selectedNode.id === 'models.roles' ? (
+                        selectedModelRoleRows.length > 0 ? (
+                          <div className="space-y-3">
+                            <div className="rounded-md border overflow-hidden">
+                              <table className="w-full text-sm">
+                                <thead className="bg-muted/40">
+                                  <tr>
+                                    <th className="text-left px-3 py-2 text-xs font-semibold">Role</th>
+                                    <th className="text-left px-3 py-2 text-xs font-semibold">Provider</th>
+                                    <th className="text-left px-3 py-2 text-xs font-semibold">Tier</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {selectedModelRoleRows.map((row) => (
+                                    <tr key={row.role} className="border-t">
+                                      <td className="px-3 py-2 font-mono text-xs">{row.role}</td>
+                                      <td className="px-3 py-2 font-mono text-xs">{row.provider}</td>
+                                      <td className="px-3 py-2">
+                                        <Input value={row.tier} readOnly className="h-8 w-32 font-mono text-xs" />
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              이 노드는 주요 설정을 읽기 전용으로 표시합니다. 상세 편집은 고급 탭에서 가능합니다.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
+                            연결된 설정 경로에 표시할 값이 없습니다.
+                          </div>
+                        )
+                      ) : selectedInfoRows.length > 0 ? (
                         <div className="space-y-3">
                           {selectedInfoRows.map((row) => (
                             <ReadonlyFieldCard
@@ -1262,7 +1456,9 @@ export function SettingsView() {
                                       </Badge>
                                     </td>
                                     <td className="px-3 py-2 font-mono text-xs">{row.agent}</td>
-                                    <td className="px-3 py-2 font-mono text-xs">{row.tier}</td>
+                                    <td className="px-3 py-2">
+                                      <Input value={row.tier} readOnly className="h-8 w-32 font-mono text-xs" />
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>

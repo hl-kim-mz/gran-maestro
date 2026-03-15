@@ -184,6 +184,16 @@ export const SETTING_DESCRIPTIONS: Record<string, string | SettingMeta> = {
   'phase1_exploration.roles.broad_scan.agent': 'Phase 1 광역 탐색 에이전트',
   'phase1_exploration.roles.broad_scan.enabled': 'Phase 1 광역 탐색 역할 활성화 여부',
   'phase1_exploration.roles.broad_scan.tier': { description: 'Phase 1 광역 탐색 tier (premium/economy)', options: ['premium', 'economy'] },
+  'intent_fidelity': '의도 충실도 검증 설정',
+  'intent_fidelity.enabled': '의도 충실도 검증 활성화 여부',
+  'intent_fidelity.mode': '의도 충실도 검증 모드',
+  'intent_fidelity.exclude_dirs': '의도 충실도 검증 제외 디렉터리 목록',
+  'auto_mode': '자동 실행 모드 설정',
+  'auto_mode.plan': '계획 단계 자동 실행 여부',
+  'auto_mode.request': '요청 단계 자동 실행 여부',
+  'auto_mode.review': '리뷰 단계 자동 실행 여부',
+  'auto_mode.confidence_threshold': '자동 실행 신뢰도 임계값',
+  'auto_mode.max_review_iterations': '자동 리뷰 최대 반복 횟수',
   'cleanup.plans_keep_count': 'Plan 세션 유지 수',
 };
 
