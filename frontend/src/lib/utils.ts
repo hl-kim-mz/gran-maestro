@@ -8,6 +8,14 @@ export function cn(...inputs: ClassValue[]) {
 export function deepSet(obj: any, path: string[], value: any): any {
   if (path.length === 0) return value;
   const [head, ...rest] = path;
+
+  if (Array.isArray(obj)) {
+    const index = Number(head);
+    const clone = [...obj];
+    clone[index] = deepSet(clone[index], rest, value);
+    return clone;
+  }
+
   return { ...obj, [head]: deepSet(obj?.[head] ?? {}, rest, value) };
 }
 

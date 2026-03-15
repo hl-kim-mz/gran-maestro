@@ -20,12 +20,27 @@ function isObject(value: any): value is Record<string, any> {
 }
 
 function findMatches(obj: any, search: string, path: string[] = []): MatchItem[] {
+  if (Array.isArray(obj)) {
+    const results: MatchItem[] = [];
+
+    for (const [index, value] of obj.entries()) {
+      const currentPath = [...path, String(index)];
+      if (Array.isArray(value) || isObject(value)) {
+        results.push(...findMatches(value, search, currentPath));
+      } else if (String(value) === search) {
+        results.push({ path: currentPath, value });
+      }
+    }
+
+    return results;
+  }
+
   if (!isObject(obj)) return [];
   const results: MatchItem[] = [];
 
   for (const [key, value] of Object.entries(obj)) {
     const currentPath = [...path, key];
-    if (isObject(value)) {
+    if (Array.isArray(value) || isObject(value)) {
       results.push(...findMatches(value, search, currentPath));
     } else if (String(value) === search) {
       results.push({ path: currentPath, value });
