@@ -31,7 +31,7 @@
     "cli_default_ms": 300000,
     "cli_large_task_ms": 1800000,
     "pre_check_ms": 120000,
-    "merge_ms": 60000,
+    "merge_ms": 600000,
     "user_approval_ms": null,
     "dashboard_health_check_ms": 10000,
     "wait_files_ms": 600000
@@ -142,7 +142,7 @@
   },
   "collaborative_debug": {
     "finding_char_limit": 3000,
-    "merge_wait_ms": 60000,
+    "merge_wait_ms": 600000,
     "auto_trigger_from_request": true
   },
   "prereview": {
