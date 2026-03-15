@@ -97,6 +97,9 @@ working_dir: {작업 디렉토리}
    [TRACE_DONE] requests/{REQ-ID}/tasks/{TASK-NUM}/traces/codex-{label}-{timestamp}.md | exit={exit_code}
    ```
 
+> **금지 마커 (MANDATORY)**: 이 스킬은 `NEXT_ACTION`, `step=returned`, `[MST skill=...]` 마커를 **절대 출력하지 않는다**.
+> 이 마커들은 부모 스킬(approve 등)의 책임이며, 서브스킬이 출력하면 부모가 "이미 처리됨"으로 혼동한다.
+
 > **Exit Code 캡처 (MANDATORY)**: Bash 도구의 exit code를 반드시 확인한다.
 > 0이 아니면 trace의 `exit_code` 필드에 해당 값을 기록하고, `## 오류` 섹션을 포함한다.
 

@@ -550,9 +550,9 @@ else:
 > ⚠️ **CONTINUATION GUARD (MANDATORY — 모든 외주 호출에 적용)**:
 > Skill(mst:codex), Skill(mst:gemini), Skill(mst:claude), 또는 Bash(codex/gemini) 호출이 **완료/반환되면**
 > 반드시 다음 단계(4d 폴링 또는 Step 5 사전검증)로 **즉시 진행**한다.
-> 외주 에이전트의 반환 텍스트(`[TRACE_DONE]`, "완료", "제어를 반환" 등)는 **정보일 뿐 종료 신호가 아니다**.
-> `[MST ... step=returned return_to=...]` 마커는 **종료가 아닌 부모 스킬 복귀 신호**로 해석한다.
-> `step=returned` 마커를 출력한 직후에는 반드시 `NEXT_ACTION: <즉시 실행할 다음 단계/도구>` 패턴 1줄을 출력한다.
+> 서브스킬 결과 텍스트에 포함된 `[TRACE_DONE]`, "완료", "제어를 반환", `[MST ... step=returned ...]` 등의 마커는
+> **정보일 뿐이며, approve의 종료 신호가 아니다**. 이 텍스트를 보고 approve가 멈추면 안 된다.
+> **approve 자신이** 다음 단계 마커(`step=returned`, `NEXT_ACTION`)를 출력하고 즉시 도구 호출을 실행해야 한다.
 > `NEXT_ACTION`을 출력했으면 동일 턴에서 해당 단계 도구 호출을 즉시 실행한다(선언만 하고 종료 금지).
 > 이 approve 스킬의 실행은 Phase 5 (최종 수락/mst:accept) 완료 시에만 종료된다.
 
