@@ -15,8 +15,187 @@ import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
 import { TagInput } from '@/components/shared/TagInput';
 import { SetupWizardModal } from '@/components/shared/SetupWizardModal';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const HIDDEN_FIELDS = ['version', 'plugin_name', 'branding'];
+const AGENT_PROVIDERS = ['codex', 'gemini', 'claude'] as const;
+
+type AgentProvider = typeof AGENT_PROVIDERS[number];
+type AgentTier = 'premium' | 'economy';
+
+type WorkflowNodeKind = 'agent-matrix' | 'role-summary' | 'info';
+
+type WorkflowNode = {
+  id: string;
+  label: string;
+  description: string;
+  kind: WorkflowNodeKind;
+  agentsPath?: string[];
+  rolesPath?: string[];
+  enabledPath?: string[];
+  configPath?: string[];
+};
+
+type WorkflowPhase = {
+  id: string;
+  title: string;
+  subtitle: string;
+  nodes: WorkflowNode[];
+};
+
+type WorkflowAgentRow = {
+  provider: AgentProvider;
+  count: number;
+  tier: AgentTier;
+  editable: boolean;
+  mixedTier?: boolean;
+};
+
+type WorkflowRoleDetailRow = {
+  name: string;
+  enabled: boolean;
+  agent: string;
+  tier: string;
+};
+
+type WorkflowInfoFieldRow = {
+  key: string;
+  fullPath: string[];
+  value: any;
+  description?: string;
+};
+
+const WORKFLOW_INFO_FOCUS_FIELDS: Partial<Record<WorkflowNode['id'], string[]>> = {
+  stitch: ['enabled', 'auto_detect', 'auto_trigger', 'project_id', 'model_id', 'failure_policy'],
+  code_review: ['enabled', 'agents', 'agent_roster', 'parallel'],
+  collaborative_debug: ['finding_char_limit', 'merge_wait_ms', 'auto_trigger_from_request'],
+  'workflow.feedback': ['max_feedback_rounds'],
+};
+
+const WORKFLOW_PHASES: WorkflowPhase[] = [
+  {
+    id: 'phase-1',
+    title: 'Phase 1',
+    subtitle: '분석/계획',
+    nodes: [
+      {
+        id: 'exploration',
+        label: 'exploration',
+        description: '탐색 단계 에이전트 구성',
+        kind: 'agent-matrix',
+        agentsPath: ['explore', 'agents'],
+      },
+      {
+        id: 'ideation',
+        label: 'ideation',
+        description: '아이디어 수렴 단계 에이전트 구성',
+        kind: 'agent-matrix',
+        agentsPath: ['ideation', 'agents'],
+      },
+      {
+        id: 'discussion',
+        label: 'discussion',
+        description: '토론 단계 에이전트 구성',
+        kind: 'agent-matrix',
+        agentsPath: ['discussion', 'agents'],
+      },
+      {
+        id: 'prereview',
+        label: 'prereview',
+        description: '사전 검토 단계 에이전트 구성',
+        kind: 'agent-matrix',
+        agentsPath: ['prereview', 'agents'],
+      },
+    ],
+  },
+  {
+    id: 'phase-2',
+    title: 'Phase 2',
+    subtitle: '구현',
+    nodes: [
+      {
+        id: 'agent_assignments',
+        label: 'agent_assignments',
+        description: '도메인별 담당 에이전트 매핑',
+        kind: 'info',
+        configPath: ['agent_assignments'],
+      },
+      {
+        id: 'stitch',
+        label: 'stitch',
+        description: 'UI 설계 자동화 기능',
+        kind: 'info',
+        enabledPath: ['stitch', 'enabled'],
+        configPath: ['stitch'],
+      },
+    ],
+  },
+  {
+    id: 'phase-3',
+    title: 'Phase 3',
+    subtitle: '리뷰',
+    nodes: [
+      {
+        id: 'review.roles',
+        label: 'review.roles',
+        description: '리뷰 역할별 agent/tier 배정',
+        kind: 'role-summary',
+        rolesPath: ['review', 'roles'],
+      },
+      {
+        id: 'code_review',
+        label: 'code_review',
+        description: '코드 리뷰 자동화 기능',
+        kind: 'info',
+        enabledPath: ['code_review', 'enabled'],
+        configPath: ['code_review'],
+      },
+      {
+        id: 'plan_review.roles',
+        label: 'plan_review.roles',
+        description: '계획 리뷰 역할별 agent/tier 배정',
+        kind: 'role-summary',
+        rolesPath: ['plan_review', 'roles'],
+        enabledPath: ['plan_review', 'enabled'],
+      },
+    ],
+  },
+  {
+    id: 'phase-4',
+    title: 'Phase 4',
+    subtitle: '피드백',
+    nodes: [
+      {
+        id: 'debug',
+        label: 'debug',
+        description: '디버깅 단계 에이전트 구성',
+        kind: 'agent-matrix',
+        agentsPath: ['debug', 'agents'],
+      },
+      {
+        id: 'collaborative_debug',
+        label: 'collaborative_debug',
+        description: '협업 디버그 운영 설정',
+        kind: 'info',
+        configPath: ['collaborative_debug'],
+      },
+      {
+        id: 'workflow.feedback',
+        label: 'workflow.max_feedback_rounds',
+        description: '피드백 라운드 제어',
+        kind: 'info',
+        configPath: ['workflow'],
+      },
+    ],
+  },
+];
+
+const WORKFLOW_NODE_MAP: Record<string, WorkflowNode> = WORKFLOW_PHASES
+  .flatMap((phase) => phase.nodes)
+  .reduce<Record<string, WorkflowNode>>((acc, node) => {
+    acc[node.id] = node;
+    return acc;
+  }, {});
 
 type FieldCardProps = {
   fieldKey: string;
@@ -134,12 +313,52 @@ const FieldCard = React.memo(function FieldCard({
   );
 });
 
+function formatReadonlyValue(value: any): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+const ReadonlyFieldCard = React.memo(function ReadonlyFieldCard({
+  fieldKey,
+  value,
+  description,
+}: {
+  fieldKey: string;
+  value: any;
+  description?: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4 flex items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="text-sm font-semibold font-mono">{fieldKey}</div>
+          {description && <div className="text-xs text-muted-foreground">{description}</div>}
+        </div>
+        <div className="flex-1 max-w-md flex justify-end items-center">
+          <Input value={formatReadonlyValue(value)} readOnly className="text-left font-mono" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+
 function isObject(v: any) {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function isNumericIndex(key: string) {
   return /^\d+$/.test(key);
+}
+
+function isTier(value: unknown): value is AgentTier {
+  return value === 'premium' || value === 'economy';
 }
 
 function getNestedValueWithArrays(obj: any, path: string[]): any {
@@ -252,6 +471,173 @@ function getRoleSlotLabel(index: number) {
   return `slot_${index + 1}`;
 }
 
+function resolveDefaultTier(config: any, provider: AgentProvider): AgentTier {
+  const defaultTier = getNestedValueWithArrays(config, ['models', 'providers', provider, 'default_tier']);
+  return isTier(defaultTier) ? defaultTier : 'premium';
+}
+
+function normalizeAgentEntry(entry: any, defaultTier: AgentTier): { count: number; tier: AgentTier } {
+  if (typeof entry === 'number') {
+    return {
+      count: Number.isFinite(entry) ? Math.max(0, Math.trunc(entry)) : 0,
+      tier: defaultTier,
+    };
+  }
+
+  if (isObject(entry)) {
+    const rawCount = typeof entry.count === 'number' ? entry.count : 0;
+    const rawTier = isTier(entry.tier) ? entry.tier : defaultTier;
+    return {
+      count: Number.isFinite(rawCount) ? Math.max(0, Math.trunc(rawCount)) : 0,
+      tier: rawTier,
+    };
+  }
+
+  return { count: 0, tier: defaultTier };
+}
+
+function buildRowsFromAgentsPath(config: any, path: string[]): WorkflowAgentRow[] {
+  const source = getNestedValueWithArrays(config, path);
+  return AGENT_PROVIDERS.map((provider) => {
+    const fallbackTier = resolveDefaultTier(config, provider);
+    const normalized = normalizeAgentEntry(source?.[provider], fallbackTier);
+    return {
+      provider,
+      count: normalized.count,
+      tier: normalized.tier,
+      editable: true,
+    };
+  });
+}
+
+function buildRowsFromRolePath(config: any, path: string[]): WorkflowAgentRow[] {
+  const source = getNestedValueWithArrays(config, path);
+  const rows = AGENT_PROVIDERS.map((provider) => {
+    const fallbackTier = resolveDefaultTier(config, provider);
+    return {
+      provider,
+      count: 0,
+      tier: fallbackTier,
+      editable: false,
+      mixedTier: false,
+    };
+  });
+
+  if (!isObject(source)) {
+    return rows;
+  }
+
+  for (const rv of Object.values(source)) {
+    const roleValue = rv as Record<string, unknown>;
+    if (!isObject(roleValue)) continue;
+    if (roleValue.enabled === false) continue;
+
+    const roleAgent = roleValue.agent as string;
+    if (!AGENT_PROVIDERS.includes(roleAgent as AgentProvider)) continue;
+
+    const row = rows.find((item) => item.provider === roleAgent);
+    if (!row) continue;
+
+    row.count += 1;
+    if (isTier(roleValue.tier as string)) {
+      if (row.count === 1) {
+        row.tier = roleValue.tier as AgentTier;
+      } else if (row.tier !== roleValue.tier) {
+        row.mixedTier = true;
+      }
+    }
+  }
+
+  return rows;
+}
+
+function buildRoleDetailsFromRolePath(config: any, path: string[]): WorkflowRoleDetailRow[] {
+  const source = getNestedValueWithArrays(config, path);
+  if (!isObject(source)) {
+    return [];
+  }
+
+  return Object.entries(source).map(([name, rv]) => {
+    const roleValue = rv as Record<string, unknown>;
+    if (!isObject(roleValue)) {
+      return {
+        name,
+        enabled: false,
+        agent: '-',
+        tier: '-',
+      };
+    }
+
+    return {
+      name,
+      enabled: roleValue.enabled !== false,
+      agent: typeof roleValue.agent === 'string' ? roleValue.agent : '-',
+      tier: typeof roleValue.tier === 'string' ? roleValue.tier : '-',
+    };
+  });
+}
+
+function buildInfoFieldRows(config: any, node: WorkflowNode): WorkflowInfoFieldRow[] {
+  if (node.kind !== 'info' || !node.configPath) {
+    return [];
+  }
+
+  const sectionValue = getNestedValueWithArrays(config, node.configPath);
+  if (sectionValue === undefined) {
+    return [];
+  }
+
+  if (isObject(sectionValue)) {
+    const focusFields = WORKFLOW_INFO_FOCUS_FIELDS[node.id];
+    const keys = (focusFields?.length ? focusFields : Object.keys(sectionValue)).filter((key) => key in sectionValue);
+
+    return keys.map((key) => {
+      const fullPath = [...node.configPath!, key];
+      return {
+        key,
+        fullPath,
+        value: sectionValue[key],
+        description: getDescription(SETTING_DESCRIPTIONS[fullPath.join('.')]),
+      };
+    });
+  }
+
+  const fallbackKey = node.configPath[node.configPath.length - 1] ?? node.id;
+  return [
+    {
+      key: fallbackKey,
+      fullPath: [...node.configPath],
+      value: sectionValue,
+      description: getDescription(SETTING_DESCRIPTIONS[node.configPath.join('.')]),
+    },
+  ];
+}
+
+function isNodeEnabled(config: any, node: WorkflowNode): boolean {
+  if (!node.enabledPath) {
+    return true;
+  }
+
+  const value = getNestedValueWithArrays(config, node.enabledPath);
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return true;
+}
+
+function getNodeRows(config: any, node: WorkflowNode): WorkflowAgentRow[] | null {
+  if (node.kind === 'agent-matrix' && node.agentsPath) {
+    return buildRowsFromAgentsPath(config, node.agentsPath);
+  }
+
+  if (node.kind === 'role-summary' && node.rolesPath) {
+    return buildRowsFromRolePath(config, node.rolesPath);
+  }
+
+  return null;
+}
+
 export function SettingsView() {
   const { projectId, lastSseEvent } = useAppContext();
   const [merged, setMerged] = useState<any>(null);
@@ -263,6 +649,8 @@ export function SettingsView() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [openSections, setOpenSections] = useState<string[]>(['workflow']);
+  const [activeTab, setActiveTab] = useState<'workflow' | 'advanced'>('workflow');
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('ideation');
 
   useEffect(() => {
     if (!projectId) {
@@ -387,6 +775,38 @@ export function SettingsView() {
     setIsDirty(true);
   }
 
+  function handleWorkflowAgentChange(
+    node: WorkflowNode,
+    provider: AgentProvider,
+    field: 'count' | 'tier',
+    value: number | AgentTier
+  ) {
+    const agentsPath = node.agentsPath;
+    if (node.kind !== 'agent-matrix' || !agentsPath) {
+      return;
+    }
+
+    setMerged((current: any) => {
+      const source = getNestedValueWithArrays(current, agentsPath);
+      const currentEntry = source?.[provider];
+      const fallbackTier = resolveDefaultTier(current, provider);
+      const normalized = normalizeAgentEntry(currentEntry, fallbackTier);
+
+      const nextEntry = {
+        count: field === 'count' ? Math.max(0, Math.trunc(Number(value) || 0)) : normalized.count,
+        tier: field === 'tier' && isTier(value) ? value : normalized.tier,
+      };
+
+      const nextSection = {
+        ...(isObject(source) ? source : {}),
+        [provider]: nextEntry,
+      };
+
+      return deepSetWithArrays(current ?? {}, agentsPath, nextSection);
+    });
+    setIsDirty(true);
+  }
+
   function renderField(path: string[], key: string, value: any, depth = 0, label = key) {
     const indent = depth * 16;
     const fullPath = [...path, key];
@@ -508,23 +928,36 @@ export function SettingsView() {
   const firstAgentIndex = agentIndices.length > 0 ? agentIndices[0] : -1;
   const lastAgentIndex = agentIndices.length > 0 ? agentIndices[agentIndices.length - 1] : -1;
 
+  const selectedNode = WORKFLOW_NODE_MAP[selectedNodeId] ?? WORKFLOW_PHASES[0].nodes[0];
+  const selectedNodeRows = getNodeRows(merged, selectedNode);
+  const selectedRoleRows =
+    selectedNode.kind === 'role-summary' && selectedNode.rolesPath
+      ? buildRoleDetailsFromRolePath(merged, selectedNode.rolesPath)
+      : [];
+  const selectedInfoRows = selectedNode.kind === 'info' ? buildInfoFieldRows(merged, selectedNode) : [];
+  const selectedNodeEnabled = isNodeEnabled(merged, selectedNode);
+
   return (
     <div className="flex h-full overflow-hidden">
       <div className="flex-1 min-w-0 overflow-hidden">
         <ScrollArea className="h-full">
-          <div className="p-8 max-w-4xl mx-auto pb-20">
+          <div className="p-8 max-w-6xl mx-auto pb-20">
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h2 className="text-2xl font-bold">Settings</h2>
                 <p className="text-muted-foreground text-sm">System configuration and preferences.</p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setOpenSections(visibleSections.map(([key]) => key))} disabled={saving}>
-                  전부 열기
-                </Button>
-                <Button variant="outline" onClick={() => setOpenSections([])} disabled={saving}>
-                  전부 접기
-                </Button>
+                {activeTab === 'advanced' && (
+                  <>
+                    <Button variant="outline" onClick={() => setOpenSections(visibleSections.map(([key]) => key))} disabled={saving}>
+                      전부 열기
+                    </Button>
+                    <Button variant="outline" onClick={() => setOpenSections([])} disabled={saving}>
+                      전부 접기
+                    </Button>
+                  </>
+                )}
                 <Button
                   variant={panelOpen ? 'secondary' : 'outline'}
                   size="icon"
@@ -550,57 +983,274 @@ export function SettingsView() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="w-full space-y-4">
-                {visibleSections.map(([sectionKey, sectionData], index) => {
-                  const { fieldCount, modifiedCount } = getSectionCounts(sectionKey, sectionData);
-                  const isFirstAgent = index === firstAgentIndex;
+            <Tabs value={activeTab} onValueChange={(tab) => setActiveTab(tab as 'workflow' | 'advanced')}>
+              <TabsList>
+                <TabsTrigger value="workflow">워크플로우</TabsTrigger>
+                <TabsTrigger value="advanced">고급</TabsTrigger>
+              </TabsList>
 
-                  return (
-                    <React.Fragment key={sectionKey}>
-                      {isFirstAgent && (
-                        <div className="flex items-center gap-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          <div className="flex-1 h-px bg-border"></div>
-                          <span>에이전트 관련</span>
-                          <div className="flex-1 h-px bg-border"></div>
-                        </div>
-                      )}
-                      <AccordionItem value={sectionKey} className="border rounded-md bg-card shadow-sm">
-                      <AccordionTrigger className="py-2 px-3 text-sm font-bold uppercase tracking-wider hover:no-underline">
-                        <div className="flex items-center gap-2">
-                          {sectionKey}
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-                            {fieldCount}
+              <TabsContent value="workflow" className="mt-4">
+                <div className="grid grid-cols-[380px_minmax(0,1fr)] gap-6 items-start">
+                  <div className="rounded-lg border bg-card p-4">
+                    <div className="mb-4">
+                      <h3 className="text-sm font-semibold">Workflow Pipeline</h3>
+                      <p className="text-xs text-muted-foreground">Phase 1 → 4 흐름에서 단계를 선택하세요.</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      {WORKFLOW_PHASES.map((phase, index) => (
+                        <React.Fragment key={phase.id}>
+                          <div className="rounded-md border bg-background p-3">
+                            <div className="flex items-baseline justify-between mb-2">
+                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{phase.title}</div>
+                              <div className="text-xs text-muted-foreground">{phase.subtitle}</div>
+                            </div>
+                            <div className="space-y-2">
+                              {phase.nodes.map((node) => {
+                                const enabled = isNodeEnabled(merged, node);
+                                const selected = selectedNode.id === node.id;
+                                return (
+                                  <button
+                                    key={node.id}
+                                    type="button"
+                                    onClick={() => setSelectedNodeId(node.id)}
+                                    className={[
+                                      'w-full rounded-md border px-3 py-2 text-left transition-colors',
+                                      selected ? 'border-primary bg-primary/5' : 'border-border bg-card hover:bg-muted/40',
+                                      enabled ? '' : 'opacity-60 border-dashed',
+                                    ].join(' ')}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-mono text-xs">{node.label}</span>
+                                      {!enabled && (
+                                        <Badge variant="outline" className="text-[10px] border-dashed">
+                                          OFF
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {index < WORKFLOW_PHASES.length - 1 && (
+                            <div className="h-10 flex justify-center" aria-hidden>
+                              <svg width="24" height="40" viewBox="0 0 24 40" className="text-muted-foreground">
+                                <path d="M12 2 L12 30" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                                <path d="M8 27 L12 35 L16 27" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                              </svg>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border bg-card p-4">
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold font-mono">{selectedNode.label}</h3>
+                        {!selectedNodeEnabled && (
+                          <Badge variant="outline" className="text-[10px] border-dashed">
+                            OFF
                           </Badge>
-                          {modifiedCount > 0 && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-orange-600 border-orange-400 dark:text-orange-400 dark:border-orange-500">
-                              {modifiedCount} modified
-                            </Badge>
-                          )}
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{selectedNode.description}</p>
+                    </div>
+
+                    {selectedNode.kind === 'info' ? (
+                      selectedInfoRows.length > 0 ? (
+                        <div className="space-y-3">
+                          {selectedInfoRows.map((row) => (
+                            <ReadonlyFieldCard
+                              key={row.fullPath.join('.')}
+                              fieldKey={row.key}
+                              value={row.value}
+                              description={row.description}
+                            />
+                          ))}
+                          <p className="text-xs text-muted-foreground">
+                            이 노드는 주요 설정을 읽기 전용으로 표시합니다. 상세 편집은 고급 탭에서 가능합니다.
+                          </p>
                         </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="p-3 pt-0 border-t">
-                        <div className="grid grid-cols-1 gap-2 mt-3">
-                          {isObject(sectionData) ? (
-                            Object.entries(sectionData as object).map(([key, value]) =>
-                              renderField([sectionKey], key, value)
-                            )
-                          ) : (
-                            renderField([], sectionKey, sectionData)
-                          )}
+                      ) : (
+                        <div className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
+                          연결된 설정 경로에 표시할 값이 없습니다.
                         </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                    {index === lastAgentIndex && (
-                      <div className="flex items-center gap-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        <div className="flex-1 h-px bg-border"></div>
+                      )
+                    ) : selectedNodeRows ? (
+                      <div className="space-y-3">
+                        <div className="rounded-md border overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-muted/40">
+                              <tr>
+                                <th className="text-left px-3 py-2 text-xs font-semibold">Agent</th>
+                                <th className="text-left px-3 py-2 text-xs font-semibold">Count</th>
+                                <th className="text-left px-3 py-2 text-xs font-semibold">Tier</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {selectedNodeRows.map((row) => (
+                                <tr key={row.provider} className="border-t">
+                                  <td className="px-3 py-2 font-mono text-xs">{row.provider}</td>
+                                  <td className="px-3 py-2">
+                                    {row.editable ? (
+                                      <Input
+                                        defaultValue={row.count}
+                                        key={`${selectedNode.id}-${row.provider}-${row.count}`}
+                                        type="number"
+                                        min={0}
+                                        className="h-8 w-28"
+                                        onBlur={(event) => {
+                                          const parsed = Number(event.target.value);
+                                          handleWorkflowAgentChange(
+                                            selectedNode,
+                                            row.provider,
+                                            'count',
+                                            Number.isFinite(parsed) ? parsed : 0
+                                          );
+                                        }}
+                                        onKeyDown={(event) => {
+                                          if (event.key === 'Enter') {
+                                            (event.target as HTMLInputElement).blur();
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <Input value={row.count} readOnly className="h-8 w-28" />
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {row.editable ? (
+                                      <Select
+                                        value={row.tier}
+                                        onValueChange={(value) => handleWorkflowAgentChange(selectedNode, row.provider, 'tier', value as AgentTier)}
+                                      >
+                                        <SelectTrigger className="h-8 w-32 font-mono text-xs">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="premium" className="font-mono">premium</SelectItem>
+                                          <SelectItem value="economy" className="font-mono">economy</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <Input value={row.tier} readOnly className="h-8 w-32 font-mono text-xs" />
+                                        {row.mixedTier && (
+                                          <Badge variant="outline" className="text-[10px]">
+                                            mixed
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {selectedNode.kind === 'role-summary' && selectedRoleRows.length > 0 && (
+                          <div className="rounded-md border overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-muted/40">
+                                <tr>
+                                  <th className="text-left px-3 py-2 text-xs font-semibold">Role</th>
+                                  <th className="text-left px-3 py-2 text-xs font-semibold">Enabled</th>
+                                  <th className="text-left px-3 py-2 text-xs font-semibold">Agent</th>
+                                  <th className="text-left px-3 py-2 text-xs font-semibold">Tier</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedRoleRows.map((row) => (
+                                  <tr key={row.name} className="border-t">
+                                    <td className="px-3 py-2 font-mono text-xs">{row.name}</td>
+                                    <td className="px-3 py-2">
+                                      <Badge variant={row.enabled ? 'default' : 'outline'} className="text-[10px]">
+                                        {row.enabled ? 'ON' : 'OFF'}
+                                      </Badge>
+                                    </td>
+                                    <td className="px-3 py-2 font-mono text-xs">{row.agent}</td>
+                                    <td className="px-3 py-2 font-mono text-xs">{row.tier}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {selectedNode.kind !== 'agent-matrix' && (
+                          <p className="text-xs text-muted-foreground">
+                            이 노드는 역할 기반 설정을 요약 표시합니다. 상세 편집은 고급 탭에서 가능합니다.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
+                        이 단계는 Agent 매트릭스 테이블이 없는 설정입니다. 고급 탭에서 세부 값을 편집하세요.
                       </div>
                     )}
-                    </React.Fragment>
-                  );
-                })}
-              </Accordion>
-            </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="advanced" className="mt-4">
+                <div className="space-y-4">
+                  <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="w-full space-y-4">
+                    {visibleSections.map(([sectionKey, sectionData], index) => {
+                      const { fieldCount, modifiedCount } = getSectionCounts(sectionKey, sectionData);
+                      const isFirstAgent = index === firstAgentIndex;
+
+                      return (
+                        <React.Fragment key={sectionKey}>
+                          {isFirstAgent && (
+                            <div className="flex items-center gap-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                              <div className="flex-1 h-px bg-border"></div>
+                              <span>에이전트 관련</span>
+                              <div className="flex-1 h-px bg-border"></div>
+                            </div>
+                          )}
+                          <AccordionItem value={sectionKey} className="border rounded-md bg-card shadow-sm">
+                            <AccordionTrigger className="py-2 px-3 text-sm font-bold uppercase tracking-wider hover:no-underline">
+                              <div className="flex items-center gap-2">
+                                {sectionKey}
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                  {fieldCount}
+                                </Badge>
+                                {modifiedCount > 0 && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-orange-600 border-orange-400 dark:text-orange-400 dark:border-orange-500">
+                                    {modifiedCount} modified
+                                  </Badge>
+                                )}
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="p-3 pt-0 border-t">
+                              <div className="grid grid-cols-1 gap-2 mt-3">
+                                {isObject(sectionData) ? (
+                                  Object.entries(sectionData as object).map(([key, value]) =>
+                                    renderField([sectionKey], key, value)
+                                  )
+                                ) : (
+                                  renderField([], sectionKey, sectionData)
+                                )}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                          {index === lastAgentIndex && (
+                            <div className="flex items-center gap-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                              <div className="flex-1 h-px bg-border"></div>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </Accordion>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </ScrollArea>
       </div>
