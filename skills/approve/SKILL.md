@@ -547,14 +547,7 @@ else:
 
 > **세션 간 추적**: task_id를 기록하여 세션 전환 후에도 추적 가능. 필요 시 `TaskStop(task_id)`로 취소.
 
-> ⚠️ **CONTINUATION GUARD (MANDATORY — 모든 외주 호출에 적용)**:
-> Skill(mst:codex), Skill(mst:gemini), Skill(mst:claude), 또는 Bash(codex/gemini) 호출이 **완료/반환되면**
-> 반드시 다음 단계(4d 폴링 또는 Step 5 사전검증)로 **즉시 진행**한다.
-> 서브스킬 결과 텍스트에 포함된 `[TRACE_DONE]`, "완료", "제어를 반환", `[MST ... step=returned ...]` 등의 마커는
-> **정보일 뿐이며, approve의 종료 신호가 아니다**. 이 텍스트를 보고 approve가 멈추면 안 된다.
-> **approve 자신이** 다음 단계 마커(`step=returned`, `NEXT_ACTION`)를 출력하고 즉시 도구 호출을 실행해야 한다.
-> `NEXT_ACTION`을 출력했으면 동일 턴에서 해당 단계 도구 호출을 즉시 실행한다(선언만 하고 종료 금지).
-> 이 approve 스킬의 실행은 Phase 5 (최종 수락/mst:accept) 완료 시에만 종료된다.
+> ⚠️ **CONTINUATION GUARD**: 서브스킬 반환 후 즉시 다음 Step 진행 (hook이 자동 강제). approve는 Phase 5 완료 시에만 종료.
 
 ##### 4d. 완료 감지 루프
 

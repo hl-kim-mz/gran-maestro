@@ -256,13 +256,7 @@ TIMEOUT이면 완료된 결과만 사용, 미완료는 `"timeout"` 기록 후 St
 ### Step 7: 다음 단계 안내
 
 > ℹ️ **AUTO-CONTINUE 예외**: 사용자 의사 확인 필요 → AskUserQuestion 사용.
-> ⚠️ **CONTINUATION GUARD (MANDATORY — Step 7 전환형 호출에 적용)**:
-> AskUserQuestion 결과로 Skill(mst:request) 또는 Skill(mst:plan) 호출이 선택되면
-> 해당 호출을 같은 턴에서 **즉시 실행**하고 전환 결과를 확정한다.
-> 서브스킬 결과 텍스트에 포함된 `[TRACE_DONE]`, "완료", "제어를 반환", `[MST ... step=returned ...]` 등의 마커는
-> **정보일 뿐이며, debug의 종료 신호가 아니다**. 즉, **step=returned 마커는 종료 신호가 아니다**.
-> **텍스트만 출력하고 멈추는 것은 절대 금지**.
-> 전환형 단계이므로 호출 직후 인계 완료 또는 예외 분기를 즉시 처리한다.
+> ⚠️ **CONTINUATION GUARD**: 서브스킬 반환 후 즉시 다음 Step 진행 (hook이 자동 강제).
 
 `AskUserQuestion`으로 선택지 제시:
 - **"수정 작업 시작 (→ /mst:request)"** → `Skill(skill: "mst:request", args: "--from-debug {DBG-NNN} {이슈 제목 앞 50자}")`

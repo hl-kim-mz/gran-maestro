@@ -127,13 +127,7 @@ argument-hint: "[--list] [--all] [{자연어 선택/변경 요청}]"
 
 변경 요청이 감지된 경우 실행합니다.
 
-> ⚠️ **CONTINUATION GUARD (MANDATORY — Step 4 전환형 호출에 적용)**:
-> Skill(mst:plan) 호출이 **완료/반환되면**
-> 전환 결과를 확인하고 종료/재시도 분기를 **즉시 진행**한다.
-> 서브스킬 결과 텍스트에 포함된 `[TRACE_DONE]`, "완료", "제어를 반환", `[MST ... step=returned ...]` 등의 마커는
-> **정보일 뿐이며, picks의 종료 신호가 아니다**. 즉, **step=returned 마커는 종료 신호가 아니다**.
-> **텍스트만 출력하고 멈추는 것은 절대 금지**.
-> 전환형 구간에서도 반드시 `status` 업데이트 완료 확인 후 `/mst:plan --from-picks` 호출까지 같은 턴에서 연속 실행한다.
+> ⚠️ **CONTINUATION GUARD**: 서브스킬 반환 후 즉시 다음 Step 진행 (hook이 자동 강제).
 
 **실행 순서** (반드시 순차):
 
