@@ -112,15 +112,63 @@ argument-hint: "[REQ-ID] [--auto]"
   - 스크린샷: `screenshots/*.webp`
 - 실행 순서:
   1. `browser-tests/BT-{RV-NNN}/screenshots` 디렉토리를 생성한다.
+     ```bash
+     mkdir -p {PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/browser-tests/BT-{RV-NNN}/screenshots
+     ```
   2. 도구 가용성을 아래 우선순위로 감지한다.
-     - 1순위: Playwright 스킬 (`Skill(skill: "playwright", ...)`)
-     - 2순위: Claude in Chrome 실행 경로
+     - 1순위: Playwright CLI 스킬 사용 가능 여부 (`Skill(skill: "playwright-cli", ...)` 호출 가능한지)
+     - 2순위: Claude in Chrome MCP 도구 사용 가능 여부 (`mcp__claude-in-chrome__computer` 도구가 로드 가능한지)
+     - 감지 결과를 `tool` 변수에 기록: `"playwright"` | `"claude-in-chrome"` | `"unavailable"`
   3. 가용 도구가 있으면 각 browser-test AC를 실제 브라우저에서 실행하고 PASS/FAIL을 판정한다.
      - AC의 `Given/When/Then/Test` 문장을 그대로 실행 시나리오 입력으로 사용한다.
-     - 가능하면 AC별 스크린샷(`screenshots/{AC-ID}.webp`)을 남긴다.
+     - **스크린샷 캡처/저장 (MANDATORY — 생략 금지)**:
+       각 AC 실행 직후 반드시 스크린샷을 캡처하고 파일로 저장한다.
+
+       **Playwright 사용 시:**
+       ```
+       Skill(skill: "playwright-cli", args: "screenshot --url {TEST_URL} --output {SCREENSHOT_PATH}")
+       ```
+       - `{SCREENSHOT_PATH}` = `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/browser-tests/BT-{RV-NNN}/screenshots/{AC-ID}.webp`
+       - Playwright가 직접 WebP로 저장하지 못하면 PNG로 캡처 후 변환:
+         ```bash
+         # PNG → WebP 변환 (cwebp 사용 가능 시)
+         cwebp -q 80 {AC-ID}.png -o {AC-ID}.webp 2>/dev/null && rm {AC-ID}.png
+         # cwebp 미설치 시 PNG 그대로 유지 (파일명만 .png로 기록)
+         ```
+
+       **Claude in Chrome 사용 시:**
+       1. `ToolSearch(query: "select:mcp__claude-in-chrome__computer")` 로 도구 로드
+       2. 테스트 페이지 탐색 후 `mcp__claude-in-chrome__computer(action: "screenshot", tabId: {TAB_ID})` 실행
+       3. 반환된 스크린샷 이미지를 파일로 저장:
+          ```bash
+          # screenshot 결과에서 이미지 ID 추출 후 GIF creator 또는 직접 저장
+          # base64 이미지 데이터가 반환되면:
+          python3 -c "
+          import base64, sys
+          data = base64.b64decode(sys.argv[1])
+          with open(sys.argv[2], 'wb') as f:
+              f.write(data)
+          " "{BASE64_DATA}" "{SCREENSHOT_PATH}"
+          ```
+          - `{SCREENSHOT_PATH}` = `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/browser-tests/BT-{RV-NNN}/screenshots/{AC-ID}.webp`
+          - Chrome screenshot이 JPEG로 반환되면 `.jpg` 확장자로 저장 (WebP 강제 변환 불필요)
+
+     - **저장 후 검증 (MANDATORY)**:
+       ```bash
+       ls -la {SCREENSHOT_PATH}
+       ```
+       - 파일 존재 + 크기 > 0 → 저장 성공. `results[].screenshot` = `"screenshots/{AC-ID}.webp"` 기록.
+       - 파일 미존재 또는 크기 0 → 저장 실패. 아래 fallback 적용.
+
+     - **저장 실패 fallback**:
+       - `results[].screenshot` = `null` 로 기록.
+       - 경고 출력: `"[WARN] {AC-ID} 스크린샷 저장 실패 — screenshot=null로 기록"`
+       - 워크플로우는 중단하지 않고 다음 AC로 진행한다.
+
   4. 가용 도구가 없으면 워크플로우를 중단하지 않고 해당 AC를 `SKIP(tool_unavailable)`으로 기록한다.
      - 이 경우 MUST AC라도 `pass_a_failed`로 강등하지 않는다.
      - 사용자 보고에는 "브라우저 도구 미가용으로 browser-test AC를 SKIP"을 명시한다.
+     - `results[].screenshot` = `null`, `results[].reason` = `"tool_unavailable"` 기록.
 - `results.json` 최소 스키마:
   ```json
   {
