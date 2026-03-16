@@ -4,6 +4,22 @@
 
 ---
 
+## [0.54.2] — 2026-03-16
+
+### 새 기능
+
+- **브라우저 UI 테스트 워크플로우**: UI 변경 시 plan/request/review 스킬에서 브라우저 테스트 자동 연계 + 대시보드 탭 추가
+- **브라우저 테스트 스크린샷 캡처**: Playwright/Chrome별 캡처·저장·검증·fallback 절차 구체화
+
+### 개선
+
+- **AskUserQuestion 품질 개선**: 빈 선택지 금지, API 제약 반영(옵션 최대 4개), markdown 상세 설명 2유형 체계 도입
+- **콜스택 Hook 시스템 보강**: Pop 스킬명 검증, jq→python3 전환, TTL 좀비 제거, 디버그 로깅, 깊이 상한 추가
+- **콜스택 세션 안전성**: 세션 시작 시 스택+카운터 자동 초기화로 강제 중단 시 스택 오염 방지
+- **DONE 멈춤 근본 해결**: PreToolUse/PostToolUse push/pop + Stop hook depth 판단 + CONTINUATION GUARD 간소화
+
+---
+
 ## [0.54.1] — 2026-03-15
 
 ### 개선
