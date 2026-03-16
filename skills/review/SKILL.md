@@ -55,6 +55,9 @@ argument-hint: "[REQ-ID] [--auto]"
    - Plan AC는 사용자가 plan 단계에서 합의한 최종 목표이므로 **MUST 등급**으로 처리한다.
    - `source_plan` 미존재 또는 `## 인수 기준 초안` 섹션이 없으면 이 단계 skip (경고 없이 무시).
    - 수집된 Plan AC는 Spec AC와 **분리하여 관리** (Pass A에서 별도 섹션으로 검증).
+1-c. **Spec AC 타입 태그 파싱**: 각 AC 헤더의 타입 태그(`[automatable]`, `[manual]`, `[browser-test]`)를 파싱하여 `ac_type`으로 보관한다.
+   - 태그 누락 시 기본값은 `manual`.
+   - `[browser-test]`는 Pass A에서 실제 브라우저 실행 분기 대상으로 표시한다.
 2. **변경 파일 목록 수집**: `git log --name-only` 또는 `git diff <base>..HEAD --name-only` 기반으로 REQ 관련 변경 파일 목록 작성.
 3. **AC별 파일 매핑 준비**: 각 AC 항목과 관련 변경 파일 연결.
 4. **Intent lookup (비차단)**: 변경 파일 목록을 기반으로 관련 Intent를 조회한다.
@@ -99,6 +102,44 @@ argument-hint: "[REQ-ID] [--auto]"
 
 > 이 Step의 목적: AC 충족 여부를 확정해 Pass B 진입 가능성을 결정한다 / 핵심 출력물: `pass_a_result`, `failed_ac_ids`, `failure_class`, `evidence`
 > ⚠️ CRITICAL: MUST AC가 1개라도 FAIL이면 `pass_a_failed`로 즉시 전환하고 Pass B로 진행하지 않는다.
+
+#### browser-test AC 실행 분기 (Pass A 내부, MANDATORY)
+
+- 대상: Step 2에서 `ac_type == browser-test`로 파싱된 Spec AC.
+- 저장 경로(요청 단위):
+  - 디렉토리: `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/browser-tests/BT-{RV-NNN}/`
+  - 결과 JSON: `results.json`
+  - 스크린샷: `screenshots/*.webp`
+- 실행 순서:
+  1. `browser-tests/BT-{RV-NNN}/screenshots` 디렉토리를 생성한다.
+  2. 도구 가용성을 아래 우선순위로 감지한다.
+     - 1순위: Playwright 스킬 (`Skill(skill: "playwright", ...)`)
+     - 2순위: Claude in Chrome 실행 경로
+  3. 가용 도구가 있으면 각 browser-test AC를 실제 브라우저에서 실행하고 PASS/FAIL을 판정한다.
+     - AC의 `Given/When/Then/Test` 문장을 그대로 실행 시나리오 입력으로 사용한다.
+     - 가능하면 AC별 스크린샷(`screenshots/{AC-ID}.webp`)을 남긴다.
+  4. 가용 도구가 없으면 워크플로우를 중단하지 않고 해당 AC를 `SKIP(tool_unavailable)`으로 기록한다.
+     - 이 경우 MUST AC라도 `pass_a_failed`로 강등하지 않는다.
+     - 사용자 보고에는 "브라우저 도구 미가용으로 browser-test AC를 SKIP"을 명시한다.
+- `results.json` 최소 스키마:
+  ```json
+  {
+    "id": "BT-RV-NNN",
+    "rv_id": "RV-NNN",
+    "created_at": "<ISO8601>",
+    "tool": "playwright | claude-in-chrome | unavailable",
+    "summary": { "pass": 0, "fail": 0, "skip": 0 },
+    "results": [
+      {
+        "ac_id": "AC-001",
+        "status": "PASS | FAIL | SKIP",
+        "reason": "tool_unavailable | assertion_failed | ...",
+        "screenshot": "screenshots/AC-001.webp"
+      }
+    ]
+  }
+  ```
+- browser-test AC 실행 결과는 `ac-results.md` 근거란에도 반영한다.
 
 자세한 절차: `templates/protocols/pass-a-protocol.md` 참조
 

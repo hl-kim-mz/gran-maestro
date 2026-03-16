@@ -501,6 +501,12 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       > - **포함**: AC (완료 기준), 범위 경계, 제약 조건, 패턴 힌트, 시작점 1~3개, 의존성
       > - **제외**: 수정 파일 exhaustive 목록, 단계별 구현 절차, 에지케이스 사전 열거
       > 구체적인 구현 방법은 에이전트가 worktree를 직접 탐색하며 결정합니다.
+      - **AC 타입 확장 규칙 (MANDATORY)**:
+        - AC 헤더 타입 태그는 `[automatable]`, `[manual]`, `[browser-test]` 3가지를 허용한다.
+        - `browser-test`는 실제 브라우저 상호작용 검증이 필요한 AC에 사용한다 (UI 흐름, 클릭/입력, 화면 렌더링, 시각적 회귀 확인 등).
+        - plan의 `## 인수 기준 초안` 또는 대화 컨텍스트에 `브라우저 테스트`, `실제 브라우저`, `스크린샷 검증`, `Playwright`, `Claude in Chrome` 신호가 있으면 AC를 `[browser-test]`로 분류한다.
+        - `[browser-test]` AC도 기존 Given/When/Then/Test 형식을 그대로 유지한다.
+        - `Test:`는 실행 대상 URL/화면 + 핵심 사용자 동작 + 기대 결과를 포함해 작성한다 (예: `Playwright 또는 Claude in Chrome으로 /settings 진입 후 Save 클릭 시 성공 토스트 표시 확인`).
       - **`## §0 Context Manifest` 자동 채움 규칙 (MANDATORY)**:
         - Step d에서 수집한 `context_manifest_files`를 bullet 목록으로 삽입한다.
         - `--plan`이 없는 경우에도 동일 규칙 적용: Step 1c 탐색 결과 + 요청 분석 기반으로 `context_manifest_files`를 구성한다.

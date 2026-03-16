@@ -6,10 +6,14 @@ import { resolveBaseDir } from "../config.ts";
 const projectRequestsApi = new Hono();
 
 function isInvalidPathPart(value: string): boolean {
-  return !value || value.includes("..") || value.includes("/") || value.includes("\\");
+  return !value || value.includes("..") || value.includes("/") ||
+    value.includes("\\");
 }
 
-async function resolveRequestDir(baseDir: string, id: string): Promise<string | null> {
+async function resolveRequestDir(
+  baseDir: string,
+  id: string,
+): Promise<string | null> {
   const primary = `${baseDir}/requests/${id}`;
   if (await dirExists(primary)) return primary;
   const completed = `${baseDir}/requests/completed/${id}`;
@@ -25,18 +29,22 @@ function splitLogLines(text: string): string[] {
   return lines;
 }
 
-async function buildReqToPlanMap(baseDir: string): Promise<Map<string, string>> {
+async function buildReqToPlanMap(
+  baseDir: string,
+): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   const plansDir = `${baseDir}/plans`;
   if (!(await dirExists(plansDir))) return map;
 
-  const planDirs = (await listDirs(plansDir)).filter((dir) => /^PLN-/.test(dir));
+  const planDirs = (await listDirs(plansDir)).filter((dir) =>
+    /^PLN-/.test(dir)
+  );
   const planJsons = await Promise.all(
     planDirs.map((dir) =>
       readJsonFile<{ id?: string; linked_requests?: string[] }>(
-        `${plansDir}/${dir}/plan.json`
+        `${plansDir}/${dir}/plan.json`,
       )
-    )
+    ),
   );
   for (let i = 0; i < planDirs.length; i++) {
     const planJson = planJsons[i];
@@ -53,17 +61,22 @@ async function buildReqToPlanMap(baseDir: string): Promise<Map<string, string>> 
   return map;
 }
 
-async function findLinkedPlan(baseDir: string, reqId: string): Promise<string | null> {
+async function findLinkedPlan(
+  baseDir: string,
+  reqId: string,
+): Promise<string | null> {
   const plansDir = `${baseDir}/plans`;
   if (!(await dirExists(plansDir))) return null;
 
-  const planDirs = (await listDirs(plansDir)).filter((dir) => /^PLN-/.test(dir));
+  const planDirs = (await listDirs(plansDir)).filter((dir) =>
+    /^PLN-/.test(dir)
+  );
   const planJsons = await Promise.all(
     planDirs.map((dir) =>
       readJsonFile<{ id?: string; linked_requests?: string[] }>(
-        `${plansDir}/${dir}/plan.json`
+        `${plansDir}/${dir}/plan.json`,
       )
-    )
+    ),
   );
   for (let i = 0; i < planDirs.length; i++) {
     const planJson = planJsons[i];
@@ -79,33 +92,40 @@ async function buildReqToDesMap(baseDir: string): Promise<Map<string, string>> {
   const designsDir = `${baseDir}/designs`;
   if (!(await dirExists(designsDir))) return map;
 
-  const desDirs = (await listDirs(designsDir)).filter((dir) => /^DES-/.test(dir));
+  const desDirs = (await listDirs(designsDir)).filter((dir) =>
+    /^DES-/.test(dir)
+  );
   await Promise.all(
     desDirs.map(async (dir) => {
       const desJson = await readJsonFile<{ id?: string; linked_req?: string }>(
-        `${designsDir}/${dir}/design.json`
+        `${designsDir}/${dir}/design.json`,
       );
       if (!desJson?.linked_req) return;
       const desId = desJson.id || dir;
       if (!map.has(desJson.linked_req)) {
         map.set(desJson.linked_req, desId);
       }
-    })
+    }),
   );
   return map;
 }
 
-async function findLinkedDesign(baseDir: string, reqId: string): Promise<string | null> {
+async function findLinkedDesign(
+  baseDir: string,
+  reqId: string,
+): Promise<string | null> {
   const designsDir = `${baseDir}/designs`;
   if (!(await dirExists(designsDir))) return null;
 
-  const desDirs = (await listDirs(designsDir)).filter((dir) => /^DES-/.test(dir));
+  const desDirs = (await listDirs(designsDir)).filter((dir) =>
+    /^DES-/.test(dir)
+  );
   const desJsons = await Promise.all(
     desDirs.map((dir) =>
       readJsonFile<{ id?: string; linked_req?: string }>(
-        `${designsDir}/${dir}/design.json`
+        `${designsDir}/${dir}/design.json`,
       )
-    )
+    ),
   );
   for (let i = 0; i < desDirs.length; i++) {
     const desJson = desJsons[i];
@@ -115,6 +135,23 @@ async function findLinkedDesign(baseDir: string, reqId: string): Promise<string 
   }
   return null;
 }
+
+function toImageContentType(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  return "application/octet-stream";
+}
+
+type BrowserTestApiItem = Record<string, unknown> & {
+  id: string;
+  rv_id: string;
+  created_at: string | null;
+  screenshots: string[];
+  screenshot_urls: string[];
+};
 
 projectRequestsApi.get("/requests", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
@@ -133,11 +170,16 @@ projectRequestsApi.get("/requests", async (c) => {
   ]);
 
   const requests: RequestMeta[] = [];
-  const requestDirs = (await listDirs(requestsDir)).filter((dir) => /^REQ-/.test(dir));
-  const completedRequestDirs = (await listDirs(`${requestsDir}/completed`)).filter((dir) => /^REQ-/.test(dir));
+  const requestDirs = (await listDirs(requestsDir)).filter((dir) =>
+    /^REQ-/.test(dir)
+  );
+  const completedRequestDirs = (await listDirs(`${requestsDir}/completed`))
+    .filter((dir) => /^REQ-/.test(dir));
 
   for (const dir of requestDirs) {
-    const reqJson = await readJsonFile<RequestMeta>(`${requestsDir}/${dir}/request.json`);
+    const reqJson = await readJsonFile<RequestMeta>(
+      `${requestsDir}/${dir}/request.json`,
+    );
     if (reqJson) {
       const requestId = reqJson.id || dir;
       let createdAt = reqJson.created_at as string | undefined;
@@ -151,7 +193,9 @@ projectRequestsApi.get("/requests", async (c) => {
           // ignore fallback failure
         }
       }
-      const { review_iterations: _ri1, ...reqJsonRest1 } = reqJson as RequestMeta & { review_iterations?: unknown };
+      const { review_iterations: _ri1, ...reqJsonRest1 } = reqJson as
+        & RequestMeta
+        & { review_iterations?: unknown };
       requests.push({
         ...reqJsonRest1,
         id: requestId,
@@ -165,14 +209,16 @@ projectRequestsApi.get("/requests", async (c) => {
 
   for (const dir of completedRequestDirs) {
     const reqJson = await readJsonFile<RequestMeta>(
-      `${requestsDir}/completed/${dir}/request.json`
+      `${requestsDir}/completed/${dir}/request.json`,
     );
     if (reqJson) {
       const requestId = reqJson.id || dir;
       let createdAt = reqJson.created_at as string | undefined;
       if (!createdAt || createdAt.includes("T00:00:00")) {
         try {
-          const stat = await Deno.stat(`${requestsDir}/completed/${dir}/request.json`);
+          const stat = await Deno.stat(
+            `${requestsDir}/completed/${dir}/request.json`,
+          );
           if (stat.mtime) {
             createdAt = stat.mtime.toISOString();
           }
@@ -180,7 +226,9 @@ projectRequestsApi.get("/requests", async (c) => {
           // ignore fallback failure
         }
       }
-      const { review_iterations: _ri2, ...reqJsonRest2 } = reqJson as RequestMeta & { review_iterations?: unknown };
+      const { review_iterations: _ri2, ...reqJsonRest2 } = reqJson as
+        & RequestMeta
+        & { review_iterations?: unknown };
       requests.push({
         ...reqJsonRest2,
         id: requestId,
@@ -215,7 +263,7 @@ projectRequestsApi.get("/requests/:id", async (c) => {
   }
 
   const reqJson = await readJsonFile<RequestMeta>(
-    `${requestDir}/request.json`
+    `${requestDir}/request.json`,
   );
   if (!reqJson) {
     return c.json({ error: "Request not found" }, 404);
@@ -236,7 +284,9 @@ projectRequestsApi.get("/requests/:id", async (c) => {
       // ignore fallback failure
     }
   }
-  const { review_iterations: _ri, ...reqJsonRest } = reqJson as RequestMeta & { review_iterations?: unknown };
+  const { review_iterations: _ri, ...reqJsonRest } = reqJson as RequestMeta & {
+    review_iterations?: unknown;
+  };
   return c.json({
     ...reqJsonRest,
     id: requestId,
@@ -246,6 +296,135 @@ projectRequestsApi.get("/requests/:id", async (c) => {
     review_summary: reqJson.review_summary ?? null,
   });
 });
+
+// ─── API: Browser Tests ─────────────────────────────────────────────────────
+
+projectRequestsApi.get("/requests/:id/browser-tests", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const id = c.req.param("id");
+  if (isInvalidPathPart(id)) {
+    return c.json({ error: "Invalid request id" }, 400);
+  }
+
+  const requestDir = await resolveRequestDir(baseDir, id);
+  if (!requestDir) {
+    return c.json([]);
+  }
+
+  const browserTestsDir = `${requestDir}/browser-tests`;
+  if (!(await dirExists(browserTestsDir))) {
+    return c.json([]);
+  }
+
+  const projectId = c.req.param("projectId");
+  const prefix = projectId ? `/api/projects/${projectId}` : "/api";
+  const dirs = (await listDirs(browserTestsDir)).filter((dir) =>
+    /^BT-/.test(dir)
+  );
+
+  const browserTests = (await Promise.all(
+    dirs.map(async (dir) => {
+      const result = await readJsonFile<Record<string, unknown>>(
+        `${browserTestsDir}/${dir}/results.json`,
+      );
+      if (!result) {
+        return null;
+      }
+
+      const screenshotsDir = `${browserTestsDir}/${dir}/screenshots`;
+      const screenshots: string[] = [];
+      try {
+        for await (const entry of Deno.readDir(screenshotsDir)) {
+          if (entry.isFile) {
+            screenshots.push(entry.name);
+          }
+        }
+      } catch {
+        // screenshots directory may not exist
+      }
+      screenshots.sort();
+
+      const resultId = typeof result.id === "string" && result.id.length > 0
+        ? result.id
+        : dir;
+      const rvId = typeof result.rv_id === "string" && result.rv_id.length > 0
+        ? result.rv_id
+        : dir.replace(/^BT-/, "");
+      const createdAt = typeof result.created_at === "string"
+        ? result.created_at
+        : null;
+
+      return {
+        ...result,
+        id: resultId,
+        rv_id: rvId,
+        created_at: createdAt,
+        screenshots,
+        screenshot_urls: screenshots.map(
+          (file) =>
+            `${prefix}/requests/${id}/browser-tests/${dir}/screenshots/${
+              encodeURIComponent(file)
+            }`,
+        ),
+      };
+    }),
+  )).filter((item): item is BrowserTestApiItem => item !== null);
+
+  browserTests.sort((a, b) => {
+    const aTime = typeof a.created_at === "string" ? a.created_at : "";
+    const bTime = typeof b.created_at === "string" ? b.created_at : "";
+    return bTime.localeCompare(aTime);
+  });
+
+  return c.json(browserTests);
+});
+
+projectRequestsApi.get(
+  "/requests/:id/browser-tests/:btId/screenshots/:file",
+  async (c) => {
+    const baseDir = resolveBaseDir(c.req.param("projectId"));
+    if (!baseDir) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    const id = c.req.param("id");
+    const btId = c.req.param("btId");
+    const file = c.req.param("file");
+    if (
+      isInvalidPathPart(id) || isInvalidPathPart(btId) ||
+      isInvalidPathPart(file)
+    ) {
+      return c.json({ error: "Invalid browser-test path" }, 400);
+    }
+
+    const requestDir = await resolveRequestDir(baseDir, id);
+    if (!requestDir) {
+      return c.json({ error: "Request not found" }, 404);
+    }
+
+    const screenshotFile =
+      `${requestDir}/browser-tests/${btId}/screenshots/${file}`;
+    try {
+      const fileContent = await Deno.readFile(screenshotFile);
+      return new Response(fileContent, {
+        status: 200,
+        headers: {
+          "Content-Type": toImageContentType(file),
+          "Cache-Control": "no-cache",
+        },
+      });
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        return c.json({ error: "Screenshot not found" }, 404);
+      }
+      return c.json({ error: "Failed to read screenshot" }, 500);
+    }
+  },
+);
 
 // ─── API: Tasks ─────────────────────────────────────────────────────────────
 
@@ -274,16 +453,19 @@ projectRequestsApi.get("/requests/:id/tasks", async (c) => {
 
   for (const dir of dirs) {
     const statusJson = await readJsonFile<TaskMeta>(
-      `${tasksDir}/${dir}/status.json`
+      `${tasksDir}/${dir}/status.json`,
     );
     if (statusJson) {
       tasks.push({ ...statusJson, id: statusJson.id || dir, requestId: id });
     } else {
-      const reqJson = await readJsonFile<{ tasks?: Array<{ id: string; status?: string; title?: string }> }>(
-        `${requestDir}/request.json`
+      const reqJson = await readJsonFile<
+        { tasks?: Array<{ id: string; status?: string; title?: string }> }
+      >(
+        `${requestDir}/request.json`,
       );
       const taskFromReq = reqJson?.tasks?.find(
-        (t) => t.id === dir || t.id.endsWith(`-${dir}`) || t.id.endsWith(`/${dir}`)
+        (t) =>
+          t.id === dir || t.id.endsWith(`-${dir}`) || t.id.endsWith(`/${dir}`),
       );
       tasks.push({
         id: dir,
@@ -358,14 +540,19 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
     const reviewFiles: string[] = [];
     try {
       for await (const entry of Deno.readDir(taskDir)) {
-        if (entry.isFile && entry.name.startsWith("review-") && entry.name.endsWith(".md")) {
+        if (
+          entry.isFile && entry.name.startsWith("review-") &&
+          entry.name.endsWith(".md")
+        ) {
           reviewFiles.push(entry.name);
         }
       }
     } catch { /* ignore */ }
     reviewFiles.sort();
     if (reviewFiles.length > 0) {
-      review = await readTextFile(`${taskDir}/${reviewFiles[reviewFiles.length - 1]}`);
+      review = await readTextFile(
+        `${taskDir}/${reviewFiles[reviewFiles.length - 1]}`,
+      );
     }
   }
 
@@ -409,11 +596,11 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId", async (c) => {
     traces: traceFiles,
     worktree: worktreeMeta
       ? {
-          path: worktreeMeta.path ?? null,
-          branch: worktreeMeta.branch ?? null,
-          state: worktreeMeta.state ?? null,
-          last_activity_at: worktreeMeta.last_activity_at ?? null,
-        }
+        path: worktreeMeta.path ?? null,
+        branch: worktreeMeta.branch ?? null,
+        state: worktreeMeta.state ?? null,
+        last_activity_at: worktreeMeta.last_activity_at ?? null,
+      }
       : null,
   });
 });
@@ -437,7 +624,9 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/log-stream", async (c) => {
 
   const taskDir = `${requestDir}/tasks/${taskId}`;
   const lastEventIdHeader = c.req.header("Last-Event-ID");
-  const resumeOffset = lastEventIdHeader ? parseInt(lastEventIdHeader, 10) || null : null;
+  const resumeOffset = lastEventIdHeader
+    ? parseInt(lastEventIdHeader, 10) || null
+    : null;
   try {
     const taskStat = await Deno.stat(taskDir);
     if (!taskStat.isDirectory) {
@@ -466,7 +655,9 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/log-stream", async (c) => {
           keepAliveInterval = null;
         }
         if (watcher) {
-          try { watcher.close(); } catch { /* ignore */ }
+          try {
+            watcher.close();
+          } catch { /* ignore */ }
           watcher = null;
         }
       };
@@ -484,8 +675,8 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/log-stream", async (c) => {
         });
         controller.enqueue(
           encoder.encode(
-            `id: ${currentOffset}\nevent: log_line\ndata: ${payload}\n\n`
-          )
+            `id: ${currentOffset}\nevent: log_line\ndata: ${payload}\n\n`,
+          ),
         );
       };
 
@@ -529,9 +720,11 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/log-stream", async (c) => {
       const isRequestFinished = async (): Promise<boolean> => {
         try {
           const requestJson = await readJsonFile<{ status?: string }>(
-            `${requestDir}/request.json`
+            `${requestDir}/request.json`,
           );
-          return ["completed", "done", "failed"].includes(requestJson?.status ?? "");
+          return ["completed", "done", "failed"].includes(
+            requestJson?.status ?? "",
+          );
         } catch {
           return false;
         }
@@ -544,14 +737,22 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/log-stream", async (c) => {
             return;
           } catch {
             if (await isRequestFinished()) {
-              const noLogPayload = JSON.stringify({ type: "no_log", requestId, taskId });
-              controller.enqueue(encoder.encode(`event: no_log\ndata: ${noLogPayload}\n\n`));
+              const noLogPayload = JSON.stringify({
+                type: "no_log",
+                requestId,
+                taskId,
+              });
+              controller.enqueue(
+                encoder.encode(`event: no_log\ndata: ${noLogPayload}\n\n`),
+              );
               closed = true;
               return;
             }
             watcher = Deno.watchFs(taskDir);
             if (closed) {
-              try { watcher.close(); } catch { /* ignore */ }
+              try {
+                watcher.close();
+              } catch { /* ignore */ }
               watcher = null;
               return;
             }
@@ -559,7 +760,8 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/log-stream", async (c) => {
               for await (const event of watcher) {
                 if (closed) break;
                 const matched = event.paths.some((path) =>
-                  path.endsWith("/running.log") || path.endsWith("\\running.log")
+                  path.endsWith("/running.log") ||
+                  path.endsWith("\\running.log")
                 );
                 if (matched) {
                   break;
@@ -582,7 +784,8 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/log-stream", async (c) => {
             try {
               for await (const event of watched) {
                 const isRunningLog = event.paths.some((path: string) =>
-                  path.endsWith("/running.log") || path.endsWith("\\running.log")
+                  path.endsWith("/running.log") ||
+                  path.endsWith("\\running.log")
                 );
                 if (isRunningLog) {
                   resolve("event");
@@ -689,12 +892,19 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/traces", async (c) => {
     return c.json([]);
   }
 
-  const traceFiles: { name: string; agent: string; label: string; timestamp: string }[] = [];
+  const traceFiles: {
+    name: string;
+    agent: string;
+    label: string;
+    timestamp: string;
+  }[] = [];
   try {
     for await (const entry of Deno.readDir(tracesDir)) {
       if (entry.isFile && entry.name.endsWith(".md")) {
         // Parse filename: {agent}-{label}-{YYYYMMDD-HHmmss}.md
-        const match = entry.name.match(/^(codex|gemini|claude)-(.+)-(\d{8}-\d{6})\.md$/);
+        const match = entry.name.match(
+          /^(codex|gemini|claude)-(.+)-(\d{8}-\d{6})\.md$/,
+        );
         if (match) {
           traceFiles.push({
             name: entry.name,
@@ -720,33 +930,36 @@ projectRequestsApi.get("/requests/:id/tasks/:taskId/traces", async (c) => {
   return c.json(traceFiles);
 });
 
-projectRequestsApi.get("/requests/:id/tasks/:taskId/traces/:traceFile", async (c) => {
-  const baseDir = resolveBaseDir(c.req.param("projectId"));
-  if (!baseDir) {
-    return c.json({ error: "Project not found" }, 404);
-  }
+projectRequestsApi.get(
+  "/requests/:id/tasks/:taskId/traces/:traceFile",
+  async (c) => {
+    const baseDir = resolveBaseDir(c.req.param("projectId"));
+    if (!baseDir) {
+      return c.json({ error: "Project not found" }, 404);
+    }
 
-  const id = c.req.param("id");
-  const taskId = c.req.param("taskId");
-  const traceFile = c.req.param("traceFile");
-  const requestDir = await resolveRequestDir(baseDir, id);
-  if (!requestDir) {
-    return c.json({ error: "Trace file not found" }, 404);
-  }
+    const id = c.req.param("id");
+    const taskId = c.req.param("taskId");
+    const traceFile = c.req.param("traceFile");
+    const requestDir = await resolveRequestDir(baseDir, id);
+    if (!requestDir) {
+      return c.json({ error: "Trace file not found" }, 404);
+    }
 
-  // Prevent directory traversal
-  if (traceFile.includes("..") || traceFile.includes("/")) {
-    return c.json({ error: "Invalid trace file name" }, 400);
-  }
+    // Prevent directory traversal
+    if (traceFile.includes("..") || traceFile.includes("/")) {
+      return c.json({ error: "Invalid trace file name" }, 400);
+    }
 
-  const content = await readTextFile(
-    `${requestDir}/tasks/${taskId}/traces/${traceFile}`
-  );
-  if (content === null) {
-    return c.json({ error: "Trace file not found" }, 404);
-  }
+    const content = await readTextFile(
+      `${requestDir}/tasks/${taskId}/traces/${traceFile}`,
+    );
+    if (content === null) {
+      return c.json({ error: "Trace file not found" }, 404);
+    }
 
-  return c.json({ name: traceFile, content });
-});
+    return c.json({ name: traceFile, content });
+  },
+);
 
 export { projectRequestsApi };

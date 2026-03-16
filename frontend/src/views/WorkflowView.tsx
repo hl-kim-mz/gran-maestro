@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Terminal, Activity, GitBranch, ClipboardList, ArrowRight } from 'lucide-react';
+import { Terminal, Activity, GitBranch, ClipboardList, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { SessionCard } from '@/components/shared/SessionCard';
@@ -22,6 +22,60 @@ type LogStreamStatus = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
 interface ReviewSummary {
   iteration: number;
   status: "reviewing" | "gap_fixing" | "passed" | "limit_reached";
+}
+
+interface BrowserTestSummary {
+  pass?: number;
+  fail?: number;
+  skip?: number;
+}
+
+interface BrowserTestResult {
+  ac_id?: string;
+  status?: string;
+  reason?: string;
+  screenshot?: string;
+}
+
+interface BrowserTestItem {
+  id: string;
+  rv_id: string;
+  created_at: string | null;
+  tool?: string;
+  summary?: BrowserTestSummary;
+  results?: BrowserTestResult[];
+  screenshots: string[];
+  screenshot_urls: string[];
+}
+
+function formatTimestamp(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function getBrowserResultStatusClass(status: string): string {
+  const upper = status.toUpperCase();
+  if (upper === 'PASS') return 'bg-green-500 hover:bg-green-600 text-white border-none';
+  if (upper === 'FAIL') return 'bg-red-500 hover:bg-red-600 text-white border-none';
+  if (upper === 'SKIP') return 'text-amber-600 border-amber-400 dark:text-amber-400 dark:border-amber-500';
+  return '';
+}
+
+function resolveBrowserScreenshotUrl(
+  browserTest: BrowserTestItem,
+  screenshotPath: string | undefined,
+): string | null {
+  if (!screenshotPath) return null;
+  const normalized = screenshotPath.replace(/^screenshots[\\/]/, '');
+  const directIndex = browserTest.screenshots.findIndex((name) =>
+    name === normalized || name === screenshotPath
+  );
+  if (directIndex >= 0 && browserTest.screenshot_urls[directIndex]) {
+    return browserTest.screenshot_urls[directIndex];
+  }
+  const encoded = encodeURIComponent(normalized);
+  return browserTest.screenshot_urls.find((url) => url.endsWith(`/${encoded}`)) ?? null;
 }
 
 function getReviewBadge(summary: ReviewSummary | null | undefined): string | undefined {
@@ -47,6 +101,8 @@ export function WorkflowView() {
   const [logs, setLogs] = useState<string>('');
   const [streamStatus, setStreamStatus] = useState<LogStreamStatus>('idle');
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<any>(null);
+  const [browserTests, setBrowserTests] = useState<BrowserTestItem[]>([]);
+  const [browserTestsLoading, setBrowserTestsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -111,6 +167,20 @@ export function WorkflowView() {
     return result;
   }, [requests, searchValue, filterValue, sortValue]);
 
+  const groupedBrowserTests = useMemo(() => {
+    const grouped = new Map<string, BrowserTestItem[]>();
+    for (const browserTest of browserTests) {
+      const key = browserTest.rv_id || 'UNKNOWN';
+      const items = grouped.get(key);
+      if (items) {
+        items.push(browserTest);
+      } else {
+        grouped.set(key, [browserTest]);
+      }
+    }
+    return Array.from(grouped.entries()).map(([rvId, items]) => ({ rvId, items }));
+  }, [browserTests]);
+
   const fetchRequests = useCallback(async () => {
     try {
       const data = await apiFetch<any[]>('/api/requests', projectId);
@@ -138,6 +208,11 @@ export function WorkflowView() {
       if (selectedReq) {
         const updatedReq = data.find(req => req.id === selectedReq.id) ?? selectedReq;
         setSelectedReq(updatedReq);
+        const browserTestsData = await apiFetch<BrowserTestItem[]>(
+          `/api/requests/${updatedReq.id}/browser-tests`,
+          projectId
+        );
+        setBrowserTests(browserTestsData);
         const taskData = await apiFetch<any[]>(`/api/requests/${updatedReq.id}/tasks`, projectId);
         setTasks(taskData);
         if (selectedTask) {
@@ -215,6 +290,23 @@ export function WorkflowView() {
         }
       })
       .catch(() => setTasks([]));
+  }, [selectedReq?.id, projectId]);
+
+  useEffect(() => {
+    if (!selectedReq || !projectId) {
+      setBrowserTests([]);
+      setBrowserTestsLoading(false);
+      return;
+    }
+
+    setBrowserTestsLoading(true);
+    apiFetch<BrowserTestItem[]>(`/api/requests/${selectedReq.id}/browser-tests`, projectId)
+      .then((data) => setBrowserTests(data))
+      .catch((err) => {
+        console.error('Failed to fetch browser tests:', err);
+        setBrowserTests([]);
+      })
+      .finally(() => setBrowserTestsLoading(false));
   }, [selectedReq?.id, projectId]);
 
   // URL의 paramTaskId 변경 시 이미 로드된 tasks에서 선택
@@ -683,6 +775,9 @@ export function WorkflowView() {
                         <TabsTrigger value="traces" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
                           <Activity className="h-3 w-3 mr-2" /> Traces
                         </TabsTrigger>
+                        <TabsTrigger value="browser-tests" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-1">
+                          <ImageIcon className="h-3 w-3 mr-2" /> Browser Tests
+                        </TabsTrigger>
                       </TabsList>
                     </div>
                     <TabsContent value="info" className="flex-1 m-0 p-6 overflow-auto min-h-0">
@@ -862,6 +957,87 @@ export function WorkflowView() {
                           <pre className="mt-4 text-xs bg-gray-50 p-3 rounded overflow-auto whitespace-pre-wrap">{traceContent}</pre>
                         )}
                       </div>
+                    </TabsContent>
+                    <TabsContent value="browser-tests" className="flex-1 m-0 p-4 overflow-auto min-h-0">
+                      {browserTestsLoading ? (
+                        <div className="space-y-3">
+                          <Skeleton className="h-24 w-full" />
+                          <Skeleton className="h-24 w-full" />
+                        </div>
+                      ) : browserTests.length === 0 ? (
+                        <EmptyState
+                          icon={<ImageIcon className="h-8 w-8" />}
+                          title="브라우저 테스트가 실행되지 않았습니다"
+                          description="review 단계에서 browser-test AC가 실행되면 결과가 여기에 표시됩니다"
+                        />
+                      ) : (
+                        <div className="space-y-4">
+                          {groupedBrowserTests.map(({ rvId, items }) => (
+                            <section key={rvId} className="border rounded-md bg-muted/10 overflow-hidden">
+                              <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between gap-2">
+                                <div className="text-xs font-mono font-semibold">{rvId}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {formatTimestamp(items[0]?.created_at)}
+                                </div>
+                              </div>
+                              <div className="p-4 space-y-4">
+                                {items.map((browserTest) => (
+                                  <article key={browserTest.id} className="border rounded-md bg-background p-3 space-y-3">
+                                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                                      <span className="font-mono text-muted-foreground">{browserTest.id}</span>
+                                      <Badge variant="outline">{browserTest.tool ?? 'unknown'}</Badge>
+                                      <Badge variant="outline">PASS {browserTest.summary?.pass ?? 0}</Badge>
+                                      <Badge variant="outline">FAIL {browserTest.summary?.fail ?? 0}</Badge>
+                                      <Badge variant="outline">SKIP {browserTest.summary?.skip ?? 0}</Badge>
+                                    </div>
+                                    {!browserTest.results || browserTest.results.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground">표시할 AC 결과가 없습니다.</p>
+                                    ) : (
+                                      <div className="space-y-3">
+                                        {browserTest.results.map((result, index) => {
+                                          const acId = result.ac_id || `AC-${index + 1}`;
+                                          const status = (result.status || 'UNKNOWN').toUpperCase();
+                                          const screenshotUrl = resolveBrowserScreenshotUrl(browserTest, result.screenshot);
+                                          return (
+                                            <div key={`${browserTest.id}-${acId}-${index}`} className="border rounded-md p-3 space-y-2">
+                                              <div className="flex flex-wrap items-center gap-2">
+                                                <span className="text-xs font-mono">{acId}</span>
+                                                <Badge variant="outline" className={getBrowserResultStatusClass(status)}>
+                                                  {status}
+                                                </Badge>
+                                              </div>
+                                              {screenshotUrl ? (
+                                                <img
+                                                  src={screenshotUrl}
+                                                  alt={`${acId} screenshot`}
+                                                  className="max-h-80 w-auto rounded border"
+                                                  loading="lazy"
+                                                />
+                                              ) : (
+                                                <p className="text-xs text-muted-foreground">스크린샷 없음</p>
+                                              )}
+                                              {result.reason && (
+                                                <details className="rounded border bg-muted/20 p-2">
+                                                  <summary className="text-xs cursor-pointer text-muted-foreground">
+                                                    에러/사유 보기
+                                                  </summary>
+                                                  <pre className="mt-2 text-[11px] whitespace-pre-wrap">
+                                                    {result.reason}
+                                                  </pre>
+                                                </details>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </article>
+                                ))}
+                              </div>
+                            </section>
+                          ))}
+                        </div>
+                      )}
                     </TabsContent>
                   </Tabs>
                 ) : (
