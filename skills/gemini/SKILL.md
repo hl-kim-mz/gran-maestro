@@ -72,7 +72,7 @@ files_pattern: {--files 패턴, 없으면 생략}
 5. **부모 컨텍스트에는 아래 형식으로만 반환** (필요 시 Read 도구로 접근).
    **이 텍스트를 출력한 후 부모 컨텍스트에 제어를 반환한다 — 부모 스킬이 있으면 부모의 후속 단계가 이어진다. 추가 설명, 요약 등 부가 텍스트 출력 절대 금지**:
    ```
-   [TRACE_DONE] requests/{REQ-ID}/tasks/{TASK-NUM}/traces/gemini-{label}-{timestamp}.md | exit={exit_code}
+   [TRACE_SAVED] requests/{REQ-ID}/tasks/{TASK-NUM}/traces/gemini-{label}-{timestamp}.md | exit={exit_code} — 부모 스킬의 다음 단계를 계속 진행하세요.
    ```
 
 > **금지 마커 (MANDATORY)**: 이 스킬은 `NEXT_ACTION`, `step=returned`, `[MST skill=...]` 마커를 **절대 출력하지 않는다**.

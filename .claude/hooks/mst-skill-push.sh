@@ -101,6 +101,11 @@ except Exception:
 if not isinstance(data, list):
     data = []
 
+# Touch all existing frames to keep parents alive
+for frame in data:
+    if isinstance(frame, dict):
+        frame["pushed_at"] = timestamp
+
 data.append({"skill": skill, "pushed_at": timestamp})
 if len(data) > max_depth:
     data = data[-max_depth:]
