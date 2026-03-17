@@ -469,6 +469,28 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - 그 외(새 화면 추가/약한 신호): approve Phase 2.5에서 제안, 이 단계 skip
    h-0.5. **Assigned Agent 기본값 보관**: spec.md 작성 직전, `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `workflow.default_agent` 값을 읽어 Assigned Agent 필드의 기본값으로 설정한다. `templates/spec.md`의 Decision Tree(0~3단계)는 이 기본값의 override 조건으로만 동작한다. config 미참조 시 `claude-dev` 자동 선택은 금지. `config.resolved.json`이 없으면 `templates/defaults/config.json`의 `agent_assignments`를 fallback으로 Read한다. 이때 `workflow.default_agent`도 `templates/defaults/config.json`에서 함께 Read하여 DEFAULT_AGENT로 사용한다.
    h-0.6. **Intent Context Load (MANDATORY)**:
+      - `{PROJECT_ROOT}/.gran-maestro/request-context.md`를 반드시 Read한다.
+        - 파일이 없으면 아래 초기 템플릿으로 생성 후 즉시 Read한다 (비차단):
+          ```markdown
+          # Request Q&A 선호 패턴
+          _마지막 갱신: 없음 (초기 상태)_
+          _세션 수: 0_
+          _schema_version: 1_
+
+          > 아직 선호 패턴이 기록되지 않았습니다. 충분한 Q&A 세션 후 자동으로 채워집니다.
+
+          ## 선호 패턴 (Preference Table)
+          | id | domain | type | statement | weight | freq | last_seen | tags |
+          |----|--------|------|-----------|--------|------|-----------|------|
+
+          ## Prompt Hints
+          (패턴 축적 후 자동 생성됩니다)
+          ```
+      - `request-context.md`에서 현재 요청과 관련된 패턴 최대 3개를 `request_preference_hints`로 추출한다.
+      - 이후 request 스킬의 모든 `AskUserQuestion`(재질문/에스컬레이션 포함)에서 과거 선호를 `description`에 명시적으로 인용한다.
+        - 권장 형식: `이전에 "{statement}"를 선호하셨습니다. 이번에도 동일하게 적용할까요?`
+        - `freq` 숫자 직접 인용 금지 (경향 문장만 사용).
+      - 사용자가 인용 선호를 반박하면 해당 statement를 `request_disputed_preferences`에 수집하고 Step 6의 요약 트리거 입력으로 전달한다.
       - `intent_fidelity.enabled` 값을 먼저 확인한다.
         - 1순위: `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `intent_fidelity.enabled`
         - 2순위 fallback: `templates/defaults/config.json`의 `intent_fidelity.enabled`
@@ -667,6 +689,19 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
    - 자율 모드: `/mst:approve -a REQ-NNN` (이후 단계를 중간 승인 없이 자동 실행)
    - **[필수] 할당 에이전트 보고**: `[할당 예정] REQ-NNN → {agent명} ({provider})` 형식으로 명시 (다중 REQ 시 개별 명시)
    - ⚠️ `/mst:approve` 수신 전까지: 코드 수정·파일 편집·커밋 전면 금지
+   - **Q&A 선호 요약 백그라운드 트리거 (MANDATORY, 비차단)**:
+     - spec.md 저장 완료 직후 아래 입력으로 백그라운드 agent 1회 호출 (`run_in_background: true`)
+       - `{PROJECT_ROOT}/.gran-maestro/qa-raw/REQ-NNN.jsonl`
+       - `{PROJECT_ROOT}/.gran-maestro/request-context.md`
+     - 입력 파일이 없으면 warn 후 skip (차단 금지)
+     - 갱신 규칙:
+       1. Preference Table을 Source of Truth로 유지 (`id/domain/type/statement/weight/freq/last_seen/tags`)
+       2. 강한 표현(절대/반드시/싫어/금지 등) 감지 시 `weight=HIGH` 자동 부여
+       3. `request_disputed_preferences`에는 `[DISPUTED]` 태그 반영
+       4. Prompt Hints는 Table 기반 파생으로 재생성, 빈도 숫자 직접 인용 금지
+       5. 200줄 초과 시 150줄로 압축 (`[DISPUTED]` 우선 제거, `HIGH` 보호)
+     - 예시 호출: `Task(subagent_type: "general-purpose", run_in_background: true, prompt: "{REQ-NNN QA 요약 프롬프트}")`
+     - 실패 시 warn만 출력하고 승인 안내 흐름을 계속 진행한다
    - `auto_approve=true` 상태에서는 승인 단계를 스킵하고 `Skill(skill: "mst:approve", args: "-a REQ-NNN")`로 자동 진입한다 (`-a` 생략 금지)
    - **세션 중 자율 모드 전환**: spec 요약 표시 후 대기 중 사용자가 "auto로", "자율 모드로", "-a로" 등을 입력하면 `/mst:approve -a REQ-NNN`으로 자동 진입한다
 

@@ -24,6 +24,15 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/mst-qa-capture.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Skill",
         "hooks": [
           {
