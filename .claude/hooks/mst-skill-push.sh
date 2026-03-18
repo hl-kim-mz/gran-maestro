@@ -4,8 +4,9 @@ set -euo pipefail
 # PreToolUse hook — Skill(mst:*) 호출 시 콜스택에 push
 # stdin: Claude Code PreToolUse JSON (tool_name, tool_input 등)
 
-STACK_FILE="/tmp/mst-call-stack.json"
-DEBUG_LOG_FILE="/tmp/mst-hook-debug.log"
+STACK_FILE="/tmp/mst-call-stack-${PPID}.json"
+PENDING_FILE="/tmp/mst-pending-continuation-${PPID}"
+DEBUG_LOG_FILE="/tmp/mst-hook-debug-${PPID}.log"
 INPUT="$(cat || true)"
 
 debug_log() {
@@ -50,6 +51,9 @@ except Exception:
 if [ "$TOOL_NAME" != "Skill" ]; then
   exit 0
 fi
+
+# Skill 호출은 부모 복귀 이후 "다음 행동 진행" 신호로 간주하므로 pending 플래그 제거
+rm -f "$PENDING_FILE" "${PENDING_FILE}.tmp" 2>/dev/null || true
 
 # tool_input.skill에서 스킬명 추출
 SKILL_NAME="$(printf '%s' "$INPUT" | python3 -c 'import json, sys
