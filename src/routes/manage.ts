@@ -83,15 +83,38 @@ else:
 }
 
 async function resolveItemDir(baseDir: string, id: string): Promise<string | null> {
-  const candidates = [
-    `requests/${id}`,
-    `requests/completed/${id}`,
-    `plans/${id}`,
-    `debug/${id}`,
-    `ideation/${id}`,
-    `discussion/${id}`,
-    `explore/${id}`,
-  ];
+  const targetType = getTargetType(id);
+  let candidates: string[];
+  if (targetType === "request") {
+    candidates = [`requests/${id}`, `requests/completed/${id}`];
+  } else if (targetType === "plan") {
+    candidates = [`plans/${id}`, `plans/completed/${id}`];
+  } else if (targetType === "session") {
+    if (id.startsWith("DBG-")) {
+      candidates = [`debug/${id}`, `debug/completed/${id}`];
+    } else if (id.startsWith("IDN-")) {
+      candidates = [`ideation/${id}`, `ideation/completed/${id}`];
+    } else {
+      candidates = [`discussion/${id}`, `discussion/completed/${id}`];
+    }
+  } else if (targetType === "explore") {
+    candidates = [`explore/${id}`, `explore/completed/${id}`];
+  } else {
+    candidates = [
+      `requests/${id}`,
+      `requests/completed/${id}`,
+      `plans/${id}`,
+      `plans/completed/${id}`,
+      `debug/${id}`,
+      `debug/completed/${id}`,
+      `ideation/${id}`,
+      `ideation/completed/${id}`,
+      `discussion/${id}`,
+      `discussion/completed/${id}`,
+      `explore/${id}`,
+      `explore/completed/${id}`,
+    ];
+  }
 
   for (const candidate of candidates) {
     if (await dirExists(`${baseDir}/${candidate}`)) {
@@ -182,11 +205,17 @@ projectManageApi.post("/manage/backup", async (c) => {
   }
 
   const skipped: string[] = [];
+  const unsupported: string[] = [];
   const itemDirs: string[] = [];
 
   for (const rawId of body.ids) {
     if (typeof rawId !== "string" || isInvalidPathPart(rawId)) {
       skipped.push(String(rawId));
+      continue;
+    }
+
+    if (!getTargetType(rawId)) {
+      unsupported.push(rawId);
       continue;
     }
 
@@ -199,7 +228,7 @@ projectManageApi.post("/manage/backup", async (c) => {
   }
 
   if (itemDirs.length === 0) {
-    return c.json({ error: "No valid ids", skipped }, 400);
+    return c.json({ error: "No valid ids", skipped, unsupported }, 400);
   }
 
   const zipName = `gran-maestro-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;

@@ -76,6 +76,7 @@ export function PlansView() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBackingUp, setIsBackingUp] = useState(false);
 
   const { sidebarWidth, isResizing, startResizing, sidebarRef } = useResizableSidebar({
     defaultWidth: 300,
@@ -303,6 +304,8 @@ export function PlansView() {
   };
 
   const handleBackup = async () => {
+    if (isBackingUp) return;
+    setIsBackingUp(true);
     try {
       const resolvedPath = projectId
         ? `/api/projects/${projectId}/manage/backup`
@@ -312,7 +315,20 @@ export function PlansView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedIds }),
       });
-      if (!response.ok) throw new Error(`백업 실패: ${response.status}`);
+      if (!response.ok) {
+        let errorMessage = `백업 실패: ${response.status}`;
+        try {
+          const errorBody = await response.json() as { error?: string; detail?: string };
+          if (errorBody.error) {
+            errorMessage = errorBody.detail
+              ? `백업 실패: ${errorBody.error} (${errorBody.detail})`
+              : `백업 실패: ${errorBody.error}`;
+          }
+        } catch {
+          // ignore non-JSON error body
+        }
+        throw new Error(errorMessage);
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -322,6 +338,9 @@ export function PlansView() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('백업 실패:', err);
+      alert(err instanceof Error ? err.message : '백업 실패');
+    } finally {
+      setIsBackingUp(false);
     }
   };
 
@@ -388,6 +407,7 @@ export function PlansView() {
               itemType="plan"
               onToggleEditMode={() => { setIsEditMode(v => !v); setSelectedIds([]); }}
               onStatusChange={handleStatusChange}
+              isBackingUp={isBackingUp}
               onBackup={handleBackup}
               onCancel={() => { setIsEditMode(false); setSelectedIds([]); }}
             />

@@ -14,6 +14,7 @@ interface EditModeToolbarProps {
   isEditMode: boolean
   selectedIds: string[]
   itemType: ItemType
+  isBackingUp?: boolean
   onToggleEditMode: () => void
   onStatusChange: (targetStatus: string) => void
   onBackup: () => void
@@ -30,6 +31,7 @@ export function EditModeToolbar({
   isEditMode,
   selectedIds,
   itemType,
+  isBackingUp = false,
   onToggleEditMode,
   onStatusChange,
   onBackup,
@@ -76,10 +78,10 @@ export function EditModeToolbar({
       <Button
         size="sm"
         variant="outline"
-        disabled={selectedIds.length === 0}
+        disabled={selectedIds.length === 0 || isBackingUp}
         onClick={onBackup}
       >
-        백업
+        {isBackingUp ? "백업 중..." : "백업"}
       </Button>
       <Button size="sm" variant="ghost" onClick={onCancel}>
         취소
