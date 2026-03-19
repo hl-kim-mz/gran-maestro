@@ -24,6 +24,10 @@ argument-hint: "{문서 주제 또는 작성하려는 문서 설명}"
 
 **그 외 모든 경로(스킬 파일, 소스 코드, 설정 파일 등)에 대한 Write/Edit는 금지**합니다.
 
+> **참고**: `python3 {PLUGIN_ROOT}/scripts/mst.py` 명령은 Bash 도구를 통해 실행되므로
+> 위 Write/Edit 제한의 적용을 받지 않습니다. 스크립트가 갱신하는 파일(counter.json, intent 저장소 등)은
+> Bash 실행의 부수 효과로 허용됩니다.
+
 ## 스킬 실행 마커 (MANDATORY)
 
 - 모든 응답의 첫 줄 또는 각 Step 시작 줄에 아래 마커를 출력합니다.
@@ -70,7 +74,7 @@ argument-hint: "{문서 주제 또는 작성하려는 문서 설명}"
 1. `{PROJECT_ROOT}/.gran-maestro/plans/` 확인, 없으면 생성
 2. PLN 채번
    - 우선: `python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type pln`
-   - fallback: `plans/PLN-*/plan.json` 스캔 후 최대 번호 + 1
+   - fallback: `{PROJECT_ROOT}/.gran-maestro/plans/PLN-*/plan.json` 스캔 후 최대 번호 + 1
 3. `{PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/` 생성
 4. 타임스탬프 취득
 
@@ -130,6 +134,7 @@ argument-hint: "{문서 주제 또는 작성하려는 문서 설명}"
 3. 선호 패턴 표에서 현재 주제 관련 힌트 최대 3개를 추출
 4. Step 2~4의 모든 `AskUserQuestion` description에 선호를 인용
 5. 사용자가 선호를 반박하면 `disputed_preferences`에 수집
+   - (SHOULD — 기존 `/mst:plan`과 동일 패턴, 생략 시 기능 저하 없음)
 
 #### 목적/독자/결과물 정제
 
@@ -148,7 +153,9 @@ argument-hint: "{문서 주제 또는 작성하려는 문서 설명}"
 
 - `AskUserQuestion` 없이 PM 자율 결정
 - 항목별 confidence 평가 후 아래 규칙 적용
-  - `confidence >= CONFIDENCE_THRESHOLD`: PM 자율 결정 + 즉시 로그 append
+  - 모든 분기 공통: 결정 직후 `auto-decisions.md`에 즉시 행 추가
+    - `| {항목명} | {결정값} | {confidence:.2f} | discussion 결과 |`
+  - `confidence >= CONFIDENCE_THRESHOLD`: PM 자율 결정
   - `0.4 <= confidence < CONFIDENCE_THRESHOLD`: `Skill(skill: "mst:discussion", args: "{항목} --from-plan --auto")` 후 반영
   - `confidence < 0.4`: WebSearch 선행 후 confidence 재평가, 필요 시 discussion, 최종 안전안 결정
 
@@ -250,13 +257,16 @@ argument-hint: "{문서 주제 또는 작성하려는 문서 설명}"
    - 권장 섹션: 리스크, 제외 범위, 참고 링크, Intent (JTBD)
 2. 저장 액션 결정
    - `AUTO_MODE=false`: `AskUserQuestion`으로 아래 중 선택
-     - 저장하고 `/mst:request` 실행
-     - 저장하고 `/mst:request -a` 실행
-     - 저장만 하기
-     - 수정 후 진행
-   - `AUTO_MODE=true`: `AskUserQuestion` 없이 "저장하고 /mst:request 실행" 경로를 기본값으로 즉시 진행
+     - 저장하고 `/mst:request` 실행 (저장 후 `/mst:request` 호출)
+     - 저장하고 `/mst:request -a` 실행 (저장 후 `/mst:request -a` 호출)
+     - 저장만 하기 (`/mst:request` 호출 없음)
+     - 수정 후 진행 (초안 수정 후 Step 6 반복, `/mst:request` 호출 없음)
+   - `AUTO_MODE=true`: `AskUserQuestion` 없이 "저장하고 `/mst:request` 실행" 경로를 기본값으로 즉시 진행
 3. `plan.md` 저장 후 `plan.json` 보강
    - `type: "doc"` 유지 확인
+   - `plan.json`의 `type: "doc"` 필드는 이 스킬로 생성된 plan임을 나타내는 필수 식별자
+   - downstream(`/mst:request`)이 plan.json의 type 필드를 참조하여 문서/코드 plan을 구분할 수 있음
+   - plan.md 본문에는 별도 type 메타데이터를 기입하지 않음 (plan.json이 단일 진실 소스)
    - 제목/상태/연계 필드 업데이트
 4. Intent 자동 생성 (비차단)
 
@@ -272,14 +282,18 @@ argument-hint: "{문서 주제 또는 작성하려는 문서 설명}"
    - `## Intent (JTBD)` 섹션 없으면 skip
    - 실패 시 warn만 출력
 
-5. `/mst:request` 연계
-   - 일반: `Skill(skill: "mst:request", args: "--plan PLN-NNN {문서 주제}")`
-   - 자율: `Skill(skill: "mst:request", args: "--plan PLN-NNN -a {문서 주제}")`
+5. `/mst:request` 연계 (저장 액션 조건부)
+   - "저장하고 `/mst:request` 실행" 선택 또는 `AUTO_MODE=true` 기본 경로일 때만 호출
+     - `Skill(skill: "mst:request", args: "--plan PLN-NNN {문서 주제}")`
+   - "저장하고 `/mst:request -a` 실행" 선택일 때만 호출
+     - `Skill(skill: "mst:request", args: "--plan PLN-NNN -a {문서 주제}")`
+   - "저장만 하기" 또는 "수정 후 진행" 선택 시 `/mst:request`를 호출하지 않음
 
-6. Q&A 선호 요약 백그라운드 트리거 (MANDATORY, 비차단)
+6. Q&A 선호 요약 백그라운드 트리거 (SHOULD, 비차단)
    - 입력: `{PROJECT_ROOT}/.gran-maestro/qa-raw/PLN-NNN.jsonl`, `{PROJECT_ROOT}/.gran-maestro/plan-context.md`
    - 입력 파일이 없으면 warn 후 skip
    - 백그라운드 에이전트 1회 호출(`run_in_background: true`)로 `plan-context.md` 갱신
+   - 예시 호출: `Task(subagent_type: "general-purpose", run_in_background: true, prompt: "{PLN-NNN QA 요약 프롬프트}")`
    - 갱신 규칙
      - Preference Table을 Source of Truth로 유지
      - 강한 표현은 `weight=HIGH`
