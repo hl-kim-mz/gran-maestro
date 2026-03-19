@@ -68,7 +68,7 @@ Step 3: 에이전트 확정
 <!-- AC 형식 안내:
   각 AC는 아래 형식으로 작성합니다.
 
-  #### AC-NNN [MUST/SHOULD] [automatable/manual]
+  #### AC-NNN [MUST/SHOULD] [automatable/manual/browser-test] [선택적 보조 태그...]
   Given: {사전조건}
   When: {행동}
   Then: {관찰 가능한 기대 결과}
@@ -78,6 +78,19 @@ Step 3: 에이전트 확정
   - [SHOULD]      — 미충족 시 경고, PM 재량으로 통과 가능
   - [automatable] — CI/스크립트로 자동 검증 가능
   - [manual]      — 육안·수동 검증 필요
+  - [browser-test] — 실제 브라우저 상호작용 검증 필요
+
+  테스트 유형 보조 태그 (해당 시 추가):
+  - [build-check]  — 빌드 성공 검증 (보조 태그)
+  - [lint-check]   — 린트/포맷 검증 (보조 태그)
+  - [unit-test]    — 단위 테스트 (보조 태그)
+  - [integration]  — 통합 테스트 (보조 태그)
+  - [e2e-browser]  — E2E 브라우저 테스트 (보조 태그)
+  - [api-test]     — API 테스트 (보조 태그)
+  - [visual]       — 비주얼 리그레션 (보조 태그)
+  - [performance]  — 성능 테스트 (보조 태그)
+  보조 태그는 기존 [automatable]/[manual]/[browser-test] 뒤에 추가한다.
+  예: [MUST] [automatable] [unit-test]
 
   필수 AC 카테고리 — 해당 조건 충족 시 반드시 포함 (생략 금지):
   ① 기능 요건: 태스크 핵심 기능 동작 확인 (1개 이상 필수)
