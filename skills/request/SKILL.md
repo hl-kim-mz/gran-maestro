@@ -498,6 +498,11 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - `intent_fidelity.enabled=false`면 이 단계 전체를 skip한다 (`intent_context`, `docs_context`, `intent_snapshot` 모두 비활성; 에러 아님).
       - `--plan PLN-NNN` 제공 시:
         - plan.md에서 `## 요청 (Refined)` + `## Intent (JTBD)` + `## 인수 기준 초안`을 Read하여 `intent_context`로 보관한다.
+        - `{PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/plan.ids.json`을 Read하여 PAC preflight를 수행한다 (비차단):
+          - 파일 존재 시: `[{id,text,grade}]` 목록을 `pac_preflight_checklist`로 로드한다.
+          - 파일 미존재 시: warn 출력 후 plan.md `## 인수 기준 초안`에서 임시 PAC 목록을 추론한다 (비차단).
+          - 로드된 PAC 전체 ID를 `pac_anchor_list`로 보관하고 이후 spec AC 작성/게이트 프롬프트 앞단에 고정 주입한다.
+          - preflight 단계에서는 request emit을 차단하지 않는다.
         - docs 후보를 plan.md에서 수집한다:
           - `## 연관 컨텍스트` 표에 포함된 `docs/` 경로
           - plan.md 본문 내 `docs/`로 시작하는 문서 경로
@@ -529,6 +534,12 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         - plan의 `## 인수 기준 초안` 또는 대화 컨텍스트에 `브라우저 테스트`, `실제 브라우저`, `스크린샷 검증`, `Playwright`, `Claude in Chrome` 신호가 있으면 AC를 `[browser-test]`로 분류한다.
         - `[browser-test]` AC도 기존 Given/When/Then/Test 형식을 그대로 유지한다.
         - `Test:`는 실행 대상 URL/화면 + 핵심 사용자 동작 + 기대 결과를 포함해 작성한다 (예: `Playwright 또는 Claude in Chrome으로 /settings 진입 후 Save 클릭 시 성공 토스트 표시 확인`).
+      - **PAC 매핑 규칙 ( `--plan` 제공 시, MANDATORY )**:
+        - h-0.6에서 확보한 `pac_preflight_checklist`의 각 PAC를 spec AC에 최소 1회 매핑한다.
+        - spec 본문에 `## 3.3 PAC Mapping` 섹션을 추가해 아래 표를 작성한다:
+          - `PAC ID | Grade(MUST/SHOULD) | Mapped Spec AC IDs | Coverage`
+        - MUST PAC는 `Mapped Spec AC IDs`가 비어 있으면 안 된다.
+        - plan에 없는 신규 spec AC는 `Coverage`를 `SPEC_ONLY`로 표시해 scope creep 추적 대상으로 남긴다.
       - **`## §0 Context Manifest` 자동 채움 규칙 (MANDATORY)**:
         - Step d에서 수집한 `context_manifest_files`를 bullet 목록으로 삽입한다.
         - `--plan`이 없는 경우에도 동일 규칙 적용: Step 1c 탐색 결과 + 요청 분석 기반으로 `context_manifest_files`를 구성한다.
@@ -682,7 +693,23 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
    k. `request.json`의 `tasks` 배열에 태스크 메타데이터 추가 (spec.md 저장 직후, 다중 태스크 시 02, 03... 포함):
       `id`, `title`, `status: "pending"`, `agent`(필수 — 누락 금지), `spec: "tasks/01/spec.md"`, `covers_ac: ["AC-001", ...]`
       - `covers_ac`는 해당 태스크가 담당하는 spec §3 수락 조건 ID 목록으로 채운다 (예: `["AC-001", "AC-003"]`).
-   l. `request.json`의 `status`를 `"spec_ready"`로 업데이트
+   h-exit. **A Gate (PAC Coverage, blocking)**:
+      - 실행 조건: `--plan PLN-NNN` 제공 && `pac_trace.enabled == true`
+      - 입력:
+        - `plan.ids.json`의 PAC 목록 (`id`, `grade`)
+        - spec `## 3.3 PAC Mapping` (없으면 fail-safe로 빈 매핑 취급)
+      - 판정:
+        - MUST PAC 중 `Mapped Spec AC IDs`가 0건인 항목이 1개라도 있으면 **blocking**
+        - SHOULD PAC 누락은 warning으로 기록하되 blocking 아님
+      - blocking 동작:
+        1. request emit 중단 (`spec_ready` 상태 확정 금지)
+        2. `{PROJECT_ROOT}/.gran-maestro/requests/REQ-NNN/pac-missing-report.md` 생성
+        3. 누락 MUST PAC ID 목록과 보완 가이드 출력
+        4. MUST 커버리지 100% 달성 후에만 gate 해제
+      - 역방향 검증:
+        - spec에만 있고 plan PAC에 매핑되지 않은 AC(`SPEC_ONLY`)는 `scope creep warning`으로 기록한다 (`pac_trace.scope_creep_warning == true`일 때).
+      - 이 게이트는 preflight(h-0.6)와 달리 **반드시 blocking**으로 동작한다 (`pac_trace.blocking == true` 기본값).
+   l. (A Gate 통과 후) `request.json`의 `status`를 `"spec_ready"`로 업데이트
 5. ⚠️ **spec.md 작성 완료 확인** — spec.md 미존재 시 스킬 종료 금지
 6. 스펙 요약 표시 + 승인 안내 (두 가지 명령을 모두 명시):
    - 일반: `/mst:approve REQ-NNN`

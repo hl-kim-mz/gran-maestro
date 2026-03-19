@@ -348,9 +348,26 @@
       }
     }
   },
+  "d3": {
+    "enabled": true,
+    "cynefin_skip": [
+      "simple",
+      "chaotic"
+    ],
+    "light_mode": true,
+    "ambiguity_threshold": 0.5,
+    "max_escalation_retries": 3
+  },
+  "pac_trace": {
+    "enabled": true,
+    "blocking": true,
+    "scope_creep_warning": true
+  },
   "intent_fidelity": {
     "enabled": true,
-    "mode": "advisory",
+    "mode": "blocking",
+    "should_warning_log": true,
+    "should_escalation_threshold": 3,
     "exclude_dirs": [
       "reference",
       "research",

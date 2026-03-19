@@ -51,10 +51,12 @@ argument-hint: "[REQ-ID] [--auto]"
 > 이 Step의 목적: AC 검증/리뷰에 필요한 입력 컨텍스트를 수집한다 / 핵심 출력물: AC 목록, 변경 파일 목록, config 기반 실행 파라미터
 
 1. **Spec AC 목록 수집**: 모든 `tasks/NN/spec.md` Read → `## 3. 수락 조건` 섹션에서 AC 항목 추출.
-1-b. **Plan AC 수집 (source_plan 존재 시)**: `request.json.source_plan` 필드 확인 → 값이 있으면 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md` Read → `## 인수 기준 초안` 섹션 추출 → 각 항목을 `PLAN-AC-N` ID로 태깅하여 AC 목록에 추가.
-   - Plan AC는 사용자가 plan 단계에서 합의한 최종 목표이므로 **MUST 등급**으로 처리한다.
-   - `source_plan` 미존재 또는 `## 인수 기준 초안` 섹션이 없으면 이 단계 skip (경고 없이 무시).
-   - 수집된 Plan AC는 Spec AC와 **분리하여 관리** (Pass A에서 별도 섹션으로 검증).
+1-b. **Plan AC(PAC) 수집 (source_plan 존재 시)**:
+   - `request.json.source_plan` 필드 확인 후 값이 있으면 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.ids.json`을 우선 Read한다.
+   - `plan.ids.json` 존재 시: 각 항목의 `id(PAC-N)`, `text`, `grade(MUST|SHOULD)`를 그대로 로드한다.
+   - `plan.ids.json` 미존재 시(레거시 호환): `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`의 `## 인수 기준 초안`을 추출해 `PLAN-AC-N` 임시 ID를 부여한다.
+   - `source_plan` 미존재 또는 인수 기준 섹션 자체가 없으면 이 단계 skip (경고 없이 무시).
+   - 수집된 Plan AC/PAC는 Spec AC와 **분리하여 관리** (Pass A에서 별도 섹션으로 검증).
 1-c. **Spec AC 타입 태그 파싱**: 각 AC 헤더의 타입 태그(`[automatable]`, `[manual]`, `[browser-test]`)를 파싱하여 `ac_type`으로 보관한다.
    - 태그 누락 시 기본값은 `manual`.
    - `[browser-test]`는 Pass A에서 실제 브라우저 실행 분기 대상으로 표시한다.
@@ -87,7 +89,9 @@ argument-hint: "[REQ-ID] [--auto]"
    - `review.roles.*` 에이전트 키
    - `review.roles.intent_fidelity.agent` / `review.roles.intent_fidelity.tier`
    - `intent_fidelity.enabled` (기본값: `true`)
-   - `intent_fidelity.mode` (기본값: `"advisory"`)
+   - `intent_fidelity.mode` (기본값: `"blocking"`)
+   - `intent_fidelity.should_warning_log` (기본값: `true`)
+   - `intent_fidelity.should_escalation_threshold` (기본값: `3`)
    - `review.max_iterations` 키 경로: `config.review.max_iterations` (미정의 시 기본값 10 사용)
    - `auto_mode.review` 키 경로: `config.auto_mode.review` (true이면 `AUTO_MODE=true`, `--auto` 플래그와 동일 동작)
    - `auto_mode.max_review_iterations` 키 경로: `config.auto_mode.max_review_iterations`
@@ -212,7 +216,7 @@ intent-fidelity (bg): 원본 의도 대비 구현 일치 검증     ─┘
 
 - 각 AC 항목별로 관련 코드/설정 파일 Read.
 - PASS / FAIL / UNKNOWN 판정 후 근거 기록.
-- **Plan AC(PLAN-AC-N)가 있으면 Spec AC와 별도 섹션으로 검증**한다.
+- **Plan AC(PAC-N 또는 레거시 PLAN-AC-N)가 있으면 Spec AC와 별도 섹션으로 검증**한다.
   - Plan AC는 구현 상세보다 **관찰 가능한 결과/동작** 기준으로 판정한다 (예: "X 버튼 클릭 시 Y 결과 표시").
   - Plan AC 미충족은 MUST 등급 실패로 처리하고, spec AC 실패와 동일하게 Pass A 실패 트리거 대상이 된다.
 - 결과를 `reviews/RV-NNN/ac-results.md`에 저장.
@@ -228,8 +232,8 @@ intent-fidelity (bg): 원본 의도 대비 구현 일치 검증     ─┘
   ## Plan AC (PLN-NNN)
   | AC | 판정 | 근거 |
   |----|------|------|
-  | PLAN-AC-1 | ✅ PASS | ... |
-  | PLAN-AC-2 | ❌ FAIL | ... |
+  | PAC-1 | ✅ PASS | ... |
+  | PAC-2 | ❌ FAIL | ... |
   ```
   Plan AC 섹션이 없으면 (source_plan 미존재 시) 생략한다.
 
@@ -246,7 +250,7 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
 | `code_reviewer` | 누락 로직, 버그, 엣지케이스, 테스트 누락 | `review.roles.code_reviewer.agent` | `providers[agent][review.roles.code_reviewer.tier \|\| default_tier]`로 resolve |
 | `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 + Scope Audit(필수): `SCOPE_CREEP`(spec.md에 없는 구현), `OMISSION`(spec.md에는 있으나 구현 누락) 점검. plan.md가 있는 경우 상위 목표·방향 대비 구현 적합성도 반드시 확인. 불필요한 파일 변경(범위 외 수정) 여부 점검. 미발견 시에도 `"확인 완료 — 해당 없음"` 명시 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
 | `ui_reviewer` | Stitch 시안 vs 실제 UI, UX 흐름 일관성 | `review.roles.ui_reviewer.agent` | `providers[agent][review.roles.ui_reviewer.tier \|\| default_tier]`로 resolve |
-| `intent_fidelity` | 원본 의도(plan 요청 + docs) 대비 구현 일치 검증. spec §3.2 Intent Trace의 각 항목을 구현 증거와 대조. Missing/Partial/Verified 분류. advisory 모드: 기존 pass/fail에 영향 없음 | `review.roles.intent_fidelity.agent` | `providers[agent][review.roles.intent_fidelity.tier \|\| default_tier]`로 resolve |
+| `intent_fidelity` | 원본 의도(plan 요청 + docs) 대비 구현 일치 검증. spec §3.2 Intent Trace의 각 항목을 구현 증거와 대조. Missing/Partial/Verified 분류. 기본 blocking 모드에서 MUST 항목 Partial/Missing은 pass/fail에 반영, SHOULD는 warning으로만 추적 | `review.roles.intent_fidelity.agent` | `providers[agent][review.roles.intent_fidelity.tier \|\| default_tier]`로 resolve |
 
 각 리뷰어(code_reviewer, arch_reviewer, ui_reviewer)는 발견한 이슈에 반드시 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 등급을 태깅해야 한다 (`templates/review-request.md`의 등급 판별 가이드 및 보안 오버라이드 규칙 적용).
 intent_fidelity는 등급 대신 `Verified/Partial/Missing` + `INTENT-GAP` 카운트를 출력한다.
@@ -359,9 +363,9 @@ Agent(
 
    ## Plan AC 검증 결과 (PLN-NNN)
    <!-- source_plan 없으면 이 섹션 생략 -->
-   - ✅ 충족 PLAN-AC N개
-   - ❌ 미충족 PLAN-AC N개
-     - PLAN-AC-X: <설명>
+   - ✅ 충족 PAC N개
+   - ❌ 미충족 PAC N개
+     - PAC-X: <설명>
 
    ## 코드 리뷰 주요 발견 사항
    <review-code.md 핵심 항목>
@@ -373,9 +377,10 @@ Agent(
    <review-ui.md 핵심 항목 또는 "UI 리뷰 skip (변경 없음)">
 
    ## Intent Fidelity 검증 결과
-   - 모드: advisory | blocking
+   - 모드: blocking(기본) | advisory
    - advisory 모드면 `(advisory — pass/fail 미반영)` 라벨 표기
    - ✅ Verified N개 / ⚠️ Partial N개 / ❌ Missing N개 / ℹ️ INTENT-GAP N개
+   - SHOULD 경고 로그: `warnings.log` 기록 여부 + 누적 횟수
    - 상세: `review-intent-fidelity.md` 또는 skip 사유
    ```
 
@@ -393,10 +398,18 @@ AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 5개 분기로 
 2. 파싱 결과를 `request.json`의 현재 태스크에 기록한다.
    - 경로: `tasks[현재 태스크].self_check.intent_fidelity_result`
    - 스키마: `{ "verified": N, "partial": N, "missing": N, "intent_gaps": N, "report_path": "reviews/RV-NNN/review-intent-fidelity.md" }`
-3. `intent_fidelity.mode == "advisory"`이면 리포트만 출력하고 기존 review pass/fail 판정에는 영향을 주지 않는다.
-4. `intent_fidelity.mode == "blocking"`이면 기존 review 판정과 AND 조건으로 결합한다.
-   - `partial_count + missing_count > 0`이면 `review.json.status = "gap_found"`로 처리하고 `(c)` 경로를 따른다.
-   - `partial_count == 0` 그리고 `missing_count == 0`일 때만 intent_fidelity 통과로 간주한다.
+3. `intent_fidelity.mode` 기본값은 `"blocking"`이며, 명시적으로 `"advisory"`일 때만 완화 동작을 적용한다.
+4. `intent_fidelity.mode == "advisory"`이면 리포트만 출력하고 기존 review pass/fail 판정에는 영향을 주지 않는다.
+5. `intent_fidelity.mode == "blocking"`이면 기존 review 판정과 AND 조건으로 결합한다.
+   - MUST AC(또는 MUST PAC에 매핑된 AC)에서 `Partial`/`Missing`이 1건이라도 있으면 `review.json.status = "gap_found"`로 처리하고 `(c)` 경로를 따른다.
+   - SHOULD AC의 `Partial`/`Missing`은 warning으로만 처리하고 blocking 사유로는 사용하지 않는다.
+6. SHOULD warning 로깅 (`intent_fidelity.should_warning_log == true`):
+   - 경로: `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/reviews/warnings.log`
+   - 포맷(한 줄 JSONL 권장): `timestamp`, `req_id`, `rv_id`, `ac_id`, `module`, `result(Partial|Missing)`, `reason`
+   - `module`은 구현 증거 경로의 상위 모듈(예: `src/auth`, `skills/request`)로 추출하고, 추출 불가 시 `"unknown"` 사용
+7. SHOULD 누적 관리 (`intent_fidelity.should_escalation_threshold`, 기본 3):
+   - 동일 `module`에서 SHOULD warning 누적 횟수가 임계치 이상이면 `"MUST escalation review required"` 플래그를 review-report에 추가한다.
+   - 이 플래그는 즉시 blocking하지 않으며, 다음 회차/후속 작업에서 MUST 격상 검토 대상으로 취급한다.
 
 #### (a) 갭 없음 + 코드리뷰 이슈 없음 (+ blocking 모드면 intent_fidelity 통과)
 
