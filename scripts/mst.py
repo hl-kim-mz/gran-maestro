@@ -3078,6 +3078,11 @@ def cmd_hooks_post_skill(args):
         skill = tool_input.get("skill", "")
         if not isinstance(skill, str):
             return 0
+
+        # --- return_to continuation guard ---
+        # Check snapshot for returnTo BEFORE archiving (archive may clear state)
+        _hooks_post_skill_continuation(skill)
+
         if skill not in {"mst:accept", "mst:ideation", "mst:discussion", "mst:debug"}:
             return 0
 
@@ -3103,6 +3108,43 @@ def cmd_hooks_post_skill(args):
     except Exception:
         return 0
     return 0
+
+
+def _hooks_post_skill_continuation(completed_skill: str) -> None:
+    """If the snapshot has returnTo, emit a mandatory continuation message."""
+    try:
+        from _skill_state import load_snapshot
+
+        state_base_dir = _skill_state_base_dir()
+        snapshot = load_snapshot(state_base_dir)
+        if snapshot is None:
+            return
+
+        return_to = snapshot.get("returnTo")
+        if not isinstance(return_to, dict):
+            return
+
+        parent_skill = return_to.get("skill", "")
+        parent_step = return_to.get("step")
+        if not parent_skill:
+            return
+
+        # Only emit when the completed skill is NOT the parent itself
+        # (avoid loop when the parent skill completes normally)
+        skill_short = completed_skill.replace("mst:", "")
+        if skill_short == parent_skill:
+            return
+
+        step_info = f"/{parent_step}" if parent_step is not None else ""
+        print(
+            f"\n⚠️ MANDATORY CONTINUATION: "
+            f"return_to={parent_skill}{step_info} detected. "
+            f"The sub-skill '{completed_skill}' has completed and MUST return control to the parent skill. "
+            f"You MUST immediately call Skill(skill: \"mst:{parent_skill}\") to resume. "
+            f"Do NOT end the conversation or ask the user — continue NOW.\n"
+        )
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------

@@ -71,8 +71,12 @@ def _parse_return_to(value: Optional[str]) -> Optional[Dict[str, Any]]:
     if not skill:
         return None
     parsed: Dict[str, Any] = {"skill": skill}
-    if sep and step_text.isdigit():
-        parsed["step"] = int(step_text)
+    if sep and step_text:
+        try:
+            num = float(step_text)
+            parsed["step"] = int(num) if num == int(num) else num
+        except (ValueError, OverflowError):
+            pass
     return parsed
 
 
