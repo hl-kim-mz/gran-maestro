@@ -461,6 +461,60 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - 수집된 Q&A 결과는 spec.md 작성 시 반드시 반영:
         - §3 수락 조건(AC) 상세에 반영
         - §3.5 Constraints에 반영
+   1.9. **테스트 전략 게이트 (Test Strategy Gate)** (Step 1.8 완료 직후, Step h-0 이전):
+      - **실행 조건**:
+        - plan.md에 `## 테스트 전략` 섹션이 존재하고 `적용 여부: 적용`인 경우에만 실행한다.
+        - 섹션이 없거나 `적용 여부: 적용 안 함`이면 이 단계 전체를 skip하고 Step h-0으로 진행한다 (하위 호환 유지).
+      - **코드베이스 탐색 (Glob/Grep, MANDATORY)**:
+        - `package.json`에서 test runner를 감지한다 (`jest`, `vitest`, `mocha`, `pytest` 등).
+        - `tsconfig.json`, `.eslintrc*`, `eslint.config.*`, `prettier.config.*`, `.prettierrc*` 존재 여부를 확인한다.
+        - `playwright.config.*` 또는 `cypress.config.*` 존재 여부를 확인한다.
+        - `test/` 또는 `__tests__/` 디렉토리 존재 여부를 확인한다.
+        - 빌드 스크립트 존재 여부를 확인한다 (`package.json scripts.build`, `Makefile`의 `build` 타깃 등).
+      - **7종 추천 로직** (탐색 결과 기반):
+        1. 빌드 확인 `[build-check]`:
+           - 빌드 명령이 감지되면 추천한다.
+           - 예: `npm run build`, `pnpm build`, `yarn build`, `make build`
+        2. 린트/포맷 `[lint-check]`:
+           - 린터/포맷터 설정이 감지되면 추천한다.
+           - 예: `npx eslint .`, `npx prettier --check .`
+        3. Unit Test `[unit-test]`:
+           - 테스트 러너가 감지되면 추천한다.
+           - plan.md `## 테스트 전략`의 목표 커버리지가 설정된 경우 해당 목표를 명시한다.
+        4. Integration/API Test `[integration]` 또는 `[api-test]`:
+           - DB 연동 변경 또는 API 엔드포인트 변경 신호가 있으면 추천한다.
+        5. E2E/Browser Test `[e2e-browser]`:
+           - playwright/cypress 설정이 감지되면 추천한다.
+        6. Visual Regression `[visual]`:
+           - 아래 **고비용 테스트 정책**을 모두 충족할 때만 추천한다.
+        7. Performance Test `[performance]`:
+           - 아래 **고비용 테스트 정책**을 모두 충족할 때만 추천한다.
+      - **고비용 테스트 정책 (CRITICAL)**:
+        - Visual Regression/Performance는 아래 조건을 모두 만족할 때만 추천한다.
+          1) 관련 도구가 프로젝트에 설치되어 있음
+          2) 현재 변경이 해당 테스트 유형의 대상임 (UI 변경 / 성능 크리티컬 변경)
+          3) PM이 명확한 근거를 1줄 이상 제시함
+        - 하나라도 미충족이면 추천 목록에서 제외한다.
+      - **사용자 확인**:
+        - `AUTO_APPROVE=false`: AskUserQuestion으로 추천 목록을 제시하고 사용자 확인/수정을 반영한다.
+        - `AUTO_APPROVE=true`: PM이 추천 목록을 자율 확정한다.
+      - **spec AC 반영 규칙**:
+        - 확정된 테스트 항목을 spec.md AC에 테스트 유형 보조 태그로 부여한다.
+        - 보조 태그는 기존 `[automatable]`/`[manual]`/`[browser-test]` 뒤에 추가한다.
+        - 각 유형별 원칙은 해당 태그가 부여된 AC에만 2~3줄로 선별 주입한다 (전체 AC 일괄 주입 금지).
+      - **유형별 원칙 (하드코딩, MANDATORY)**:
+        - `[build-check]`: "빌드 명령어 성공(exit 0) 확인. 빌드 오류 시 구현 실패로 간주."
+        - `[lint-check]`: "린터/포맷터 규칙 위반 0건 확인. --fix 자동 수정 허용."
+        - `[unit-test]`: "AAA 패턴(Arrange-Act-Assert) 준수. 각 테스트는 하나의 동작만 검증. 외부 의존성만 mock."
+        - `[integration]`: "실제 DB/서비스 사용. 테스트 시딩 필수. 격리된 환경에서 실행."
+        - `[e2e-browser]`: "Page Object 패턴 권장. 스크린샷 첨부. 안정적 selector 사용."
+        - `[api-test]`: "Given-When-Then 구조. status + body + schema 검증."
+        - `[visual]`: "베이스라인 이미지 비교. 캡처 조건(뷰포트, 지연) 명시."
+        - `[performance]`: "워밍업/반복/임계값 명시. 회귀 감지 기준 정의."
+      - **도구 미설치 시 처리**:
+        - 추천된 테스트 도구가 미설치면 graceful skip 처리 후 설치 명령어를 안내한다.
+        - 사용자에게 `"LLM이 설치를 도와드릴까요?"` 옵션을 제공한다.
+        - 도구 미설치로 인해 request 워크플로우를 차단하지 않는다.
    h-0. **Stitch 트리거 감지** (config.stitch.enabled=true인 경우):
       - 명시적 디자인 요청("화면 디자인해줘", "Stitch로", "목업", "시안" 등):
         ⚠️ **`mcp__stitch__*` 도구를 직접 호출하는 것은 절대 금지.**
