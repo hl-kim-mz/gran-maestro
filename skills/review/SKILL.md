@@ -60,6 +60,11 @@ argument-hint: "[REQ-ID] [--auto]"
 1-c. **Spec AC 타입 태그 파싱**: 각 AC 헤더의 타입 태그(`[automatable]`, `[manual]`, `[browser-test]`)를 파싱하여 `ac_type`으로 보관한다.
    - 태그 누락 시 기본값은 `manual`.
    - `[browser-test]`는 Pass A에서 실제 브라우저 실행 분기 대상으로 표시한다.
+1-d. **테스트 유형 보조 태그 파싱**: AC 헤더에서 `[automatable]`/`[manual]`/`[browser-test]` 이후의 보조 태그를 추가 파싱하여 `ac_test_type`으로 보관한다.
+   - 인식 보조 태그: `[build-check]`, `[lint-check]`, `[unit-test]`, `[integration]`, `[api-test]`, `[e2e-browser]`, `[visual]`, `[performance]`
+   - 보조 태그가 없으면 `ac_test_type = null` (기존 동작 유지, 하위 호환).
+   - `[e2e-browser]` 보조 태그는 기존 `[browser-test]` ac_type 실행 분기를 재사용한다.
+   - 하나의 AC에 복수 보조 태그가 있으면 첫 번째 태그를 `ac_test_type`으로 사용한다.
 2. **변경 파일 목록 수집**: `git log --name-only` 또는 `git diff <base>..HEAD --name-only` 기반으로 REQ 관련 변경 파일 목록 작성.
 3. **AC별 파일 매핑 준비**: 각 AC 항목과 관련 변경 파일 연결.
 4. **Intent lookup (비차단)**: 변경 파일 목록을 기반으로 관련 Intent를 조회한다.
@@ -195,6 +200,30 @@ argument-hint: "[REQ-ID] [--auto]"
 
 자세한 절차: `templates/protocols/pass-a-protocol.md` 참조
 
+#### 테스트 유형 보조 태그 실행 분기 (Pass A 내부, 선택적)
+
+> 이 분기는 `ac_test_type`이 설정된 AC에만 적용된다. `ac_test_type == null`인 AC는 기존 동작을 따른다.
+
+- **[build-check]**: AC의 `Test:` 필드에 명시된 빌드 명령어를 실행한다. exit code 0이면 PASS, 아니면 FAIL.
+- **[lint-check]**: AC의 `Test:` 필드에 명시된 린트 명령어를 실행한다. 위반 0건이면 PASS.
+- **[unit-test]**: AC의 `Test:` 필드에 명시된 테스트 명령어를 실행한다. 전체 PASS이면 PASS.
+  - **커버리지 검증 (선택적)**: `source_plan`이 존재하고 plan.md `## 테스트 전략` 섹션에 `목표 커버리지`가 설정되어 있으면:
+    - 테스트 명령어에 `--coverage` 플래그를 추가하여 실행한다.
+    - 변경된 파일의 line coverage가 목표 이상인지 확인한다.
+    - 미달 시 FAIL 판정 + "커버리지 {실제}% < 목표 {목표}%" 보고.
+    - 커버리지 도구가 미설치이면 graceful skip (커버리지 검증만 skip, 테스트 자체는 실행).
+- **[integration]** / **[api-test]**: AC의 `Test:` 필드에 명시된 테스트 명령어를 실행한다.
+- **[e2e-browser]**: 기존 `browser-test AC 실행 분기`를 그대로 재사용한다. 별도 구현 없음.
+- **[visual]**: 비주얼 비교 도구를 감지하고 AC의 `Test:` 필드 명령어를 실행한다.
+- **[performance]**: 벤치마크 도구를 감지하고 AC의 `Test:` 필드 명령어를 실행한다.
+
+**공통 규칙**:
+- 모든 보조 태그 실행은 AC의 `Test:` 필드에 명시된 명령어를 기반으로 한다.
+- 도구 미설치 시: `SKIP(tool_unavailable)` 기록 + "[SKIP] {태그}: 도구 미설치 ({도구명})" 로그 출력.
+  - MUST AC라도 도구 미설치 SKIP은 `pass_a_failed`로 강등하지 않는다 (browser-test와 동일 정책).
+  - 워크플로우를 차단하지 않는다.
+- 실행 결과는 `ac-results.md` 근거란에 반영한다.
+
 ---
 
 ### Step 4: Pass B — 코드 품질 검증
@@ -247,10 +276,20 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
 
 | 역할 키 | 검토 관점 | config 키 | 모델 resolve |
 |---------|-----------|-----------|-------------|
-| `code_reviewer` | 누락 로직, 버그, 엣지케이스, 테스트 누락 | `review.roles.code_reviewer.agent` | `providers[agent][review.roles.code_reviewer.tier \|\| default_tier]`로 resolve |
+| `code_reviewer` | 누락 로직, 버그, 엣지케이스, 테스트 누락 + **테스트 패턴 준수 검증**: spec에 주입된 유형별 원칙(2-3줄)을 기준으로 작성된 테스트 코드의 패턴 준수 여부 점검. 미준수 시 [MAJOR] 등급 이슈로 보고. | `review.roles.code_reviewer.agent` | `providers[agent][review.roles.code_reviewer.tier \|\| default_tier]`로 resolve |
 | `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 + Scope Audit(필수): `SCOPE_CREEP`(spec.md에 없는 구현), `OMISSION`(spec.md에는 있으나 구현 누락) 점검. plan.md가 있는 경우 상위 목표·방향 대비 구현 적합성도 반드시 확인. 불필요한 파일 변경(범위 외 수정) 여부 점검. 미발견 시에도 `"확인 완료 — 해당 없음"` 명시 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
 | `ui_reviewer` | Stitch 시안 vs 실제 UI, UX 흐름 일관성 | `review.roles.ui_reviewer.agent` | `providers[agent][review.roles.ui_reviewer.tier \|\| default_tier]`로 resolve |
 | `intent_fidelity` | 원본 의도(plan 요청 + docs) 대비 구현 일치 검증. spec §3.2 Intent Trace의 각 항목을 구현 증거와 대조. Missing/Partial/Verified 분류. 기본 blocking 모드에서 MUST 항목 Partial/Missing은 pass/fail에 반영, SHOULD는 warning으로만 추적 | `review.roles.intent_fidelity.agent` | `providers[agent][review.roles.intent_fidelity.tier \|\| default_tier]`로 resolve |
+
+### 테스트 패턴 준수 검증 (code_reviewer 추가 관점)
+
+spec.md에 유형별 원칙이 주입된 AC가 있는 경우:
+1. 해당 AC의 보조 태그([unit-test], [api-test] 등)와 주입된 원칙(2-3줄)을 확인한다.
+2. 구현된 테스트 코드가 해당 원칙을 따르는지 검증한다.
+3. 미준수 항목은 [MAJOR] 등급으로 보고한다. 예:
+   - "[MAJOR] AC-003 [unit-test]: AAA 패턴 미준수 — setup과 assertion이 혼재"
+   - "[MAJOR] AC-005 [api-test]: schema 검증 누락"
+4. 보조 태그가 없는 AC는 이 검증을 skip한다.
 
 각 리뷰어(code_reviewer, arch_reviewer, ui_reviewer)는 발견한 이슈에 반드시 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 등급을 태깅해야 한다 (`templates/review-request.md`의 등급 판별 가이드 및 보안 오버라이드 규칙 적용).
 intent_fidelity는 등급 대신 `Verified/Partial/Missing` + `INTENT-GAP` 카운트를 출력한다.
