@@ -1,0 +1,761 @@
+#!/usr/bin/env node
+
+/**
+ * Stitch SDK CLI wrapper for Gran Maestro.
+ *
+ * Auth:
+ * - API Key: STITCH_API_KEY
+ * - OAuth: STITCH_ACCESS_TOKEN + GOOGLE_CLOUD_PROJECT
+ */
+
+const COMMANDS = [
+  "generate",
+  "edit",
+  "variants",
+  "get-screen",
+  "list-screens",
+  "create-project",
+  "get-project",
+  "list-projects",
+  "init",
+];
+
+function printHelp() {
+  const lines = [
+    "Usage:",
+    "  node scripts/stitch-sdk.mjs <command> [options]",
+    "",
+    "Commands:",
+    "  generate       Generate a screen from prompt",
+    "  edit           Edit an existing screen",
+    "  variants       Generate variants for a screen",
+    "  get-screen     Get a screen",
+    "  list-screens   List screens in a project",
+    "  create-project Create a new project",
+    "  get-project    Get a project",
+    "  list-projects  List all projects",
+    "  init           Collect project + screens context for DESIGN.md generation",
+    "",
+    "Global options:",
+    "  -h, --help     Show this help",
+    "",
+    "Auth (env):",
+    "  STITCH_API_KEY",
+    "  or STITCH_ACCESS_TOKEN + GOOGLE_CLOUD_PROJECT",
+  ];
+  console.log(lines.join("\n"));
+}
+
+function parseArgs(argv) {
+  const args = { _: [] };
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+
+    if (!token.startsWith("--")) {
+      args._.push(token);
+      continue;
+    }
+
+    const maybeEq = token.indexOf("=");
+    if (maybeEq > -1) {
+      const key = token.slice(2, maybeEq);
+      const value = token.slice(maybeEq + 1);
+      args[key] = value;
+      continue;
+    }
+
+    const key = token.slice(2);
+    const next = argv[i + 1];
+    if (!next || next.startsWith("--")) {
+      args[key] = true;
+      continue;
+    }
+
+    args[key] = next;
+    i += 1;
+  }
+
+  return args;
+}
+
+function value(args, key, fallback = undefined) {
+  return args[key] ?? fallback;
+}
+
+function toInt(input, fallback) {
+  if (input === undefined || input === null || input === "") {
+    return fallback;
+  }
+  const parsed = Number.parseInt(String(input), 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+function toList(input) {
+  if (!input) return [];
+  return String(input)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function ensureAuthConfigured() {
+  const hasApiKey = Boolean(process.env.STITCH_API_KEY);
+  const hasOAuthToken = Boolean(process.env.STITCH_ACCESS_TOKEN);
+  const hasGcpProject = Boolean(process.env.GOOGLE_CLOUD_PROJECT);
+
+  if (hasApiKey) {
+    return;
+  }
+
+  if (hasOAuthToken && hasGcpProject) {
+    return;
+  }
+
+  const msg = [
+    "[Stitch] 인증 정보가 설정되지 않았습니다.",
+    "STITCH_API_KEY 환경변수를 설정하세요.",
+    "또는 STITCH_ACCESS_TOKEN + GOOGLE_CLOUD_PROJECT를 함께 설정하세요.",
+  ].join(" ");
+
+  throw new Error(msg);
+}
+
+async function loadSdk() {
+  try {
+    const mod = await import("@google/stitch-sdk");
+    if (!mod || !mod.stitch) {
+      throw new Error("@google/stitch-sdk 모듈에서 stitch export를 찾지 못했습니다.");
+    }
+    return mod.stitch;
+  } catch (error) {
+    const cause = error instanceof Error ? error.message : String(error);
+    throw new Error(`@google/stitch-sdk 로드 실패: ${cause}`);
+  }
+}
+
+function safeError(error) {
+  if (!error) {
+    return { message: "Unknown error" };
+  }
+  if (error instanceof Error) {
+    return {
+      message: maskSecrets(error.message),
+      name: error.name,
+      stack: maskSecrets(error.stack),
+    };
+  }
+  return { message: maskSecrets(String(error)) };
+}
+
+function maskSecrets(text) {
+  if (text === undefined || text === null) {
+    return text;
+  }
+
+  let masked = String(text);
+  const patterns = [
+    /STITCH_API_KEY\s*=\s*[^\s"'`]+/gi,
+    /Authorization:\s*Bearer\s+[^\s"'`]+/gi,
+    /x-goog-api-key:\s*[^\s"'`]+/gi,
+    /\bAIza[0-9A-Za-z_-]{35}\b/g,
+  ];
+
+  for (const pattern of patterns) {
+    masked = masked.replace(pattern, "***REDACTED***");
+  }
+
+  return masked;
+}
+
+function cleanObject(obj) {
+  const result = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined && v !== null && v !== "") {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
+function screenName(projectId, screenId) {
+  if (!projectId || !screenId) return undefined;
+  return `projects/${projectId}/screens/${screenId}`;
+}
+
+function extractIdFromName(name) {
+  if (!name || typeof name !== "string") return null;
+  const parts = name.split("/").filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : null;
+}
+
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeMaybeArray(payload, key) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (isObject(payload) && Array.isArray(payload[key])) {
+    return payload[key];
+  }
+  return [];
+}
+
+async function maybeCall(fn) {
+  if (typeof fn !== "function") return undefined;
+  return fn();
+}
+
+async function collectScreenArtifacts(screen) {
+  if (!screen) return {};
+
+  let html;
+  let image;
+  let json;
+
+  try {
+    html = await maybeCall(() => screen.getHtml());
+  } catch {
+    html = undefined;
+  }
+
+  try {
+    image = await maybeCall(() => screen.getImage());
+  } catch {
+    image = undefined;
+  }
+
+  try {
+    json = await maybeCall(() => (typeof screen.toJSON === "function" ? screen.toJSON() : undefined));
+  } catch {
+    json = undefined;
+  }
+
+  const name = screen?.name || json?.name;
+  const id = screen?.id || json?.id || extractIdFromName(name);
+
+  return cleanObject({
+    id,
+    name,
+    image,
+    html,
+    raw: json,
+  });
+}
+
+function asJsonResponse(command, data, ok = true) {
+  return {
+    ok,
+    command,
+    data,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function asJsonError(command, error) {
+  return {
+    ok: false,
+    command,
+    error: safeError(error),
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function callTool(stitch, name, args) {
+  return stitch.callTool(name, args);
+}
+
+async function runListProjects(stitch) {
+  if (typeof stitch.projects === "function") {
+    try {
+      const projects = await stitch.projects();
+      return {
+        projects,
+        source: "sdk.projects",
+      };
+    } catch {
+      // fall through to callTool
+    }
+  }
+
+  const raw = await callTool(stitch, "list_projects", {});
+  return {
+    projects: raw,
+    source: "sdk.callTool:list_projects",
+  };
+}
+
+async function runGetProject(stitch, args) {
+  const projectId = value(args, "project-id");
+  if (!projectId) {
+    throw new Error("--project-id is required");
+  }
+
+  const project = typeof stitch.project === "function" ? stitch.project(projectId) : null;
+  if (project && typeof project.get === "function") {
+    try {
+      const data = await project.get();
+      return {
+        project: data,
+        source: "sdk.project.get",
+      };
+    } catch {
+      // fall through to callTool
+    }
+  }
+
+  const raw = await callTool(stitch, "get_project", { projectId });
+  return {
+    project: raw,
+    source: "sdk.callTool:get_project",
+  };
+}
+
+async function runCreateProject(stitch, args) {
+  const title = value(args, "title");
+  if (!title) {
+    throw new Error("--title is required");
+  }
+
+  const raw = await callTool(stitch, "create_project", { title });
+  return {
+    project: raw,
+    source: "sdk.callTool:create_project",
+  };
+}
+
+async function runListScreens(stitch, args) {
+  const projectId = value(args, "project-id");
+  if (!projectId) {
+    throw new Error("--project-id is required");
+  }
+
+  const project = typeof stitch.project === "function" ? stitch.project(projectId) : null;
+  if (project && typeof project.screens === "function") {
+    try {
+      const screens = await project.screens();
+      return {
+        projectId,
+        screens,
+        source: "sdk.project.screens",
+      };
+    } catch {
+      // fall through to callTool
+    }
+  }
+
+  const raw = await callTool(stitch, "list_screens", { projectId });
+  return {
+    projectId,
+    screens: raw,
+    source: "sdk.callTool:list_screens",
+  };
+}
+
+async function resolveScreenHandle(stitch, projectId, screenId) {
+  if (!projectId || !screenId) {
+    return null;
+  }
+
+  const project = typeof stitch.project === "function" ? stitch.project(projectId) : null;
+  if (project && typeof project.screen === "function") {
+    return project.screen(screenId);
+  }
+
+  return null;
+}
+
+async function runGenerate(stitch, args) {
+  const projectId = value(args, "project-id");
+  const prompt = value(args, "prompt");
+  const deviceType = value(args, "device-type", "DESKTOP");
+  const modelId = value(args, "model-id");
+
+  if (!projectId) {
+    throw new Error("--project-id is required");
+  }
+  if (!prompt) {
+    throw new Error("--prompt is required");
+  }
+
+  const project = typeof stitch.project === "function" ? stitch.project(projectId) : null;
+  if (project && typeof project.generate === "function") {
+    try {
+      const generated = await project.generate(prompt, cleanObject({ deviceType, modelId }));
+      const screen = await collectScreenArtifacts(generated);
+      return {
+        projectId,
+        prompt,
+        screen,
+        source: "sdk.project.generate",
+      };
+    } catch {
+      // fall through to callTool
+    }
+  }
+
+  const raw = await callTool(
+    stitch,
+    "generate_screen_from_text",
+    cleanObject({
+      projectId,
+      prompt,
+      deviceType,
+      modelId,
+    }),
+  );
+
+  return {
+    projectId,
+    prompt,
+    result: raw,
+    source: "sdk.callTool:generate_screen_from_text",
+  };
+}
+
+async function runGetScreen(stitch, args) {
+  const projectId = value(args, "project-id");
+  const screenId = value(args, "screen-id");
+  const name = value(args, "name") || screenName(projectId, screenId);
+
+  if (!projectId) {
+    throw new Error("--project-id is required");
+  }
+  if (!screenId && !name) {
+    throw new Error("--screen-id or --name is required");
+  }
+
+  const handle = screenId ? await resolveScreenHandle(stitch, projectId, screenId) : null;
+  if (handle) {
+    try {
+      const screen = await collectScreenArtifacts(handle);
+      return {
+        projectId,
+        screen,
+        source: "sdk.project.screen",
+      };
+    } catch {
+      // fall through to callTool
+    }
+  }
+
+  const raw = await callTool(
+    stitch,
+    "get_screen",
+    cleanObject({
+      projectId,
+      screenId,
+      name,
+    }),
+  );
+
+  return {
+    projectId,
+    screen: raw,
+    source: "sdk.callTool:get_screen",
+  };
+}
+
+async function runEdit(stitch, args) {
+  const projectId = value(args, "project-id");
+  const screenId = value(args, "screen-id");
+  const prompt = value(args, "prompt");
+  const modelId = value(args, "model-id");
+
+  if (!projectId) {
+    throw new Error("--project-id is required");
+  }
+  if (!screenId) {
+    throw new Error("--screen-id is required");
+  }
+  if (!prompt) {
+    throw new Error("--prompt is required");
+  }
+
+  const handle = await resolveScreenHandle(stitch, projectId, screenId);
+  if (handle && typeof handle.edit === "function") {
+    try {
+      const edited = await handle.edit(prompt, cleanObject({ modelId }));
+      const screen = await collectScreenArtifacts(edited);
+      return {
+        projectId,
+        screenId,
+        prompt,
+        screen,
+        source: "sdk.screen.edit",
+      };
+    } catch {
+      // fall through to callTool
+    }
+  }
+
+  const raw = await callTool(
+    stitch,
+    "edit_screens",
+    cleanObject({
+      projectId,
+      selectedScreenIds: [screenId],
+      prompt,
+      modelId,
+    }),
+  );
+
+  return {
+    projectId,
+    screenId,
+    prompt,
+    result: raw,
+    source: "sdk.callTool:edit_screens",
+  };
+}
+
+async function runVariants(stitch, args) {
+  const projectId = value(args, "project-id");
+  const screenId = value(args, "screen-id");
+  const selectedScreenIds = toList(value(args, "screen-ids"));
+  const prompt = value(args, "prompt");
+  const variantCount = toInt(value(args, "variant-count"), 3);
+  const creativeRange = value(args, "creative-range", "EXPLORE");
+  const aspects = toList(value(args, "aspects"));
+  const modelId = value(args, "model-id");
+
+  if (!projectId) {
+    throw new Error("--project-id is required");
+  }
+  if (!prompt) {
+    throw new Error("--prompt is required");
+  }
+
+  const ids = selectedScreenIds.length ? selectedScreenIds : (screenId ? [screenId] : []);
+  if (!ids.length) {
+    throw new Error("--screen-id or --screen-ids is required");
+  }
+
+  if (ids.length === 1) {
+    const handle = await resolveScreenHandle(stitch, projectId, ids[0]);
+    if (handle && typeof handle.variants === "function") {
+      try {
+        const variants = await handle.variants(
+          prompt,
+          cleanObject({
+            variantCount,
+            creativeRange,
+            aspects: aspects.length ? aspects : undefined,
+            modelId,
+          }),
+        );
+        return {
+          projectId,
+          selectedScreenIds: ids,
+          prompt,
+          variants,
+          source: "sdk.screen.variants",
+        };
+      } catch {
+        // fall through to callTool
+      }
+    }
+  }
+
+  const raw = await callTool(
+    stitch,
+    "generate_variants",
+    cleanObject({
+      projectId,
+      selectedScreenIds: ids,
+      prompt,
+      variantOptions: cleanObject({
+        variantCount,
+        creativeRange,
+        aspects: aspects.length ? aspects : undefined,
+      }),
+      modelId,
+    }),
+  );
+
+  return {
+    projectId,
+    selectedScreenIds: ids,
+    prompt,
+    variants: raw,
+    source: "sdk.callTool:generate_variants",
+  };
+}
+
+function pickThemeHints(projectPayload, screenPayloads) {
+  const theme = {
+    colors: [],
+    typography: [],
+    mood: [],
+  };
+
+  const blobs = [projectPayload, ...screenPayloads].filter(Boolean);
+  const text = JSON.stringify(blobs);
+
+  const colorKeywords = ["primary", "secondary", "accent", "neutral", "background", "surface"];
+  const fontKeywords = ["sans", "serif", "mono", "inter", "roboto", "pretendard", "noto"];
+  const moodKeywords = ["minimal", "modern", "playful", "corporate", "bold", "clean", "dark", "light"];
+
+  for (const keyword of colorKeywords) {
+    if (text.toLowerCase().includes(keyword)) theme.colors.push(keyword);
+  }
+  for (const keyword of fontKeywords) {
+    if (text.toLowerCase().includes(keyword)) theme.typography.push(keyword);
+  }
+  for (const keyword of moodKeywords) {
+    if (text.toLowerCase().includes(keyword)) theme.mood.push(keyword);
+  }
+
+  return {
+    colors: [...new Set(theme.colors)],
+    typography: [...new Set(theme.typography)],
+    mood: [...new Set(theme.mood)],
+  };
+}
+
+async function runInit(stitch, args) {
+  const projectId = value(args, "project-id");
+  const maxScreens = toInt(value(args, "max-screens"), 10);
+
+  if (!projectId) {
+    throw new Error("--project-id is required");
+  }
+
+  const projectInfo = await runGetProject(stitch, { "project-id": projectId });
+  const screensInfo = await runListScreens(stitch, { "project-id": projectId });
+
+  const rawScreens = normalizeMaybeArray(screensInfo.screens, "screens");
+  const targetScreens = maxScreens > 0 ? rawScreens.slice(0, maxScreens) : rawScreens;
+
+  const detailedScreens = [];
+  for (const item of targetScreens) {
+    const name = item?.name;
+    const inferredId = item?.id || extractIdFromName(name);
+    if (!inferredId) {
+      detailedScreens.push({
+        id: null,
+        name,
+        meta: item,
+      });
+      continue;
+    }
+
+    try {
+      const detail = await runGetScreen(stitch, {
+        "project-id": projectId,
+        "screen-id": inferredId,
+        name,
+      });
+      detailedScreens.push(
+        cleanObject({
+          id: inferredId,
+          name,
+          detail: detail.screen,
+        }),
+      );
+    } catch {
+      detailedScreens.push(
+        cleanObject({
+          id: inferredId,
+          name,
+          meta: item,
+        }),
+      );
+    }
+  }
+
+  const theme = pickThemeHints(projectInfo.project, detailedScreens);
+
+  return {
+    projectId,
+    project: projectInfo.project,
+    screens: detailedScreens,
+    summary: {
+      screenCount: rawScreens.length,
+      sampledScreenCount: detailedScreens.length,
+      theme,
+    },
+    source: "sdk.init",
+  };
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+  const parsed = parseArgs(argv);
+
+  const top = parsed._[0];
+  const wantHelp = top === "--help" || top === "-h" || parsed.help;
+  const initAlias = Boolean(parsed.init);
+
+  if (wantHelp) {
+    printHelp();
+    process.exit(0);
+  }
+
+  let command = top || (initAlias ? "init" : undefined);
+  if (command === "--init") {
+    command = "init";
+  }
+
+  if (!command) {
+    const payload = asJsonError(command, new Error("Command is required"));
+    console.error(JSON.stringify(payload, null, 2));
+    process.exit(1);
+  }
+
+  if (!COMMANDS.includes(command)) {
+    const payload = asJsonError(command, new Error(`Unknown command: ${command}`));
+    console.error(JSON.stringify(payload, null, 2));
+    process.exit(1);
+  }
+
+  try {
+    ensureAuthConfigured();
+
+    const stitch = await loadSdk();
+    let data;
+
+    switch (command) {
+      case "generate":
+        data = await runGenerate(stitch, parsed);
+        break;
+      case "edit":
+        data = await runEdit(stitch, parsed);
+        break;
+      case "variants":
+        data = await runVariants(stitch, parsed);
+        break;
+      case "get-screen":
+        data = await runGetScreen(stitch, parsed);
+        break;
+      case "list-screens":
+        data = await runListScreens(stitch, parsed);
+        break;
+      case "create-project":
+        data = await runCreateProject(stitch, parsed);
+        break;
+      case "get-project":
+        data = await runGetProject(stitch, parsed);
+        break;
+      case "list-projects":
+        data = await runListProjects(stitch, parsed);
+        break;
+      case "init":
+        data = await runInit(stitch, parsed);
+        break;
+      default:
+        throw new Error(`Unhandled command: ${command}`);
+    }
+
+    const payload = asJsonResponse(command, data, true);
+    console.log(JSON.stringify(payload, null, 2));
+  } catch (error) {
+    const payload = asJsonError(command, error);
+    console.error(JSON.stringify(payload, null, 2));
+    process.exit(1);
+  }
+}
+
+main();

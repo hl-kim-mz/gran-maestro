@@ -1,8 +1,8 @@
 ---
 name: stitch
-description: "Stitch MCP를 사용해 UI 화면을 설계합니다. 명시적 디자인 요청, 새 화면 추가, 전체 디자인 변경 시 사용."
+description: "Stitch SDK를 사용해 UI 화면을 설계합니다. 명시적 디자인 요청, 새 화면 추가, 전체 디자인 변경 시 사용."
 user-invocable: true
-argument-hint: "[--auto] [--variants] [--req REQ-NNN] [--model pro|flash] [--redesign SCREEN_ID] [--multi] [--screens \"화면1,화면2,...\"] {화면 설명}"
+argument-hint: "[--auto] [--variants] [--init] [--req REQ-NNN] [--model pro|flash] [--redesign SCREEN_ID] [--multi] [--screens \"화면1,화면2,...\"] {화면 설명}"
 ---
 
 # maestro:stitch
@@ -16,14 +16,14 @@ argument-hint: "[--auto] [--variants] [--req REQ-NNN] [--model pro|flash] [--red
      - `--model pro` → `"GEMINI_3_PRO"` 오버라이드
      - `--model flash` → `"GEMINI_3_FLASH"` 오버라이드
      - 유효하지 않은 값 → "[Stitch] 알 수 없는 모델: {값}. config 기본값({config.stitch.model_id})을 사용합니다." 출력 후 config 값 유지
-   - 결과를 `{STITCH_MODEL}` 변수에 보관 (이후 모든 MCP 호출에 사용)
+   - 결과를 `{STITCH_MODEL}` 변수에 보관 (이후 모든 SDK 호출에 사용)
 3. `config.stitch.auto_detect` 확인:
    - false면: 사용자 명시 설정으로 간주 → 계속
    - true면:
      a. **UI 키워드 1차 필터**: 요청 텍스트/spec §1 요약에 아래 키워드 중 하나라도 포함되지 않으면 list_projects 호출 없이 skip:
         - whitelist: `화면`, `UI`, `페이지`, `page`, `screen`, `컴포넌트`, `component`, `레이아웃`, `layout`, `디자인`, `design`, `목업`, `mockup`, `시안`, `뷰`, `view`
      b. **세션 캐시 확인**: 현재 세션 중 이미 `list_projects`를 성공 호출한 결과가 있으면 재사용 (재호출 생략)
-     c. 캐시 미존재 시: `mcp__stitch__list_projects` 호출 (30초 타임아웃)
+     c. 캐시 미존재 시: `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-projects")` 호출 (30초 타임아웃)
         - 성공: 결과를 세션 캐시에 저장 → 계속
         - 실패/타임아웃: `[Stitch] 연결 불가 — 건너뜀. /mst:stitch로 수동 실행 가능.` 출력 후 종료
 
@@ -87,9 +87,9 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 4. **Step C-1: DES 전용 Stitch 프로젝트 확인/생성**
 
 `design.json`의 `stitch_project_id` 확인:
-- **값 있으면**: `mcp__stitch__get_project` 호출로 유효성 검증
+- **값 있으면**: `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs get-project --project-id {stitch_project_id}")` 호출로 유효성 검증
   - 실패(프로젝트 삭제/만료) 시: 아래 "null이면" 절차로 재생성
-- **null이면**: `mcp__stitch__create_project`로 DES 전용 프로젝트 생성
+- **null이면**: `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs create-project --title 'DES-NNN: {design.json title}'")`로 DES 전용 프로젝트 생성
   - 프로젝트 이름: `"DES-NNN: {design.json title}"`
   - `design.json`에 즉시 갱신:
     ```json
@@ -114,9 +114,22 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 ## 기존 화면 컨텍스트 수집 (선택)
 
 기존 UI 화면이 있는 경우 레이아웃 일관성을 위해:
-1. `mcp__stitch__list_screens(projectId: {stitch_project_id})` 로 기존 Stitch 화면 목록 조회
+1. `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-screens --project-id {stitch_project_id}")` 로 기존 Stitch 화면 목록 조회
 2. 기존 화면이 있으면: 최근 화면 1-2개의 핵심 레이아웃 패턴을 텍스트로 요약 (공통 Header/Sidebar 구조, 주요 컴포넌트 패턴)
 3. 이 컨텍스트를 `generate_screen_from_text` 프롬프트에 포함
+
+## 프로젝트 초기화 (--init)
+
+`--init` 옵션이 전달되면 신규 화면 생성 전에 아래를 먼저 수행한다.
+
+1. `config.stitch.project_id`를 확인한다. 미설정이면 에러 출력 후 종료한다.
+2. 아래 명령으로 프로젝트 + 화면 컨텍스트를 수집한다:
+   - `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs init --project-id {config.stitch.project_id}")`
+3. JSON 응답의 `summary.theme`, `screens`, `project`를 바탕으로 DESIGN.md 초안을 생성한다.
+4. 저장 경로:
+   - 활성 DES가 있으면: `{PROJECT_ROOT}/.gran-maestro/designs/{DES-NNN}/DESIGN.md`
+   - 활성 DES가 없으면: `{PROJECT_ROOT}/.gran-maestro/designs/DESIGN.md`
+5. `--init` 단독 호출이면 여기서 종료하고, 일반 생성 플로우와 함께 호출됐으면 아래 화면 생성 프로토콜을 계속 진행한다.
 
 ## 트리거 분기
 
@@ -148,7 +161,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 ## 화면 생성 프로토콜
 
 0. **baseline_screen_ids 기록**:
-   - `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출 → 응답의 `screens[].name`에서 screen ID를 추출하여
+   - `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-screens --project-id {stitch_project_id}")` 호출 → 응답의 `screens[].name`에서 screen ID를 추출하여
      `baseline_screen_ids` Set으로 저장
    - screen ID 추출: `name` 필드의 마지막 `/` 이후 값 (예: `"projects/.../screens/abc123"` → `"abc123"`)
 
@@ -158,7 +171,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    - 둘 다 없을 경우: 중복 체크 생략
    - `status: "active"` 항목 발견 시: "이미 생성된 화면입니다." 출력 후 기존 URL 반환, 종료
    - `status: "pending"` 항목 발견 시: 이전 생성 시도가 타임아웃됐을 가능성 있음 → 서버 확인 진행
-     - `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출로 실제 화면 존재 여부 확인
+     - `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-screens --project-id {stitch_project_id}")` 호출로 실제 화면 존재 여부 확인
      - 발견 시: `get_screen`으로 URL 확보 → pending 항목을 active로 갱신 → 기존 URL 반환, 종료
        - **output_components HTML 확인**: `get_screen` 응답의 `output_components`를 확인하여 Step 4-2의 output_components 파싱 규칙을 따른다
          - 코드 포함 시: `html_content` 메모리 변수에 보관 (파일 저장은 Step D에서 md와 동시 수행)
@@ -182,6 +195,17 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    - 둘 다 없을 경우: pending 선기록 생략
    - 빈 응답/타임아웃 발생 시 이 항목이 재실행 중복 방지에 사용됨
 
+2.5. **프롬프트 향상 (references 기반)**:
+   - 아래 파일을 먼저 Read:
+     - `{PROJECT_ROOT}/skills/stitch/references/design-mappings.md`
+     - `{PROJECT_ROOT}/skills/stitch/references/prompt-keywords.md`
+   - 요청문을 그대로 전달하지 말고, 위 레퍼런스를 근거로 생성 프롬프트를 구조화한다.
+   - 최종 프롬프트에는 최소 아래 섹션을 포함한다:
+     - `**DESIGN SYSTEM**`
+     - `**Page Structure**`
+   - DESIGN.md가 존재하면 톤/타이포/색상/레이아웃 지침을 `**DESIGN SYSTEM**`에 우선 반영한다.
+   - Step 4의 `{화면 설명}` 자리에는 향상된 최종 프롬프트를 사용한다.
+
 3. **대기 안내 메시지 출력**:
    ```
    [Stitch] 화면 생성 중... (최대 수 분 소요될 수 있습니다)
@@ -189,12 +213,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 
 4. **화면 생성**:
    ```
-   mcp__stitch__generate_screen_from_text(
-     projectId: {stitch_project_id},
-     prompt: "{화면 설명}\n\n[기존 레이아웃 컨텍스트]\n{수집된 컨텍스트}",
-     deviceType: "DESKTOP",
-     modelId: {STITCH_MODEL}
-   )
+   Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs generate --project-id {stitch_project_id} --prompt \"{화면 설명}\n\n[기존 레이아웃 컨텍스트]\n{수집된 컨텍스트}\" --device-type DESKTOP --model-id {STITCH_MODEL}")
    ```
    - **응답 있음 (screen_id 포함)**: step 4-2(output_components 저장)로 진행
    - **빈 응답/null**: 비동기 수락으로 처리 → 폴링 루프(4-1) 진입 (재시도 금지)
@@ -215,7 +234,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 
    반복마다 (poll_count = 1부터 시작, 20 이하인 동안 반복):
    a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30` (Bash 호출)
-   b. `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출
+   b. `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-screens --project-id {stitch_project_id}")` 호출
    c. `현재 screen IDs - baseline_screen_ids ≠ ∅` 인가?
       - YES: 차집합의 첫 번째 screen ID 선택 → step 5로 진행
       - NO: `[Stitch] 대기 중... ({poll_count}/20회)` 출력 후 poll_count += 1, 반복 계속
@@ -227,7 +246,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 
 5. **화면 URL 확보** (`get_screen` 최대 3회 재시도):
    ```
-   mcp__stitch__get_screen(name: "projects/{id}/screens/{screen_id}", ...)
+   Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs get-screen --project-id {stitch_project_id} --screen-id {screen_id}")
    ```
    - 실패 시 5초 대기 후 재시도, 최대 3회
    - 3회 모두 실패 시: screen_id를 pending 항목에 기록하고 "[Stitch] 화면 URL 확보 실패 — screen_id: {id}. 나중에 /mst:stitch --list로 확인 가능합니다." 출력
@@ -239,7 +258,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
          - ⚠️ 이 루프는 screen_id 감지용 Step 4-1 폴링과 별도이며, screen_id 확보 이후에만 실행
          - `html_wait_count = 1`로 시작, `html_wait_count <= 20` 동안 반복:
            a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30`
-           b. `mcp__stitch__get_screen(name: "projects/{id}/screens/{screen_id}", ...)` 재호출
+           b. `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs get-screen --project-id {stitch_project_id} --screen-id {screen_id}")` 재호출
            c. `output_components` 재확인:
               - 코드 포함 시: `html_content` 메모리 변수에 보관하고 루프 종료
               - 여전히 비어있거나 제안 텍스트면 `[Stitch] HTML 대기 중... ({html_wait_count}/20회)` 출력 후 `html_wait_count += 1`
@@ -247,13 +266,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 
 6. **variants 요청 시** (--variants 또는 트리거 C):
    ```
-   mcp__stitch__generate_variants(
-     projectId: {stitch_project_id},
-     selectedScreenIds: [{생성된 screen_id}],
-     prompt: "다양한 레이아웃과 색상 방향으로 3가지 변형 생성",
-     variantOptions: { variantCount: 3, creativeRange: "EXPLORE" },
-     modelId: {STITCH_MODEL}
-   )
+   Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs variants --project-id {stitch_project_id} --screen-id {생성된 screen_id} --prompt \"다양한 레이아웃과 색상 방향으로 3가지 변형 생성\" --variant-count 3 --creative-range EXPLORE --model-id {STITCH_MODEL}")
    ```
 
 ## 멀티 스타일 생성 프로토콜
@@ -270,7 +283,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    미발견 시: 이 단계 skip → Step 0부터 정상 실행.
 
    발견 시:
-   a. `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출 → 현재 screen IDs 확인
+   a. `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-screens --project-id {stitch_project_id}")` 호출 → 현재 screen IDs 확인
    b. diff = 현재 screen IDs − pending 항목의 `baseline_screen_ids`
    c. 기대 화면 수 = `styles` 수 × `screen_list` 수 (screen_list 미존재 시 1로 간주 — 이전 버전 pending 항목(screen_list 필드 미포함) 호환용)
       - ※ 신규 pending 항목은 항상 `screen_list` 필드를 포함하여 저장한다 (Step 2 참조)
@@ -298,7 +311,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
       - Step 0부터 정상 실행 (새 배치 생성)
 
 0. **baseline_screen_ids 기록** (1회):
-   - `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출 → 응답의 `screens[].name`에서 screen ID 추출 → `baseline_screen_ids` Set으로 저장
+   - `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-screens --project-id {stitch_project_id}")` 호출 → 응답의 `screens[].name`에서 screen ID 추출 → `baseline_screen_ids` Set으로 저장
    - screen ID 추출: `name` 필드에서 마지막 `/` 이후 값
 
 0.5. **화면 목록 사전 정의** (Step 1 전 실행):
@@ -362,15 +375,10 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
      for each style in styles:
        mkdir {PROJECT_ROOT}/.gran-maestro/designs/DES-NNN/styles/{style_slug}/
      ```
-   - 이후 N×M개의 `mcp__stitch__generate_screen_from_text` 호출을 **단일 메시지에 모두 포함시켜 동시에 발송** (순차 대기 금지):
+   - 이후 N×M개의 `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs generate ...")` 호출을 **단일 메시지에 모두 포함시켜 동시에 발송** (순차 대기 금지):
      ```
      [병렬] for each (style, screen) in styles × screen_list:
-       mcp__stitch__generate_screen_from_text(
-         projectId: {stitch_project_id},
-         prompt: "{screen 화면 설명}\n\n[스타일 방향] {스타일명}: {스타일 차별화 포인트}",
-         deviceType: "DESKTOP",
-         modelId: {STITCH_MODEL}
-       )
+       Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs generate --project-id {stitch_project_id} --prompt \"{screen 화면 설명}\n\n[스타일 방향] {스타일명}: {스타일 차별화 포인트}\" --device-type DESKTOP --model-id {STITCH_MODEL}")
      ```
    - 모든 응답 수집 후 처리:
      - 응답 있음(screen_id 포함): screen_id 임시 보관 → output_components 코드 포함 시
@@ -391,7 +399,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
      > ⚠️ **MANDATORY**: 반드시 20회를 모두 채울 때까지 루프를 종료하지 않는다. 중간에 임의로 중단하는 것은 금지다.
      poll_count = 1로 초기화, poll_count <= 20인 동안 반복:
      a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30` (Bash 호출)
-     b. `mcp__stitch__list_screens(projectId: {stitch_project_id})` 호출
+     b. `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-screens --project-id {stitch_project_id}")` 호출
      c. `현재 screen IDs - baseline_screen_ids`의 차집합 크기 >= 수집 목표 수?
         - YES: 차집합에서 목표 수만큼 screen ID 선택 → Step 5로 진행
         - NO: `[Stitch] 대기 중... ({poll_count}/20회)` 출력 후 poll_count += 1, 반복 계속
@@ -403,7 +411,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 5. **각 화면 URL 확보** (`get_screen` 최대 3회 재시도):
    - 각 screen_id에 대해:
      ```
-     mcp__stitch__get_screen(name: "projects/{id}/screens/{screen_id}", ...)
+     Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs get-screen --project-id {stitch_project_id} --screen-id {screen_id}")
      ```
    - `screenshot.downloadUrl` 추출 (없으면 null)
    - **output_components HTML 확인** (폴링 경로 전용):
@@ -414,7 +422,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
          - ⚠️ 이 루프는 screen_id 수집용 Step 4 폴링과 별도이며, 각 screen_id별로 독립 카운터를 사용
          - 각 screen_id마다 `html_wait_count = 1`로 시작, `html_wait_count <= 20` 동안 반복:
            a. `python3 {PLUGIN_ROOT}/scripts/mst.py stitch sleep --interval 30`
-           b. 동일한 `screen_id`로 `mcp__stitch__get_screen(...)` 재호출
+           b. 동일한 `screen_id`로 `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs get-screen --project-id {stitch_project_id} --screen-id {screen_id}")` 재호출
            c. `output_components` 재확인:
               - 코드 포함 시: 해당 `스타일명+화면명 → html_content` 맵에 보관하고 루프 종료
               - 여전히 비어있거나 제안 텍스트면 `[Stitch] HTML 대기 중... ({html_wait_count}/20회, screen_id: {screen_id})` 출력 후 `html_wait_count += 1`
@@ -497,13 +505,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 9. **선택된 스타일별 variants 생성** (Q2 > 0인 경우):
    - Q1에서 선택된 각 스타일에 대해:
      ```
-     mcp__stitch__generate_variants(
-       projectId: {stitch_project_id},
-       selectedScreenIds: [{스타일의 모든 screen_id}],
-       prompt: "선택된 스타일을 유지하면서 레이아웃과 색상을 다양하게 변형",
-       variantOptions: { variantCount: {Q2 선택값}, creativeRange: "EXPLORE" },
-       modelId: {STITCH_MODEL}
-     )
+     Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs variants --project-id {stitch_project_id} --screen-ids {스타일의_모든_screen_id_csv} --prompt \"선택된 스타일을 유지하면서 레이아웃과 색상을 다양하게 변형\" --variant-count {Q2 선택값} --creative-range EXPLORE --model-id {STITCH_MODEL}")
      ```
    - 생성된 variant screen_id들을 accumulated_screens에 추가
 
@@ -738,11 +740,7 @@ variants 생성 시:
 
 1. **대상 화면 유효성 확인**:
    ```
-   mcp__stitch__get_screen(
-     name: "projects/{config.stitch.project_id}/screens/{SCREEN_ID}",
-     projectId: {config.stitch.project_id},
-     screenId: {SCREEN_ID}
-   )
+   Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs get-screen --project-id {config.stitch.project_id} --screen-id {SCREEN_ID} --name \"projects/{config.stitch.project_id}/screens/{SCREEN_ID}\"")
    ```
    - 성공 시: 응답에서 `{원본_TITLE}` 및 프로젝트 URL `https://stitch.withgoogle.com/projects/{config.stitch.project_id}`을 `{원본_URL}`로 보관
    - 실패 시: "[Stitch] 화면을 찾을 수 없습니다 — screen_id: {SCREEN_ID}" 출력 후 종료
@@ -756,17 +754,7 @@ variants 생성 시:
 
 3. **variants 생성**:
    ```
-   mcp__stitch__generate_variants(
-     projectId: {stitch_project_id},
-     selectedScreenIds: [{SCREEN_ID}],
-     prompt: "기존 화면을 근본적으로 재설계",
-     variantOptions: {
-       variantCount: {Q1 선택 수},
-       creativeRange: "REIMAGINE",
-       aspects: [{Q2 선택 aspects}]
-     },
-     modelId: {STITCH_MODEL}
-   )
+   Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs variants --project-id {config.stitch.project_id} --screen-id {SCREEN_ID} --prompt \"기존 화면을 근본적으로 재설계\" --variant-count {Q1 선택 수} --creative-range REIMAGINE --aspects {Q2 선택 aspects csv} --model-id {STITCH_MODEL}")
    ```
 
 4. **결과 표시**:
@@ -798,6 +786,7 @@ variants 생성 시:
 
 - `--auto`: 사용자 확인 없이 자동 실행
 - `--variants`: 화면 생성 후 3가지 변형 추가 생성
+- `--init`: 기존 Stitch 프로젝트의 디자인 테마/화면 정보를 수집해 DESIGN.md 초안 생성 (SDK `init` 명령 사용)
 - `--req REQ-NNN`: 특정 REQ에 연결 (메타데이터 기록)
 - `--edit SCREEN_ID`: 기존 화면 수정
 - `--list`: 현재 Stitch 프로젝트의 화면 목록 조회

@@ -19,6 +19,9 @@
   "scripts": {
     "sync:local": "bash scripts/sync-local.sh"
   },
+  "dependencies": {
+    "@google/stitch-sdk": "^0.0.3"
+  },
   "devDependencies": {
     "typescript": "^5.0.0"
   }
