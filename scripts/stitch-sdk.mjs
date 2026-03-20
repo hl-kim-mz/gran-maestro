@@ -114,9 +114,17 @@ function ensureAuthConfigured() {
 
   const msg = [
     "[Stitch] 인증 정보가 설정되지 않았습니다.",
-    "STITCH_API_KEY 환경변수를 설정하세요.",
-    "또는 STITCH_ACCESS_TOKEN + GOOGLE_CLOUD_PROJECT를 함께 설정하세요.",
-  ].join(" ");
+    "",
+    "API 키 발급: https://aistudio.google.com/apikey",
+    "",
+    "설정 방법:",
+    '  export STITCH_API_KEY="발급받은_API_키"',
+    "",
+    "영구 설정 (~/.zshrc 또는 ~/.bashrc에 추가):",
+    '  echo \'export STITCH_API_KEY="발급받은_API_키"\' >> ~/.zshrc',
+    "",
+    "또는 OAuth 인증: STITCH_ACCESS_TOKEN + GOOGLE_CLOUD_PROJECT를 함께 설정하세요.",
+  ].join("\n");
 
   throw new Error(msg);
 }
