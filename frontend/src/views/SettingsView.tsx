@@ -1300,8 +1300,9 @@ export function SettingsView() {
                       <p className="text-xs text-muted-foreground">Models/Phase 1 → 4 흐름에서 단계를 선택하세요.</p>
                     </div>
 
-                    <div className="space-y-1">
-                      {WORKFLOW_PHASES.map((phase, index) => (
+                    <ScrollArea className="max-h-[calc(100vh-240px)] overflow-y-auto pr-4">
+                      <div className="space-y-1">
+                        {WORKFLOW_PHASES.map((phase, index) => (
                         <React.Fragment key={phase.id}>
                           <div className="rounded-md border bg-background p-3">
                             <div className="flex items-baseline justify-between mb-2">
@@ -1347,7 +1348,8 @@ export function SettingsView() {
                           )}
                         </React.Fragment>
                       ))}
-                    </div>
+                      </div>
+                    </ScrollArea>
                   </div>
 
                   <div className="rounded-lg border bg-card p-4">
