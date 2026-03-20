@@ -126,9 +126,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
 2. 아래 명령으로 프로젝트 + 화면 컨텍스트를 수집한다:
    - `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs init --project-id {config.stitch.project_id}")`
 3. JSON 응답의 `summary.theme`, `screens`, `project`를 바탕으로 DESIGN.md 초안을 생성한다.
-4. 저장 경로:
-   - 활성 DES가 있으면: `{PROJECT_ROOT}/.gran-maestro/designs/{DES-NNN}/DESIGN.md`
-   - 활성 DES가 없으면: `{PROJECT_ROOT}/.gran-maestro/designs/DESIGN.md`
+4. 저장 경로: `{PROJECT_ROOT}/.gran-maestro/designs/DESIGN.md`
 5. `--init` 단독 호출이면 여기서 종료하고, 일반 생성 플로우와 함께 호출됐으면 아래 화면 생성 프로토콜을 계속 진행한다.
 
 ## 트리거 분기
@@ -203,7 +201,7 @@ python3 {PLUGIN_ROOT}/scripts/mst.py counter next --type des
    - 최종 프롬프트에는 최소 아래 섹션을 포함한다:
      - `**DESIGN SYSTEM**`
      - `**Page Structure**`
-   - DESIGN.md가 존재하면 톤/타이포/색상/레이아웃 지침을 `**DESIGN SYSTEM**`에 우선 반영한다.
+   - `{PROJECT_ROOT}/.gran-maestro/designs/DESIGN.md`가 존재하면 톤/타이포/색상/레이아웃 지침을 `**DESIGN SYSTEM**`에 우선 반영한다.
    - Step 4의 `{화면 설명}` 자리에는 향상된 최종 프롬프트를 사용한다.
 
 3. **대기 안내 메시지 출력**:
