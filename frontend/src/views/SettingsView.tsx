@@ -58,6 +58,8 @@ type WorkflowRoleDetailRow = {
   enabled: boolean;
   agent: string;
   tier: string;
+  tierPath: string[];
+  agentPath: string[];
 };
 
 type WorkflowInfoFieldRow = {
@@ -79,6 +81,8 @@ type WorkflowModelRoleAssignmentRow = {
   role: string;
   provider: string;
   tier: string;
+  tierPath: string[];
+  providerPath: string[];
 };
 
 const MODEL_ROLE_DISPLAY_ORDER = ['pm_conductor', 'architect', 'developer', 'reviewer', 'developer_claude'] as const;
@@ -699,6 +703,8 @@ function buildRoleDetailsFromRolePath(config: any, path: string[]): WorkflowRole
         enabled: false,
         agent: '-',
         tier: '-',
+        tierPath: [...path, name, 'tier'],
+        agentPath: [...path, name, 'agent'],
       };
     }
 
@@ -707,6 +713,8 @@ function buildRoleDetailsFromRolePath(config: any, path: string[]): WorkflowRole
       enabled: roleValue.enabled !== false,
       agent: typeof roleValue.agent === 'string' ? roleValue.agent : '-',
       tier: typeof roleValue.tier === 'string' ? roleValue.tier : '-',
+      tierPath: [...path, name, 'tier'],
+      agentPath: [...path, name, 'agent'],
     };
   });
 }
@@ -747,6 +755,8 @@ function buildModelRoleAssignmentRows(config: any): WorkflowModelRoleAssignmentR
           role: `${formatRoleDisplayName(roleName)} (${getRoleSlotLabel(index)})`,
           provider: typeof slot.provider === 'string' ? slot.provider : '-',
           tier: typeof slot.tier === 'string' ? slot.tier : '-',
+          tierPath: ['models', 'roles', roleName, index.toString(), 'tier'],
+          providerPath: ['models', 'roles', roleName, index.toString(), 'provider'],
         });
       });
       continue;
@@ -757,6 +767,8 @@ function buildModelRoleAssignmentRows(config: any): WorkflowModelRoleAssignmentR
       role: formatRoleDisplayName(roleName),
       provider: typeof slot.provider === 'string' ? slot.provider : '-',
       tier: typeof slot.tier === 'string' ? slot.tier : '-',
+      tierPath: ['models', 'roles', roleName, 'tier'],
+      providerPath: ['models', 'roles', roleName, 'provider'],
     });
   }
 
@@ -1447,9 +1459,36 @@ export function SettingsView() {
                                   {selectedModelRoleRows.map((row) => (
                                     <tr key={row.role} className="border-t">
                                       <td className="px-3 py-2 font-mono text-xs">{row.role}</td>
-                                      <td className="px-3 py-2 font-mono text-xs">{row.provider}</td>
                                       <td className="px-3 py-2">
-                                        <Input value={row.tier} readOnly className="h-8 w-32 font-mono text-xs" />
+                                        <Select
+                                          value={AGENT_PROVIDERS.includes(row.provider as AgentProvider) ? row.provider : undefined}
+                                          onValueChange={(value) => handleFieldChange(row.providerPath, value)}
+                                        >
+                                          <SelectTrigger className="h-8 w-32 font-mono text-xs">
+                                            <SelectValue placeholder={row.provider !== '-' ? row.provider : undefined} />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {AGENT_PROVIDERS.map((provider) => (
+                                              <SelectItem key={provider} value={provider} className="font-mono">
+                                                {provider}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <Select
+                                          value={isTier(row.tier) ? row.tier : undefined}
+                                          onValueChange={(value) => handleFieldChange(row.tierPath, value)}
+                                        >
+                                          <SelectTrigger className="h-8 w-32 font-mono text-xs">
+                                            <SelectValue placeholder={row.tier !== '-' ? row.tier : undefined} />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="premium" className="font-mono">premium</SelectItem>
+                                            <SelectItem value="economy" className="font-mono">economy</SelectItem>
+                                          </SelectContent>
+                                        </Select>
                                       </td>
                                     </tr>
                                   ))}
@@ -1457,7 +1496,7 @@ export function SettingsView() {
                               </table>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              이 노드는 주요 설정을 읽기 전용으로 표시합니다. 상세 편집은 고급 탭에서 가능합니다.
+                              이 노드는 인라인 편집을 지원합니다. 값을 변경한 뒤 Save 버튼으로 저장하세요. 상세 설정은 고급 탭을 이용하세요.
                             </p>
                           </div>
                         ) : (
@@ -1598,9 +1637,36 @@ export function SettingsView() {
                                         {row.enabled ? 'ON' : 'OFF'}
                                       </Badge>
                                     </td>
-                                    <td className="px-3 py-2 font-mono text-xs">{row.agent}</td>
                                     <td className="px-3 py-2">
-                                      <Input value={row.tier} readOnly className="h-8 w-32 font-mono text-xs" />
+                                      <Select
+                                        value={AGENT_PROVIDERS.includes(row.agent as AgentProvider) ? row.agent : undefined}
+                                        onValueChange={(value) => handleFieldChange(row.agentPath, value)}
+                                      >
+                                        <SelectTrigger className="h-8 w-32 font-mono text-xs">
+                                          <SelectValue placeholder={row.agent !== '-' ? row.agent : undefined} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {AGENT_PROVIDERS.map((provider) => (
+                                            <SelectItem key={provider} value={provider} className="font-mono">
+                                              {provider}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <Select
+                                        value={isTier(row.tier) ? row.tier : undefined}
+                                        onValueChange={(value) => handleFieldChange(row.tierPath, value)}
+                                      >
+                                        <SelectTrigger className="h-8 w-32 font-mono text-xs">
+                                          <SelectValue placeholder={row.tier !== '-' ? row.tier : undefined} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="premium" className="font-mono">premium</SelectItem>
+                                          <SelectItem value="economy" className="font-mono">economy</SelectItem>
+                                        </SelectContent>
+                                      </Select>
                                     </td>
                                   </tr>
                                 ))}
@@ -1611,7 +1677,7 @@ export function SettingsView() {
 
                         {selectedNode.kind !== 'agent-matrix' && (
                           <p className="text-xs text-muted-foreground">
-                            이 노드는 역할 기반 설정을 요약 표시합니다. 상세 편집은 고급 탭에서 가능합니다.
+                            이 노드는 인라인 편집을 지원합니다. 값을 변경한 뒤 Save 버튼으로 저장하세요. 상세 설정은 고급 탭을 이용하세요.
                           </p>
                         )}
                       </div>
