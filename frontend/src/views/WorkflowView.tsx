@@ -722,25 +722,62 @@ export function WorkflowView() {
       <div className="flex-1 flex flex-col bg-card overflow-hidden min-h-0">
         {selectedReq ? (
           <>
-            <div className="p-4 border-b flex justify-between items-center bg-muted/10">
-              <div className="flex items-center gap-3">
-                <h2 className="font-bold text-lg">{selectedReq.id}</h2>
-                <Badge variant="outline">{selectedReq.type}</Badge>
-                {selectedReq?.linked_plan && (
-                  <button
-                    type="button"
-                    onClick={() => navigateTo('plans', selectedReq.linked_plan)}
-                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-muted hover:bg-accent transition-colors font-mono"
-                  >
-                    <ClipboardList className="h-3 w-3" />
-                    {selectedReq.linked_plan}
-                    <ArrowRight className="h-3 w-3" />
-                  </button>
-                )}
+            <div className="p-4 border-b bg-muted/10 flex flex-col gap-3">
+              <div className="flex justify-between items-start">
+                <div className="flex flex-col gap-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-3">
+                    <h2 className="font-bold text-lg whitespace-nowrap">{selectedReq.id}</h2>
+                    <span className="text-muted-foreground text-sm truncate max-w-md" title={selectedReq.title || '제목 없음'}>
+                      {selectedReq.title || '제목 없음'}
+                    </span>
+                    {selectedReq.type && <Badge variant="outline" className="whitespace-nowrap">{selectedReq.type}</Badge>}
+                    {selectedReq?.linked_plan && (
+                      <button
+                        type="button"
+                        onClick={() => navigateTo('plans', selectedReq.linked_plan)}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-muted hover:bg-accent transition-colors font-mono whitespace-nowrap"
+                      >
+                        <ClipboardList className="h-3 w-3" />
+                        {selectedReq.linked_plan}
+                        <ArrowRight className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <StatusBadge status={selectedReq.status} />
+                </div>
               </div>
-              <div className="flex gap-2">
-                <StatusBadge status={selectedReq.status} />
-              </div>
+              
+              {/* Phase Stepper */}
+              {(() => {
+                const phase = selectedReq.current_phase ?? selectedReq.phase;
+                if (typeof phase !== 'number' || phase < 1 || phase > 5) return null;
+                const phases = ["분석", "구현", "리뷰", "피드백", "완료"];
+                return (
+                  <div className="flex items-center gap-2 mt-2">
+                    {phases.map((name, i) => {
+                      const stepNumber = i + 1;
+                      const status = stepNumber < phase ? 'completed' : stepNumber === phase ? 'current' : 'upcoming';
+                      
+                      return (
+                        <div key={name} className="flex items-center">
+                          <div className={`flex items-center justify-center text-[10px] font-bold px-2 py-1 rounded-full border ${
+                            status === 'completed' ? 'bg-green-100 text-green-700 border-green-200' :
+                            status === 'current' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                            'bg-gray-100 text-gray-400 border-gray-200'
+                          }`}>
+                            {status === 'completed' ? '✓ ' : ''}{name}
+                          </div>
+                          {i < phases.length - 1 && (
+                            <div className={`w-4 h-px mx-1 ${stepNumber < phase ? 'bg-green-200' : 'bg-gray-200'}`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex-1 flex overflow-hidden">
@@ -769,8 +806,21 @@ export function WorkflowView() {
                             {task.name && (
                               <p className="text-[11px] line-clamp-2 leading-snug">{task.name}</p>
                             )}
+                            {(() => {
+                              const coversAc = selectedReq?.tasks?.find((t: any) => t.id === task.id)?.covers_ac || task.covers_ac;
+                              if (!Array.isArray(coversAc) || coversAc.length === 0) return null;
+                              return (
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                  {coversAc.map((acId: string) => (
+                                    <span key={acId} className="px-1 py-0.5 rounded text-[9px] bg-muted border text-muted-foreground font-mono">
+                                      {acId}
+                                    </span>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                             {(task.assigned_agent || task.agent) && (
-                              <span className="mt-0.5 text-[10px] opacity-60 block">[{task.assigned_agent || task.agent}]</span>
+                              <span className="mt-1 text-[10px] opacity-60 block">[{task.assigned_agent || task.agent}]</span>
                             )}
                           </div>
                         </div>
@@ -932,6 +982,101 @@ export function WorkflowView() {
                             </button>
                           </div>
                         )}
+                        {(() => {
+                          const iterations = selectedReq?.review_iterations;
+                          if (!Array.isArray(iterations) || iterations.length === 0) return null;
+                          const sorted = [...iterations].reverse();
+                          return (
+                            <div className="mt-6 border-t pt-4">
+                              <h3 className="text-sm font-bold mb-3">Review Iterations</h3>
+                              <div className="space-y-3">
+                                {sorted.map((it: any, i: number) => (
+                                  <div key={it.rv_id || i} className="border rounded-md p-3 text-xs bg-muted/5">
+                                    <div className="flex justify-between items-center mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono font-bold text-primary">{it.rv_id}</span>
+                                        <span className="text-muted-foreground">{it.status}</span>
+                                      </div>
+                                      <div className="text-muted-foreground">
+                                        {formatTimestamp(it.created_at)}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Badge variant="outline" className="bg-background">
+                                        Gaps: {it.gaps_found ?? 0}
+                                      </Badge>
+                                      {it.review_issues_summary && (
+                                        <>
+                                          {it.review_issues_summary.critical > 0 && (
+                                            <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100">
+                                              CRITICAL {it.review_issues_summary.critical}
+                                            </Badge>
+                                          )}
+                                          {it.review_issues_summary.major > 0 && (
+                                            <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-200">
+                                              MAJOR {it.review_issues_summary.major}
+                                            </Badge>
+                                          )}
+                                          {it.review_issues_summary.minor > 0 && (
+                                            <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">
+                                              MINOR {it.review_issues_summary.minor}
+                                            </Badge>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                    {it.review_issues_summary?.auto_fixed?.length > 0 && (
+                                      <details className="mt-2 group">
+                                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+                                          <span className="group-open:rotate-90 transition-transform">▶</span>
+                                          Auto Fixed ({it.review_issues_summary.auto_fixed.length})
+                                        </summary>
+                                        <div className="mt-1 pl-4 space-y-1">
+                                          {it.review_issues_summary.auto_fixed.map((fix: any, idx: number) => (
+                                            <div key={idx} className="flex gap-2 items-start bg-background p-1.5 rounded border">
+                                              <span className={`px-1 py-0.5 rounded text-[9px] font-bold ${
+                                                fix.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' :
+                                                fix.severity === 'MAJOR' ? 'bg-orange-100 text-orange-700' :
+                                                'bg-blue-100 text-blue-700'
+                                              }`}>
+                                                {fix.severity}
+                                              </span>
+                                              <span className="flex-1">{fix.description}</span>
+                                              {fix.task_id && <span className="font-mono text-[9px] text-muted-foreground shrink-0">{fix.task_id}</span>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </details>
+                                    )}
+                                    {it.review_issues_summary?.skipped?.length > 0 && (
+                                      <details className="mt-1 group">
+                                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+                                          <span className="group-open:rotate-90 transition-transform">▶</span>
+                                          Skipped ({it.review_issues_summary.skipped.length})
+                                        </summary>
+                                        <div className="mt-1 pl-4 space-y-1">
+                                          {it.review_issues_summary.skipped.map((skip: any, idx: number) => (
+                                            <div key={idx} className="flex gap-2 items-start bg-background p-1.5 rounded border">
+                                              <span className={`px-1 py-0.5 rounded text-[9px] font-bold ${
+                                                skip.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' :
+                                                skip.severity === 'MAJOR' ? 'bg-orange-100 text-orange-700' :
+                                                'bg-blue-100 text-blue-700'
+                                              }`}>
+                                                {skip.severity}
+                                              </span>
+                                              <span className="flex-1">{skip.description}</span>
+                                              {skip.reason && <span className="text-[10px] text-muted-foreground italic block mt-0.5">사유: {skip.reason}</span>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </details>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </TabsContent>
                     <TabsContent value="logs" className="flex-1 m-0 p-0 overflow-hidden min-h-0">

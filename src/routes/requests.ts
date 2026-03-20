@@ -284,11 +284,8 @@ projectRequestsApi.get("/requests/:id", async (c) => {
       // ignore fallback failure
     }
   }
-  const { review_iterations: _ri, ...reqJsonRest } = reqJson as RequestMeta & {
-    review_iterations?: unknown;
-  };
   return c.json({
-    ...reqJsonRest,
+    ...reqJson,
     id: requestId,
     created_at: createdAt,
     linked_plan: linkedPlan ?? null,

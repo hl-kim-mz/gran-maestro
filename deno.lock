@@ -141,6 +141,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@google/stitch-sdk@^0.0.3",
         "npm:typescript@5"
       ]
     }
