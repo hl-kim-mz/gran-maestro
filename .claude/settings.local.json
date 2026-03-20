@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/mst-session-init.sh"
+            "command": "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/hooks/mst-session-init.sh"
           }
         ]
       }
@@ -17,27 +17,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/mst-skill-push.sh"
+            "command": "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/hooks/mst-skill-push.sh"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "AskUserQuestion",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/mst-qa-capture.sh"
-          }
-        ]
-      },
-      {
         "matcher": "Skill",
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/mst-skill-pop.sh"
+            "command": "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/hooks/mst-skill-pop.sh"
           }
         ]
       }
@@ -48,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/mst-continuation-guard.sh"
+            "command": "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/hooks/mst-continuation-guard.sh"
           }
         ]
       }
