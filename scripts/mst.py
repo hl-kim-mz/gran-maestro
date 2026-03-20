@@ -874,7 +874,7 @@ TYPE_DIRS = {
     "cap": ("captures", "CAP"),
     "intent": ("intent", "INTENT"),
 }
-JSON_FILE_MAP = {"req": "request.json", "cap": "capture.json"}
+JSON_FILE_MAP = {"req": "request.json", "pln": "plan.json", "des": "design.json", "cap": "capture.json"}
 
 
 def type_archived_dir(type_key: str) -> Path:
@@ -1819,12 +1819,24 @@ def cmd_agents_sync(args):
 
 def cmd_archive_run(args):
     type_key = getattr(args, "type", None) or "req"
-    max_active = args.max or 20
+    max_active = _load_archive_max_active(args.max, type_key)
     _archive_run_type(type_key, max_active, emit_output=True)
     return 0
 
 
-def _load_archive_max_active(cli_max: Optional[int]) -> int:
+def _resolve_archive_max_active(max_active_cfg, type_key: Optional[str]) -> int:
+    value = max_active_cfg
+    if isinstance(max_active_cfg, dict):
+        value = max_active_cfg.get(type_key) if type_key else None
+        if value is None:
+            value = max_active_cfg.get("default", 20)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 20
+
+
+def _load_archive_max_active(cli_max: Optional[int], type_key: Optional[str] = None) -> int:
     if cli_max is not None:
         return cli_max
 
@@ -1839,14 +1851,10 @@ def _load_archive_max_active(cli_max: Optional[int]) -> int:
             cfg = loaded
             break
 
-    max_active = 20
+    max_active_cfg = 20
     if isinstance(cfg, dict):
-        max_active = cfg.get("archive", {}).get("max_active_sessions", 20)
-    try:
-        max_active = int(max_active)
-    except (TypeError, ValueError):
-        max_active = 20
-    return max_active
+        max_active_cfg = cfg.get("archive", {}).get("max_active_sessions", 20)
+    return _resolve_archive_max_active(max_active_cfg, type_key)
 
 
 def _archive_run_type(type_key: str, max_active: int, emit_output: bool) -> int:
@@ -1872,7 +1880,7 @@ def _archive_run_type(type_key: str, max_active: int, emit_output: bool) -> int:
                 to_archive.append(d)
     else:
         completed = [d for d in dirs if d.is_dir() and
-                     (load_json(d / json_file) or {}).get("status") in ("completed", "cancelled")]
+                     (load_json(d / json_file) or {}).get("status") in ("completed", "cancelled", "done", "consensus_reached", "converged")]
 
         if len(dirs) - len(completed) <= max_active:
             if emit_output:
@@ -1914,12 +1922,11 @@ def _archive_run_type(type_key: str, max_active: int, emit_output: bool) -> int:
 
 
 def cmd_archive_run_all(args):
-    max_active = _load_archive_max_active(args.max)
-
     counts = {}
     had_error = False
     for type_key in TYPE_DIRS:
         try:
+            max_active = _load_archive_max_active(args.max, type_key)
             counts[type_key] = _archive_run_type(type_key, max_active=max_active, emit_output=False)
         except Exception as exc:
             print(f"[Archive] {type_key} 정리 실패: {exc}", file=sys.stderr)
@@ -3094,14 +3101,11 @@ def cmd_hooks_post_skill(args):
         if not archive_cfg.get("auto_archive_on_complete", True):
             return 0
 
-        max_active = archive_cfg.get("max_active_sessions", 20)
-        try:
-            max_active = int(max_active)
-        except (TypeError, ValueError):
-            max_active = 20
+        max_active_cfg = archive_cfg.get("max_active_sessions", 20)
 
         for type_key in TYPE_DIRS:
             try:
+                max_active = _resolve_archive_max_active(max_active_cfg, type_key)
                 _archive_run_type(type_key, max_active=max_active, emit_output=False)
             except Exception:
                 pass

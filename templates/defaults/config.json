@@ -53,7 +53,13 @@
     "auto_archive": true
   },
   "archive": {
-    "max_active_sessions": 20,
+    "max_active_sessions": {
+      "default": 20,
+      "req": 100,
+      "idn": 200,
+      "pln": 100,
+      "des": 100
+    },
     "archive_retention_days": null,
     "auto_archive_on_create": true,
     "auto_archive_on_complete": true,
