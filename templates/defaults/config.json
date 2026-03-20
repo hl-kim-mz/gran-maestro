@@ -348,6 +348,26 @@
       }
     }
   },
+  "loop_conditions": {
+    "presets": [
+      {
+        "id": "default_pass",
+        "label": "기존 검증 통과 (기본값)",
+        "description": "AC 통과 + max_iterations 도달 시 종료"
+      },
+      {
+        "id": "convergence",
+        "label": "연속 무변경 수렴",
+        "description": "이전 iteration과 비교해 새로운 gap/diff가 없으면 종료"
+      },
+      {
+        "id": "fixed_n",
+        "label": "고정 N회 반복",
+        "description": "지정한 횟수만큼 반복 후 종료",
+        "requires_param": "n"
+      }
+    ]
+  },
   "d3": {
     "enabled": true,
     "cynefin_skip": [

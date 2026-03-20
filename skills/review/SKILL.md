@@ -431,6 +431,26 @@ AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 5개 분기로 
 
 > **Step 5 완료 시 공통 절차**: 분기 처리가 완료되면 `request.json.review_iterations` 배열에서 현재 회차 항목의 `status`를 `"in_progress"` → `"completed"`로 갱신합니다.
 
+#### 커스텀 Loop 종료 조건 게이트 (Step 6 선행)
+
+> 이 게이트는 기존 분기 판정을 대체하지 않는다. 기존 판정이 `(a)`(pass)로 확정되기 직전에만 AND로 추가 평가한다.
+
+1. Step 6 루프 시작 시 1회, `request.json.source_plan` 기준으로 대상 plan 경로를 결정한다.
+   - 경로: `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`
+2. plan.md의 `## Loop 종료 조건` 섹션을 Read하여 `custom_loop_conditions`를 로드한다.
+   - `source_plan` 미존재, plan 파일 미존재, 섹션 미존재, 섹션 본문 비어있음 중 하나라도 해당하면 `custom_loop_conditions=[]`로 간주하고 커스텀 게이트를 skip한다 (기존 로직 그대로 진행, 하위 호환).
+3. Intent Fidelity 규칙을 포함한 기존 Step 6 분기 판정을 먼저 수행한다.
+4. 기존 판정이 `(a)`가 아니면 커스텀 게이트를 평가하지 않고 기존 분기 결과를 그대로 따른다.
+5. 기존 판정이 `(a)`이면 `custom_loop_conditions`의 각 조건을 AND로 평가한다.
+   - `연속 무변경 수렴`: 이번 iteration의 gap/diff 목록과 직전 iteration 비교 시 새로운 gap/diff가 없어야 통과.
+   - `고정 N회 반복`: `request.json.review_iterations.length >= N`일 때만 통과. `length < N`이면 미충족.
+   - 그 외 커스텀 자연어 조건: PM이 현재 iteration 상태(`ac-results.md`, `review-report.md`, `review.json`) 기반으로 충족 여부를 판정한다.
+6. 커스텀 조건 중 하나라도 미충족이면 `(a)`를 취소하고 `(c)`와 동일 경로로 처리한다.
+   - `review.json.status = "gap_found"`
+   - `request.json.review_summary.status = "gap_fixing"`
+   - approve로 갭 목록 + 재실행 대상 태스크를 반환한다.
+7. 모든 커스텀 조건이 충족되면 기존 `(a)` pass 경로를 그대로 진행한다.
+
 #### Intent Fidelity 결과 반영 규칙 (Step 6 공통)
 
 1. `review-intent-fidelity.md`가 존재하면 `Verified/Partial/Missing/INTENT-GAP` 카운트를 파싱한다.
