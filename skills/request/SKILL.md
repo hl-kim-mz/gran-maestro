@@ -521,6 +521,9 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         반드시 `Skill(skill: "mst:stitch", args: "--req REQ-NNN {요청 내용}")` 스킬을 통해서만 호출합니다.
         → Stitch 완료 후 spec.md 작성 계속
       - 그 외(새 화면 추가/약한 신호): approve Phase 2.5에서 제안, 이 단계 skip
+      - 본 단계에서 UI 관련 여부 플래그 `ui_related`를 유지한다:
+        - `ui_related=true`: 명시적 디자인 요청 또는 새 화면 추가/약한 UI 신호 감지
+        - `ui_related=false`: 그 외
    h-0.5. **Assigned Agent 기본값 보관**: spec.md 작성 직전, `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `workflow.default_agent` 값을 읽어 Assigned Agent 필드의 기본값으로 설정한다. `templates/spec.md`의 Decision Tree(0~3단계)는 이 기본값의 override 조건으로만 동작한다. config 미참조 시 `claude-dev` 자동 선택은 금지. `config.resolved.json`이 없으면 `templates/defaults/config.json`의 `agent_assignments`를 fallback으로 Read한다. 이때 `workflow.default_agent`도 `templates/defaults/config.json`에서 함께 Read하여 DEFAULT_AGENT로 사용한다.
    h-0.6. **Intent Context Load (MANDATORY)**:
       - `{PROJECT_ROOT}/.gran-maestro/request-context.md`를 반드시 Read한다.
@@ -582,6 +585,15 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       > - **포함**: AC (완료 기준), 범위 경계, 제약 조건, 패턴 힌트, 시작점 1~3개, 의존성
       > - **제외**: 수정 파일 exhaustive 목록, 단계별 구현 절차, 에지케이스 사전 열거
       > 구체적인 구현 방법은 에이전트가 worktree를 직접 탐색하며 결정합니다.
+      - **UI 관련 DESIGN.md 자동 참조 (MANDATORY, graceful)**:
+        - 조건: `ui_related=true` + `{PROJECT_ROOT}/.gran-maestro/designs/DESIGN.md` 파일 존재
+        - 동작 1: DESIGN.md를 Read하여 `design_system_context`로 보관하고, `context_manifest_files`에 `.gran-maestro/designs/DESIGN.md`를 dedupe 추가한다.
+          - spec.md에는 아래 중 하나로 경로를 반드시 기록한다:
+            - `## §0 Context Manifest` 목록에 포함 (권장, 기본값)
+            - 또는 별도 `## 디자인 시스템 참조` 섹션에 `- .gran-maestro/designs/DESIGN.md` 기록
+        - 동작 2: outsource brief(`templates/impl-request.md`) 생성 시 `{{IMPL_CONTEXT}}`에 아래 문구를 반드시 주입하도록 지침을 남긴다.
+          - `DESIGN.md를 반드시 Read하여 디자인 규칙을 준수하세요.`
+        - DESIGN.md가 없으면 위 두 동작 모두 skip한다 (graceful).
       - **AC 타입 확장 규칙 (MANDATORY)**:
         - AC 헤더 타입 태그는 `[automatable]`, `[manual]`, `[browser-test]` 3가지를 허용한다.
         - `browser-test`는 실제 브라우저 상호작용 검증이 필요한 AC에 사용한다 (UI 흐름, 클릭/입력, 화면 렌더링, 시각적 회귀 확인 등).
