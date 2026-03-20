@@ -93,6 +93,20 @@ projectDesignsApi.get("/designs", async (c) => {
   return c.json(merged);
 });
 
+projectDesignsApi.get("/designs/design-system", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const content = await readTextFile(`${baseDir}/designs/DESIGN.md`);
+  if (content === null) {
+    return c.json({ exists: false, content: null });
+  }
+
+  return c.json({ exists: true, content });
+});
+
 projectDesignsApi.get("/designs/:desId", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
   if (!baseDir) {

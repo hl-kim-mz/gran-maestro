@@ -12,7 +12,8 @@ import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Palette } from 'lucide-react';
+import { ExternalLink, Palette, FileText, ChevronDown, ChevronRight } from 'lucide-react';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseDesignSections } from '@/shared/designUtils';
 
@@ -114,6 +115,8 @@ export function DesignView() {
   const [selectedPlanSection, setSelectedPlanSection] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [designSystem, setDesignSystem] = useState<{ exists: boolean; content: string | null } | null>(null);
+  const [isDesignSystemOpen, setIsDesignSystemOpen] = useState(true);
 
   const [searchValue, setSearchValue] = useState('');
   const [filterValue, setFilterValue] = useState('all');
@@ -221,6 +224,16 @@ export function DesignView() {
       setSelectedSession(sessions[0]);
     }
   }, [designId, sessions]);
+
+  useEffect(() => {
+    if (!projectId) {
+      setDesignSystem(null);
+      return;
+    }
+    apiFetch<{ exists: boolean; content: string | null }>('/api/designs/design-system', projectId)
+      .then(setDesignSystem)
+      .catch(() => setDesignSystem({ exists: false, content: null }));
+  }, [projectId]);
 
   useEffect(() => {
     if (!projectId) {
@@ -559,6 +572,35 @@ export function DesignView() {
         <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
           <h2 className="font-semibold">Designs ({sessions.length})</h2>
           <RefreshButton onClick={handleRefresh} isRefreshing={isRefreshing} />
+        </div>
+        <div className="border-b">
+          <Collapsible open={isDesignSystemOpen} onOpenChange={setIsDesignSystemOpen}>
+            <CollapsibleTrigger asChild>
+              <button className="flex items-center justify-between w-full p-3 hover:bg-muted/20 transition-colors text-sm font-medium">
+                <span className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  DESIGN.md (디자인 시스템)
+                </span>
+                {isDesignSystemOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="p-4 max-h-[300px] overflow-y-auto text-sm border-t">
+                {designSystem ? (
+                  designSystem.exists && designSystem.content ? (
+                    <MarkdownRenderer content={designSystem.content} />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">DESIGN.md가 없습니다</p>
+                  )
+                ) : (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
         <ListFilter
           searchValue={searchValue}
