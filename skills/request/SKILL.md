@@ -38,6 +38,8 @@ Maestro 모드 비활성 시 자동 활성화:
 > ```bash
 > PROJECT_ROOT=$(pwd)
 > ```
+>
+> `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
 
 > ⚠️ **절대 금지 (예외 없음)**: spec.md 저장 및 `/mst:approve` 확인 전에는
 > 코드 수정·파일 편집·git 커밋·빌드 등 어떠한 구현 행위도 수행하지 않는다.

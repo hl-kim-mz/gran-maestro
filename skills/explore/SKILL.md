@@ -16,6 +16,8 @@ argument-hint: "{탐색 목표 설명} [--focus {파일패턴}]"
 > ```bash
 > PROJECT_ROOT=$(pwd)
 > ```
+>
+> `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
 
 ### Step 0: 아카이브 체크 (자동)
 

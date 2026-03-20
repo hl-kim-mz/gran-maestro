@@ -12,6 +12,8 @@ argument-hint: "[--dir {프로젝트 경로}] [--skip-install]"
 
 ## 실행 프로토콜
 
+> **`{PLUGIN_ROOT}` 경로 규칙**: `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
+
 ### Step 1: OMX 전역 설치
 
 - `--skip-install` 옵션이 없으면: `npm install -g oh-my-codex` 실행

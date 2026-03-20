@@ -11,6 +11,8 @@ argument-hint: "[--all | --active | --completed]"
 
 ## 실행 프로토콜
 
+> **`{PLUGIN_ROOT}` 경로 규칙**: `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
+
 **스크립트 우선 실행**: `python3 {PLUGIN_ROOT}/scripts/mst.py request list --active` 실행. 성공(exit 0)이면 출력을 사용하되, 각 REQ의 `source_plan` 필드를 확인해 `"[from PLN-NNN]"` 태그를 보강한다. 실패 시 아래 fallback으로 진행.
 
 **Fallback:** `requests/` 스캔 → 각 `request.json` 읽기 → 상태별 분류/포맷팅

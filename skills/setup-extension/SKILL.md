@@ -12,6 +12,8 @@ Extension 경로 확인, Chrome 확장 프로그램 페이지 오픈, 설치 안
 
 ## 실행 프로토콜
 
+> **`{PLUGIN_ROOT}` 경로 규칙**: `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
+
 ### Step 1: Extension 경로 확인
 
 - `{PLUGIN_ROOT}/extension/` 디렉토리 존재 여부를 Bash `ls`로 확인

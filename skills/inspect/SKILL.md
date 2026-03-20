@@ -16,6 +16,8 @@ argument-hint: "{REQ-ID | PLN-ID}"
 > ```bash
 > PROJECT_ROOT=$(pwd)
 > ```
+>
+> `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
 
 **REQ-ID 입력 시 스크립트 우선 실행**: `python3 {PLUGIN_ROOT}/scripts/mst.py request inspect {REQ-ID}` 실행. 성공 시 출력 그대로 사용. 실패 시 fallback.
 

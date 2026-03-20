@@ -16,6 +16,8 @@ Codex CLI 호출의 단일 진입점. request 워크플로우(--trace 모드 포
 > ```bash
 > PROJECT_ROOT=$(pwd)
 > ```
+>
+> `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
 
 1. 프롬프트/옵션 파싱
 2. **프롬프트 소스**: `--prompt-file` 있으면 파일 우선 (미존재 시 에러 중단); 없으면 인라인 사용

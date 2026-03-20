@@ -16,6 +16,8 @@ argument-hint: "[{key} [{value}] | preset {list|apply|diff|save|wizard} [id]]"
 > ```bash
 > PROJECT_ROOT=$(pwd)
 > ```
+>
+> `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
 
 1. 인자 없이 호출 시: 전체 설정 표시
 2. key만 지정 시: 해당 설정값 표시

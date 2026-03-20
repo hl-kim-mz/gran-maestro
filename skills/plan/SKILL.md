@@ -56,6 +56,8 @@ argument-hint: "{플래닝 주제 또는 해결하고 싶은 질문/문제}"
 > ```bash
 > PROJECT_ROOT=$(pwd)
 > ```
+>
+> `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
 
 ### Step 0.5: 디버그 의도 감지 & 자동 실행
 

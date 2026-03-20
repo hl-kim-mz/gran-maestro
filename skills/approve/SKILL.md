@@ -16,6 +16,8 @@ PM이 작성한 구현 스펙을 승인하고 Phase 2 실행을 시작합니다.
 > ```bash
 > PROJECT_ROOT=$(pwd)
 > ```
+>
+> `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
 
 ### REQ ID 결정 (인자 파싱)
 

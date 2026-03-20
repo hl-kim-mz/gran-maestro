@@ -43,6 +43,8 @@ argument-hint: "{문서 주제 또는 작성하려는 문서 설명}"
 > ```bash
 > PROJECT_ROOT=$(pwd)
 > ```
+>
+> `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
 
 ### 세션 중 자율 모드 전환 (공통)
 

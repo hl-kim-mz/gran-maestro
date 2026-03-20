@@ -39,6 +39,8 @@ mst:feedback 실행 시 아래 정보를 반드시 제공해야 합니다:
 > ```bash
 > PROJECT_ROOT=$(pwd)
 > ```
+>
+> `{PLUGIN_ROOT}`는 이 스킬의 "Base directory"에서 `skills/{스킬명}/`을 제거한 **절대경로**입니다. 상대경로(`.claude/...`)는 절대 사용하지 않습니다.
 
 1. `$ARGUMENTS`에서 REQ ID + 피드백 내용 파싱
    > 이 Step의 목적: 피드백 대상 요청과 입력 본문을 식별한다 / 핵심 출력물: 유효한 `REQ-ID`와 원본 피드백 텍스트
