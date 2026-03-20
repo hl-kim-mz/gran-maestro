@@ -351,6 +351,11 @@
       "intent_fidelity": {
         "agent": "claude",
         "tier": "premium"
+      },
+      "impact_reviewer": {
+        "enabled": true,
+        "agent": "codex",
+        "tier": "premium"
       }
     }
   },

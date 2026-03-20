@@ -14,6 +14,20 @@
 
 {{PERSPECTIVE}}
 
+## impact_reviewer 전용 PERSPECTIVE (삽입용)
+
+아래 블록은 `impact_reviewer` dispatch 시 `{{PERSPECTIVE}}`에 포함하여 사용한다.
+
+```markdown
+- 분석 절차: `git diff --name-only` 기준 변경 파일 식별 → 각 파일의 정적 `import`/`require`를 1단계 역추적하여 의존하는 외부 모듈 식별 → 영향 받을 수 있는 기능/페이지/화면 보고
+- 제외 범위: 동적 import/런타임 의존성 추적 제외
+- 영향 없으면 `영향 범위 분석 완료 — 해당 없음`으로 명시
+- 영향 이슈는 기존 등급 판별 가이드와 함께 아래 Impact 전용 rubric을 적용해 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 태깅:
+  - 공개 API/라우트에 영향: [CRITICAL]
+  - 공유 컴포넌트/유틸리티에 영향: [MAJOR]
+  - 내부 모듈에만 영향: [MINOR]
+```
+
 ## 자기탐색 지시
 
 아래 순서로 변경사항을 직접 탐색하라. PM이 제공한 diff나 요약에 의존하지 말고 직접 확인하라.

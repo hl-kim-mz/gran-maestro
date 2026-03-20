@@ -92,6 +92,7 @@ argument-hint: "[REQ-ID] [--auto]"
    - 섹션 미존재 시: `intent_fidelity_skip_reason = "Intent Fidelity 리뷰 skip (Intent Trace 없음)"`를 설정하고 intent_fidelity dispatch를 auto-skip 처리한다.
 5. **config 로드**: `config.resolved.json`에서 아래 값을 확인.
    - `review.roles.*` 에이전트 키
+   - `review.roles.impact_reviewer.enabled` / `review.roles.impact_reviewer.agent` / `review.roles.impact_reviewer.tier`
    - `review.roles.intent_fidelity.agent` / `review.roles.intent_fidelity.tier`
    - `intent_fidelity.enabled` (기본값: `true`)
    - `intent_fidelity.mode` (기본값: `"blocking"`)
@@ -228,17 +229,18 @@ argument-hint: "[REQ-ID] [--auto]"
 
 ### Step 4: Pass B — 코드 품질 검증
 
-> 이 Step의 목적: Pass A 통과 산출물을 기반으로 코드/설계/UI/의도 충실도 갭을 찾는다 / 핵심 출력물: `ac-results.md`, `review-code.md`, `review-arch.md`, `review-ui.md`, `review-intent-fidelity.md`
+> 이 Step의 목적: Pass A 통과 산출물을 기반으로 코드/설계/UI/의도 충실도/영향 범위 갭을 찾는다 / 핵심 출력물: `ac-results.md`, `review-code.md`, `review-arch.md`, `review-ui.md`, `review-intent-fidelity.md`, `review-impact.md`
 **조건**: Pass A 전체 통과 후에만 진행 (MUST AC 실패 시 이 단계 건너뜀)
 
-Pass B는 Claude(인컨텍스트)와 background 에이전트 4개를 동시 시작합니다.
+Pass B는 Claude(인컨텍스트)와 background 에이전트 5개를 동시 시작합니다.
 
 ```
 Claude (인컨텍스트):   spec §3 AC 체크리스트 순차 검증  ─┐
 code-reviewer (bg):   구현 레벨 리뷰                  ─┤─→ Step 5에서 PM 취합 → review-report.md
 arch-reviewer (bg):   설계/계획 레벨 리뷰              ─┤
 ui-reviewer (bg):     UI 설계 검토 (조건부)            ─┤
-intent-fidelity (bg): 원본 의도 대비 구현 일치 검증     ─┘
+intent-fidelity (bg): 원본 의도 대비 구현 일치 검증     ─┤
+impact-reviewer (bg): 영향 범위(회귀 영향) 분석         ─┘
 ```
 
 #### Claude 인컨텍스트: AC 검증
@@ -280,6 +282,7 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
 | `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 + Scope Audit(필수): `SCOPE_CREEP`(spec.md에 없는 구현), `OMISSION`(spec.md에는 있으나 구현 누락) 점검. plan.md가 있는 경우 상위 목표·방향 대비 구현 적합성도 반드시 확인. 불필요한 파일 변경(범위 외 수정) 여부 점검. 미발견 시에도 `"확인 완료 — 해당 없음"` 명시 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
 | `ui_reviewer` | Stitch 시안 vs 실제 UI, UX 흐름 일관성 | `review.roles.ui_reviewer.agent` | `providers[agent][review.roles.ui_reviewer.tier \|\| default_tier]`로 resolve |
 | `intent_fidelity` | 원본 의도(plan 요청 + docs) 대비 구현 일치 검증. spec §3.2 Intent Trace의 각 항목을 구현 증거와 대조. Missing/Partial/Verified 분류. 기본 blocking 모드에서 MUST 항목 Partial/Missing은 pass/fail에 반영, SHOULD는 warning으로만 추적 | `review.roles.intent_fidelity.agent` | `providers[agent][review.roles.intent_fidelity.tier \|\| default_tier]`로 resolve |
+| `impact_reviewer` | `git diff --name-only` 기준 변경 파일 식별 후, 각 파일의 정적 `import`/`require`를 1단계 역추적하여 의존하는 외부 모듈 식별. 영향 받을 수 있는 기존 기능/페이지/화면을 회귀 관점으로 보고. 영향 이슈는 Impact 전용 rubric(공개 API/라우트=CRITICAL, 공유 컴포넌트/유틸리티=MAJOR, 내부 모듈=MINOR)으로 태깅 | `review.roles.impact_reviewer.agent` | `providers[agent][review.roles.impact_reviewer.tier \|\| default_tier]`로 resolve |
 
 ### 테스트 패턴 준수 검증 (code_reviewer 추가 관점)
 
@@ -291,7 +294,7 @@ spec.md에 유형별 원칙이 주입된 AC가 있는 경우:
    - "[MAJOR] AC-005 [api-test]: schema 검증 누락"
 4. 보조 태그가 없는 AC는 이 검증을 skip한다.
 
-각 리뷰어(code_reviewer, arch_reviewer, ui_reviewer)는 발견한 이슈에 반드시 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 등급을 태깅해야 한다 (`templates/review-request.md`의 등급 판별 가이드 및 보안 오버라이드 규칙 적용).
+각 리뷰어(code_reviewer, arch_reviewer, ui_reviewer, impact_reviewer)는 발견한 이슈에 반드시 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 등급을 태깅해야 한다 (`templates/review-request.md`의 등급 판별 가이드 및 보안 오버라이드 규칙 적용).
 intent_fidelity는 등급 대신 `Verified/Partial/Missing` + `INTENT-GAP` 카운트를 출력한다.
 
 arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에는 위 Scope Audit 지시(`SCOPE_CREEP`, `OMISSION`, 미발견 시 `"확인 완료 — 해당 없음"` 명시)를 반드시 포함해 전달한다.
@@ -301,9 +304,20 @@ arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에
 - arch_reviewer → `reviews/RV-NNN/review-arch.md`
 - ui_reviewer → `reviews/RV-NNN/review-ui.md`
 - intent_fidelity → `reviews/RV-NNN/review-intent-fidelity.md`
+- impact_reviewer → `reviews/RV-NNN/review-impact.md`
 
 - `{{SPEC_PATH}}`: 해당 태스크의 `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/tasks/{NN}/spec.md` 절대 경로
 - `{{PLAN_PATH}}`: `request.json.source_plan` 존재 시 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`, 미존재 시 `"N/A"`
+
+#### impact_reviewer dispatch 입력 규칙
+
+- `review.roles.impact_reviewer.enabled != true`이면 auto-skip하고 취합 시 `"Impact 리뷰 skip (비활성화)"`를 표시한다.
+- 변경 파일 목록(`git diff --name-only {BASE_BRANCH}...HEAD`)이 비어있으면 auto-skip하고 취합 시 `"Impact 리뷰 skip (변경 파일 없음)"`를 표시한다.
+- 실행 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에는 아래 지시를 반드시 포함한다.
+  - `"git diff --name-only 기준 변경 파일 식별 → 각 파일의 정적 import/require를 1단계 역추적하여 의존하는 외부 모듈 식별 → 영향 받을 수 있는 기능/페이지/화면 보고"`
+  - `동적 import/런타임 의존성 추적 제외`
+  - `영향 이슈 등급 rubric: 공개 API/라우트 영향=[CRITICAL], 공유 컴포넌트/유틸리티 영향=[MAJOR], 내부 모듈 영향=[MINOR]`
+- dispatch는 기존 background 리뷰어와 동일하게 `run_in_background: true`로 병렬 실행한다.
 
 #### intent_fidelity dispatch 입력 규칙
 
@@ -379,18 +393,19 @@ Agent(
 플랜 B: `acceptEdits`에서 Write가 차단될 경우 `mode: "auto"`로 전환.
 
 **ui_reviewer 스킵 조건**: `request.json.stitch_screens` 배열이 비어있고 `frontend/` 디렉토리 변경 파일이 없으면 auto-skip. 취합 시 "UI 리뷰 skip (변경 없음)" 표시.
+**impact_reviewer 스킵 조건**: `review.roles.impact_reviewer.enabled=false` 또는 변경 파일 목록 비어있음이면 auto-skip. 취합 시 각각 "Impact 리뷰 skip (비활성화)" 또는 "Impact 리뷰 skip (변경 파일 없음)" 표시.
 **intent_fidelity 스킵 조건**: `intent_fidelity.enabled=false` 또는 `## 3.2 Intent Trace` 미존재 시 auto-skip. 취합 시 각각 "Intent Fidelity 리뷰 skip (비활성화)" 또는 "Intent Fidelity 리뷰 skip (Intent Trace 없음)" 표시.
 
 ### Step 5: 완료 대기 및 취합
 
 > 이 Step의 목적: Pass B 산출물을 수집·요약해 리뷰 결과를 단일 리포트로 정리한다 / 핵심 출력물: `review-report.md`
 
-1. **완료 폴링**: background 에이전트 4개(또는 skip된 에이전트 제외) 완료 대기. approve SKILL.md Step 4d 완료 감지 패턴 동일 적용.
+1. **완료 폴링**: background 에이전트 5개(또는 skip된 에이전트 제외) 완료 대기. approve SKILL.md Step 4d 완료 감지 패턴 동일 적용.
    - 에이전트 실패 시: 해당 역할 리뷰 "에이전트 실패" 표시 후 나머지 취합 계속 진행.
    - fallback (FILE_NOT_FOUND 처리): 각 `review-*.md` 파일이 FILE_NOT_FOUND이면 해당 background Agent 반환값(`TaskOutput`)에서 전체 텍스트를 추출한다.
      - 추출 텍스트가 빈 문자열이 아니고 `# ` 또는 `## ` 마크다운 헤더를 1개 이상 포함하면 유효한 리뷰 결과로 간주하고 PM이 해당 `review-*.md` 경로에 Write한다.
      - 추출 텍스트가 비어있거나 헤더가 없으면 해당 역할을 "에이전트 실패"로 표시하고 나머지 취합을 계속 진행한다.
-2. **취합 파일**: `ac-results.md` + `review-code.md` + `review-arch.md` + `review-ui.md` + `review-intent-fidelity.md` (skip 시 미생성).
+2. **취합 파일**: `ac-results.md` + `review-code.md` + `review-arch.md` + `review-ui.md` + `review-intent-fidelity.md` + `review-impact.md` (skip 시 미생성).
 3. **review-report.md 작성**: `reviews/RV-NNN/review-report.md`
    ```markdown
    # 리뷰 리포트 — RV-NNN (REQ-NNN 반복 N)
@@ -421,6 +436,12 @@ Agent(
    - ✅ Verified N개 / ⚠️ Partial N개 / ❌ Missing N개 / ℹ️ INTENT-GAP N개
    - SHOULD 경고 로그: `warnings.log` 기록 여부 + 누적 횟수
    - 상세: `review-intent-fidelity.md` 또는 skip 사유
+
+   ## 영향 범위 분석 결과
+   - 상세: `review-impact.md` 또는 skip 사유
+   - 영향 없음 시: `영향 범위 분석 완료 — 해당 없음`
+   - 비활성화 skip 시: `Impact 리뷰 skip (비활성화)`
+   - 에이전트 실패 시: `에이전트 실패`
    ```
 
 ### Step 6: 갭 처리 분기
