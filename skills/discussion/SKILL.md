@@ -197,7 +197,7 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
      ```
      Bash(
        run_in_background: true,
-       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/rounds/00/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/{participant.key}.md; exit $EC"
+       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/{participant.key}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo --sandbox=false > {absolute_path}/rounds/00/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/{participant.key}.md; exit $EC"
      )
      ```
    - `provider: "claude"`:
@@ -222,7 +222,7 @@ TIMEOUT이면 완료된 파일들만으로 진행합니다.
      ```
      Bash(
        run_in_background: true,
-       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/critique-{criticKey}.md; exit $EC"
+       command: "gemini -p \"$(cat {absolute_path}/rounds/00/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo --sandbox=false > {absolute_path}/rounds/00/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/00/critique-{criticKey}.md; exit $EC"
      )
      ```
    - `provider: "claude"`:
@@ -359,7 +359,7 @@ participant 발송 (`participants` 동적 순회):
   ```
   Bash(
     run_in_background: true,
-    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/{participant.key}.md; exit $EC"
+    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/{participant.key}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo --sandbox=false > {absolute_path}/rounds/NN/{participant.key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/{participant.key}.md; exit $EC"
   )
   ```
 - `provider: "claude"`:
@@ -384,7 +384,7 @@ critic 동시 발송 (`critics` 동적 순회):
   ```
   Bash(
     run_in_background: true,
-    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/critique-{criticKey}.md; exit $EC"
+    command: "gemini -p \"$(cat {absolute_path}/rounds/NN/prompts/critique-{criticKey}-prompt.md)\" --model {config.models.providers.gemini[discussion.agents.gemini.tier || default_tier]} --approval-mode yolo --sandbox=false > {absolute_path}/rounds/NN/critique-{criticKey}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/rounds/NN/critique-{criticKey}.md; exit $EC"
   )
   ```
 - `provider: "claude"`:

@@ -54,7 +54,7 @@ Claude가 탐색 목표 분석 → Codex: 코드 구조/구현 패턴 추적; Ge
   ```
   Bash(
     run_in_background: true,
-    command: "gemini -p \"$(cat {absolute_path}/prompts/explore-{key}-prompt.md)\" --model {config.models.providers.gemini[explore.agents.gemini.tier || default_tier]} --approval-mode yolo > {absolute_path}/explore-{key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/explore-{key}.md; exit $EC"
+    command: "gemini -p \"$(cat {absolute_path}/prompts/explore-{key}-prompt.md)\" --model {config.models.providers.gemini[explore.agents.gemini.tier || default_tier]} --approval-mode yolo --sandbox=false > {absolute_path}/explore-{key}.md 2>&1; EC=$?; echo \"EXIT_CODE:$EC\" >> {absolute_path}/explore-{key}.md; exit $EC"
   )
   ```
 

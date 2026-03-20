@@ -173,7 +173,7 @@ export class GeminiAdapter implements CLIAdapter {
 
   async execute(prompt: string, opts: CLIOptions): Promise<CLIResult> {
     const escapedPrompt = prompt.replace(/"/g, '\\"');
-    let cmd = `gemini -p "${escapedPrompt}" --approval-mode yolo`;
+    let cmd = `gemini -p "${escapedPrompt}" --approval-mode yolo --sandbox=false`;
     if (opts.model) {
       cmd += ` --model ${opts.model}`;
     }
