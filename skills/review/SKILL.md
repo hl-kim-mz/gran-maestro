@@ -55,7 +55,7 @@ argument-hint: "[REQ-ID] [--auto]"
 1. **Spec AC 목록 수집**: 모든 `tasks/NN/spec.md` Read → `## 3. 수락 조건` 섹션에서 AC 항목 추출.
 1-b. **Plan AC(PAC) 수집 (source_plan 존재 시)**:
    - `request.json.source_plan` 필드 확인 후 값이 있으면 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.ids.json`을 우선 Read한다.
-   - `plan.ids.json` 존재 시: 각 항목의 `id(PAC-N)`, `text`, `grade(MUST|SHOULD)`를 그대로 로드한다.
+   - `plan.ids.json` 존재 시: 각 항목의 `id(PAC-N)`, `text`, `grade(MUST|SHOULD)`, `tags?`를 그대로 로드한다 (`tags` 미존재 시 빈 배열로 간주).
    - `plan.ids.json` 미존재 시(레거시 호환): `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`의 `## 인수 기준 초안`을 추출해 `PLAN-AC-N` 임시 ID를 부여한다.
    - `source_plan` 미존재 또는 인수 기준 섹션 자체가 없으면 이 단계 skip (경고 없이 무시).
    - 수집된 Plan AC/PAC는 Spec AC와 **분리하여 관리** (Pass A에서 별도 섹션으로 검증).
@@ -63,9 +63,10 @@ argument-hint: "[REQ-ID] [--auto]"
    - 태그 누락 시 기본값은 `manual`.
    - `[browser-test]`는 Pass A에서 실제 브라우저 실행 분기 대상으로 표시한다.
 1-d. **테스트 유형 보조 태그 파싱**: AC 헤더에서 `[automatable]`/`[manual]`/`[browser-test]` 이후의 보조 태그를 추가 파싱하여 `ac_test_type`으로 보관한다.
-   - 인식 보조 태그: `[build-check]`, `[lint-check]`, `[unit-test]`, `[integration]`, `[api-test]`, `[e2e-browser]`, `[visual]`, `[performance]`
+   - 인식 보조 태그: `[build-check]`, `[lint-check]`, `[unit-test]`, `[integration]`, `[api-test]`, `[e2e-browser]`, `[visual]`, `[performance]`, `[impact-check]`
    - 보조 태그가 없으면 `ac_test_type = null` (기존 동작 유지, 하위 호환).
    - `[e2e-browser]` 보조 태그는 기존 `[browser-test]` ac_type 실행 분기를 재사용한다.
+   - `[impact-check]` 보조 태그가 있으면 해당 AC를 `impact_reviewer` 라우팅 대상으로 표시한다.
    - 하나의 AC에 복수 보조 태그가 있으면 첫 번째 태그를 `ac_test_type`으로 사용한다.
 2. **변경 파일 목록 수집**: `git log --name-only` 또는 `git diff <base>..HEAD --name-only` 기반으로 REQ 관련 변경 파일 목록 작성.
 3. **AC별 파일 매핑 준비**: 각 AC 항목과 관련 변경 파일 연결.
@@ -207,6 +208,16 @@ argument-hint: "[REQ-ID] [--auto]"
 
 > 이 분기는 `ac_test_type`이 설정된 AC에만 적용된다. `ac_test_type == null`인 AC는 기존 동작을 따른다.
 
+#### [impact-check] AC DEFERRED 분기 (Pass A 내부, MANDATORY)
+
+- 대상: Step 2에서 `[impact-check]` 보조 태그가 파싱된 Spec AC.
+- 처리 규칙:
+  - Pass A에서는 PASS/FAIL을 확정하지 않고 `DEFERRED`로 기록한다.
+  - `ac-results.md` 근거란에는 `DEFERRED (→ Pass B impact_reviewer)`로 명시한다.
+  - `DEFERRED` 항목은 MUST/SHOULD 카운트 및 `pass_a_failed` 판정에서 제외한다.
+  - Pass A의 `failed_ac_ids`/`failure_class`/`evidence` 집계에도 포함하지 않는다.
+- 하위호환: `[impact-check]` AC가 0건이면 이 분기를 graceful skip하고 기존 Pass A 동작을 그대로 유지한다.
+
 - **[build-check]**: AC의 `Test:` 필드에 명시된 빌드 명령어를 실행한다. exit code 0이면 PASS, 아니면 FAIL.
 - **[lint-check]**: AC의 `Test:` 필드에 명시된 린트 명령어를 실행한다. 위반 0건이면 PASS.
 - **[unit-test]**: AC의 `Test:` 필드에 명시된 테스트 명령어를 실행한다. 전체 PASS이면 PASS.
@@ -284,7 +295,7 @@ background 에이전트는 `run_in_background: true` 옵션으로 dispatch합니
 | `arch_reviewer` | spec 의도 vs 구현 방향 차이, 통합 일관성 + Scope Audit(필수): `SCOPE_CREEP`(spec.md에 없는 구현), `OMISSION`(spec.md에는 있으나 구현 누락) 점검. plan.md가 있는 경우 상위 목표·방향 대비 구현 적합성도 반드시 확인. 불필요한 파일 변경(범위 외 수정) 여부 점검. 미발견 시에도 `"확인 완료 — 해당 없음"` 명시 | `review.roles.arch_reviewer.agent` | `providers[agent][review.roles.arch_reviewer.tier \|\| default_tier]`로 resolve |
 | `ui_reviewer` | Stitch 시안 vs 실제 UI, UX 흐름 일관성 | `review.roles.ui_reviewer.agent` | `providers[agent][review.roles.ui_reviewer.tier \|\| default_tier]`로 resolve |
 | `intent_fidelity` | 원본 의도(plan 요청 + docs) 대비 구현 일치 검증. spec §3.2 Intent Trace의 각 항목을 구현 증거와 대조. Missing/Partial/Verified 분류. 기본 blocking 모드에서 MUST 항목 Partial/Missing은 pass/fail에 반영, SHOULD는 warning으로만 추적 | `review.roles.intent_fidelity.agent` | `providers[agent][review.roles.intent_fidelity.tier \|\| default_tier]`로 resolve |
-| `impact_reviewer` | `git diff --name-only` 기준 변경 파일 식별 후, 각 파일의 정적 `import`/`require`를 1단계 역추적하여 의존하는 외부 모듈 식별. 영향 받을 수 있는 기존 기능/페이지/화면을 회귀 관점으로 보고. 영향 이슈는 Impact 전용 rubric(공개 API/라우트=CRITICAL, 공유 컴포넌트/유틸리티=MAJOR, 내부 모듈=MINOR)으로 태깅 | `review.roles.impact_reviewer.agent` | `providers[agent][review.roles.impact_reviewer.tier \|\| default_tier]`로 resolve |
+| `impact_reviewer` | `git diff --name-only` 기준 변경 파일 식별 후, 각 파일의 정적 `import`/`require`를 1단계 역추적하여 의존하는 외부 모듈 식별. 영향 받을 수 있는 기존 기능/페이지/화면을 회귀 관점으로 보고. 영향 이슈는 Impact 전용 rubric(공개 API/라우트=CRITICAL, 공유 컴포넌트/유틸리티=MAJOR, 내부 모듈=MINOR)으로 태깅. 추가로 `[impact-check]` AC가 있으면 Given/When/Then 조건의 PASS/FAIL verdict를 AC별로 전담 판정한다. | `review.roles.impact_reviewer.agent` | `providers[agent][review.roles.impact_reviewer.tier \|\| default_tier]`로 resolve |
 
 ### 테스트 패턴 준수 검증 (code_reviewer 추가 관점)
 
@@ -319,7 +330,18 @@ arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에
   - `"git diff --name-only 기준 변경 파일 식별 → 각 파일의 정적 import/require를 1단계 역추적하여 의존하는 외부 모듈 식별 → 영향 받을 수 있는 기능/페이지/화면 보고"`
   - `동적 import/런타임 의존성 추적 제외`
   - `영향 이슈 등급 rubric: 공개 API/라우트 영향=[CRITICAL], 공유 컴포넌트/유틸리티 영향=[MAJOR], 내부 모듈 영향=[MINOR]`
+  - `[impact-check]` AC가 있으면 각 AC의 Given/When/Then 충족 여부를 PASS/FAIL/SKIP로 판정하고 `review-impact.md`에 `AC ID | Grade | Verdict | Evidence` 표로 기록
 - dispatch는 기존 background 리뷰어와 동일하게 `run_in_background: true`로 병렬 실행한다.
+
+#### [impact-check] AC 전담 판정 규칙 (Pass B, impact_reviewer)
+
+- `[impact-check]` AC가 1개 이상이면 impact_reviewer가 해당 AC의 Given/When/Then 조건을 전담 판정한다.
+- 판정 결과는 `reviews/RV-NNN/review-impact.md`에 AC별 verdict로 기록한다.
+- `[impact-check]` AC 중 `[MUST]` 등급이 `FAIL`이면 해당 review iteration을 실패로 간주하고 Step 6에서 `gap_found` 분기로 처리한다.
+- `review.roles.impact_reviewer.enabled != true`이고 `[impact-check]` AC가 존재하면 해당 AC verdict를 `SKIP`으로 기록하고 경고를 출력한다:
+  - `"[WARN] impact-check AC SKIP (impact_reviewer 비활성화): {AC-ID}"`
+  - 이 경우는 비차단으로 처리한다 (하위 호환).
+- `[impact-check]` AC가 0건이면 기존 impact_reviewer 동작(영향 범위 분석만 수행)을 그대로 유지한다 (graceful skip).
 
 #### intent_fidelity dispatch 입력 규칙
 
@@ -397,6 +419,7 @@ Agent(
 **ui_reviewer 스킵 조건**: `request.json.stitch_screens` 배열이 비어있고 `frontend/` 디렉토리 변경 파일이 없으면 auto-skip. 취합 시 "UI 리뷰 skip (변경 없음)" 표시.
 **impact_reviewer 스킵 조건**: `review.roles.impact_reviewer.enabled=false` 또는 변경 파일 목록 비어있음이면 auto-skip. 취합 시 각각 "Impact 리뷰 skip (비활성화)" 또는 "Impact 리뷰 skip (변경 파일 없음)" 표시.
 **intent_fidelity 스킵 조건**: `intent_fidelity.enabled=false` 또는 `## 3.2 Intent Trace` 미존재 시 auto-skip. 취합 시 각각 "Intent Fidelity 리뷰 skip (비활성화)" 또는 "Intent Fidelity 리뷰 skip (Intent Trace 없음)" 표시.
+- `impact_reviewer` 비활성화 상태에서 `[impact-check]` AC가 존재하면 `review-impact.md` 또는 취합 로그에 해당 AC별 `SKIP` 경고를 남긴다 (비차단, 하위 호환).
 
 ### Step 5: 완료 대기 및 취합
 
@@ -451,6 +474,10 @@ Agent(
 > 이 Step의 목적: AC 갭/코드리뷰 이슈 상태에 따라 후속 경로를 확정한다 / 핵심 출력물: `review.json.status` 및 재실행/수락 분기 결정
 
 AC 미충족(갭) 여부와 코드리뷰 이슈 여부에 따라 5개 분기로 처리합니다.
+
+Pass B에서 `review-impact.md`를 통해 `[impact-check]` AC verdict가 보고된 경우:
+- `[MUST] [impact-check]` AC 중 `FAIL`이 1건이라도 있으면 `review.json.status = "gap_found"`로 처리하고 `(c)` 분기로 진입한다.
+- `[impact-check]` AC가 없거나 모두 PASS/SKIP이면 기존 Step 6 분기 규칙을 그대로 적용한다 (graceful skip/하위 호환).
 
 > **Step 5 완료 시 공통 절차**: 분기 처리가 완료되면 `request.json.review_iterations` 배열에서 현재 회차 항목의 `status`를 `"in_progress"` → `"completed"`로 갱신합니다.
 

@@ -558,7 +558,7 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       - `--plan PLN-NNN` 제공 시:
         - plan.md에서 `## 요청 (Refined)` + `## Intent (JTBD)` + `## 인수 기준 초안`을 Read하여 `intent_context`로 보관한다.
         - `{PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/plan.ids.json`을 Read하여 PAC preflight를 수행한다 (비차단):
-          - 파일 존재 시: `[{id,text,grade}]` 목록을 `pac_preflight_checklist`로 로드한다.
+          - 파일 존재 시: `[{id,text,grade,tags?}]` 목록을 `pac_preflight_checklist`로 로드한다 (`tags` 미존재 시 빈 배열로 간주).
           - 파일 미존재 시: warn 출력 후 plan.md `## 인수 기준 초안`에서 임시 PAC 목록을 추론한다 (비차단).
           - 로드된 PAC 전체 ID를 `pac_anchor_list`로 보관하고 이후 spec AC 작성/게이트 프롬프트 앞단에 고정 주입한다.
           - preflight 단계에서는 request emit을 차단하지 않는다.
@@ -602,12 +602,18 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         - plan의 `## 인수 기준 초안` 또는 대화 컨텍스트에 `브라우저 테스트`, `실제 브라우저`, `스크린샷 검증`, `Playwright`, `Claude in Chrome` 신호가 있으면 AC를 `[browser-test]`로 분류한다.
         - `[browser-test]` AC도 기존 Given/When/Then/Test 형식을 그대로 유지한다.
         - `Test:`는 실행 대상 URL/화면 + 핵심 사용자 동작 + 기대 결과를 포함해 작성한다 (예: `Playwright 또는 Claude in Chrome으로 /settings 진입 후 Save 클릭 시 성공 토스트 표시 확인`).
+      - **[impact-check] 보조 태그 변환 규칙 (MANDATORY)**:
+        - plan PAC에 `[IMPACT]` 태그가 있거나 `plan.ids.json` 항목의 `tags`에 `"IMPACT"`가 포함되면, 변환된 Spec AC 헤더에 `[impact-check]` 보조 태그를 반드시 포함한다.
+        - `[impact-check]`는 기존 보조 태그 체계(`[unit-test]`, `[api-test]`, ...)에 편입되며 Given/When/Then/Test 형식은 기존 규칙을 그대로 따른다.
+        - 복수 보조 태그가 공존하면 라우팅 우선순위는 `[impact-check]`가 최우선이며, impact_reviewer 위임 대상으로 표시한다.
+        - `[IMPACT]` PAC가 없는 plan/spec에서는 이 규칙을 graceful skip하고 기존 보조 태그 변환 동작을 유지한다 (하위 호환).
       - **PAC 매핑 규칙 ( `--plan` 제공 시, MANDATORY )**:
         - h-0.6에서 확보한 `pac_preflight_checklist`의 각 PAC를 spec AC에 최소 1회 매핑한다.
         - spec 본문에 `## 3.3 PAC Mapping` 섹션을 추가해 아래 표를 작성한다:
           - `PAC ID | Grade(MUST/SHOULD) | Mapped Spec AC IDs | Coverage`
         - MUST PAC는 `Mapped Spec AC IDs`가 비어 있으면 안 된다.
         - plan에 없는 신규 spec AC는 `Coverage`를 `SPEC_ONLY`로 표시해 scope creep 추적 대상으로 남긴다.
+        - `[IMPACT]` PAC도 일반 PAC와 동일하게 Coverage를 추적한다 (`Mapped Spec AC IDs` 비우지 않음 권장).
       - **`## §0 Context Manifest` 자동 채움 규칙 (MANDATORY)**:
         - Step d에서 수집한 `context_manifest_files`를 bullet 목록으로 삽입한다.
         - `--plan`이 없는 경우에도 동일 규칙 적용: Step 1c 탐색 결과 + 요청 분석 기반으로 `context_manifest_files`를 구성한다.
