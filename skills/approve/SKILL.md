@@ -732,7 +732,7 @@ else:
 - `request.json` 저장 (`pre_check_retries` + `retry_count` 동시 반영)
 - Step 5 복귀 시 `self_check.retry_round`는 증가된 `pre_check_retries` 값을 사용한다.
 - `status` → `executing`
-- 재외주 완료 후 **Step 5 복귀**
+- 재외주 완료 후 **즉시 Step 5 복귀** — 텍스트만 출력하고 멈추지 않는다
 
 ##### 5b-4.5. Codex Fallback 추가 시도 (5b-5 이전)
 
@@ -850,6 +850,7 @@ else:
         - 수정 내용 요약 (어떤 MAJOR 이슈를 어떻게 수정했는지)
 
      **c. MAJOR 조건 미충족 또는 재외주 경로**:
+     > ⚠️ **AUTO_MODE=true일 때 재외주는 무정지 실행**: 진행 상황 요약·AskUserQuestion 없이 즉시 아래 절차를 실행한다 — 텍스트만 출력하고 멈추지 않는다.
      1. `request.json.tasks`에서 `generated_by: "review"` + `status: "pending"` 태스크만 선별
      2. **Step 4a 포함** 재실행: 신규 태스크 worktree 생성 후 4b~4e 실행
      3. 재실행 완료 후 `current_phase → 3` 재전환 → 이 루프 반복
@@ -876,6 +877,7 @@ else:
         (`covers_ac` 필드가 비어있지 않은데 교집합이 없는 경우에는 fallback하지 않는다.)
 
      재외주 절차:
+     > ⚠️ **AUTO_MODE=true일 때 재외주는 무정지 실행**: 진행 상황 요약·AskUserQuestion 없이 즉시 아래 절차를 실행한다 — 텍스트만 출력하고 멈추지 않는다.
      1. 선별된 태스크에 대해 `request.json.tasks`에 신규 태스크 항목 생성 (`generated_by: "review"`, `status: "pending"`)
      2. **Step 4a 포함** 재실행: 신규 태스크 worktree 생성 후 4b~4e 실행
      3. 재외주 완료 후 → `current_phase`를 3으로 재전환 → `mst:review` 재호출 (이 루프 반복)
