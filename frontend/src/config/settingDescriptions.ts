@@ -195,6 +195,15 @@ export const SETTING_DESCRIPTIONS: Record<string, string | SettingMeta> = {
   'auto_mode.confidence_threshold': '자동 실행 신뢰도 임계값',
   'auto_mode.max_review_iterations': '자동 리뷰 최대 반복 횟수',
   'cleanup.plans_keep_count': 'Plan 세션 유지 수',
+  'plan_qa_presets.test_strategy': {
+    description: '테스트 전략 프리셋 (ask=매번 질문)',
+    options: ['ask', 'apply-80', 'apply-90', 'apply-no-coverage', 'skip'],
+  },
+  'plan_qa_presets.loop_exit': {
+    description: 'Loop 종료 조건 프리셋 (ask=매번 질문)',
+    options: ['ask', 'default_pass', 'convergence', 'fixed_n'],
+  },
+  'plan_qa_presets.loop_exit_n': '고정 반복 횟수 (loop_exit=fixed_n 시 사용)',
 };
 
 export const getDescription = (

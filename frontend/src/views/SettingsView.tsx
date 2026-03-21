@@ -96,6 +96,7 @@ const WORKFLOW_INFO_FOCUS_FIELDS: Partial<Record<WorkflowNode['id'], string[]>> 
   'models.roles': ['pm_conductor', 'architect', 'developer', 'reviewer', 'developer_claude'],
   auto_mode: ['plan', 'request', 'review', 'confidence_threshold', 'max_review_iterations'],
   intent_fidelity: ['enabled', 'mode', 'exclude_dirs'],
+  plan_qa_presets: ['test_strategy', 'loop_exit', 'loop_exit_n'],
 };
 
 const WORKFLOW_PHASES: WorkflowPhase[] = [
@@ -167,6 +168,13 @@ const WORKFLOW_PHASES: WorkflowPhase[] = [
         kind: 'info',
         enabledPath: ['intent_fidelity', 'enabled'],
         configPath: ['intent_fidelity'],
+      },
+      {
+        id: 'plan_qa_presets',
+        label: 'plan_qa_presets',
+        description: 'Plan Q&A 자동화 프리셋',
+        kind: 'info',
+        configPath: ['plan_qa_presets'],
       },
       {
         id: 'prereview',

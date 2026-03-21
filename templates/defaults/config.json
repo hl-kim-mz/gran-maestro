@@ -380,6 +380,11 @@
       }
     ]
   },
+  "plan_qa_presets": {
+    "test_strategy": "ask",
+    "loop_exit": "ask",
+    "loop_exit_n": 3
+  },
   "d3": {
     "enabled": true,
     "cynefin_skip": [
