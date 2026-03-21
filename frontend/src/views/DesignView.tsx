@@ -12,7 +12,8 @@ import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Palette, FileText, ChevronDown, ChevronRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { ExternalLink, Palette, FileText, ChevronDown, ChevronRight, Pencil, GitBranch, Send, Undo2 } from 'lucide-react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseDesignSections } from '@/shared/designUtils';
@@ -27,6 +28,7 @@ interface DesignScreen {
   style?: string | null;
   created_at?: string;
   status?: string;
+  parent_screen_id?: string | null;
 }
 
 interface DesignStyle {
@@ -61,6 +63,21 @@ interface ScreenContent {
 
 interface ScreenFilesResponse {
   screen_files: string[];
+}
+
+type InlineEditMode = 'edit' | 'alt';
+
+interface DesignEditResponse {
+  job_id: string;
+  status: string;
+}
+
+interface DesignEditStatusEventData {
+  status?: 'started' | 'completed' | 'failed' | string;
+  job_id?: string;
+  mode?: InlineEditMode | string;
+  screen_ids?: string[];
+  error?: string;
 }
 
 function parseScreenContent(content: string) {
@@ -100,6 +117,10 @@ function getStyleNames(session: DesignSession | null): string[] {
     .filter((name): name is string => Boolean(name));
 }
 
+function normalizeScreenId(screenId: string): string {
+  return screenId.replace(/\.md$/, '').trim();
+}
+
 export function DesignView() {
   const { projectId, lastSseEvent, navigateTo } = useAppContext();
   const { designId } = useParams();
@@ -121,6 +142,15 @@ export function DesignView() {
   const [searchValue, setSearchValue] = useState('');
   const [filterValue, setFilterValue] = useState('all');
   const [sortValue, setSortValue] = useState('newest');
+  const [inlineEditMode, setInlineEditMode] = useState<InlineEditMode | null>(null);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [activeEditJobId, setActiveEditJobId] = useState<string | null>(null);
+  const [activeEditJobMode, setActiveEditJobMode] = useState<InlineEditMode | null>(null);
+  const [editStatusMessage, setEditStatusMessage] = useState<string | null>(null);
+  const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
+  const [pendingAutoSelectScreenId, setPendingAutoSelectScreenId] = useState<string | null>(null);
+  const [altCandidateScreenIds, setAltCandidateScreenIds] = useState<string[]>([]);
 
   const statusFilterOptions: FilterOption[] = [
     { value: 'all', label: 'All Status' },
@@ -166,10 +196,14 @@ export function DesignView() {
   const hasStyles = Boolean(selectedSession?.has_styles) && !isPlanDesign;
   const styleNames = useMemo(() => getStyleNames(selectedSession), [selectedSession]);
   const activeStyle = hasStyles ? (selectedStyle ?? styleNames[0] ?? null) : null;
+  const screenFiles = useMemo(
+    () => (hasStyles ? styleScreenFiles : (selectedSession?.screen_files ?? [])),
+    [hasStyles, styleScreenFiles, selectedSession?.screen_files]
+  );
   const selectedScreen = useMemo(() => {
-    const selectedScreenId = selectedScreenFile?.replace(/\.md$/, '');
+    const selectedScreenId = selectedScreenFile ? normalizeScreenId(selectedScreenFile) : null;
     return selectedSession?.screens?.find((screen) => {
-      const screenId = screen.id.replace(/\.md$/, '');
+      const screenId = normalizeScreenId(screen.id);
       if (screenId !== selectedScreenId) {
         return false;
       }
@@ -178,9 +212,53 @@ export function DesignView() {
       }
       return screen.style === activeStyle;
     }) ?? selectedSession?.screens?.find((screen) =>
-      screen.id.replace(/\.md$/, '') === selectedScreenId && (!hasStyles || !activeStyle || !screen.style)
+      normalizeScreenId(screen.id) === selectedScreenId && (!hasStyles || !activeStyle || !screen.style)
     );
   }, [selectedSession?.screens, selectedScreenFile, hasStyles, activeStyle]);
+  const screenMap = useMemo(() => {
+    const map = new Map<string, DesignScreen>();
+    for (const screen of selectedSession?.screens ?? []) {
+      const screenId = normalizeScreenId(screen.id);
+      if (!map.has(screenId)) {
+        map.set(screenId, screen);
+      }
+      if (hasStyles && activeStyle && screen.style === activeStyle) {
+        map.set(screenId, screen);
+      }
+    }
+    return map;
+  }, [selectedSession?.screens, hasStyles, activeStyle]);
+  const historyChain = useMemo(() => {
+    if (!selectedScreen?.parent_screen_id) {
+      return [] as DesignScreen[];
+    }
+
+    const chain: DesignScreen[] = [];
+    const visited = new Set<string>();
+    let cursor: string | null = normalizeScreenId(selectedScreen.parent_screen_id);
+
+    while (cursor && !visited.has(cursor) && chain.length < 20) {
+      visited.add(cursor);
+      const parent = screenMap.get(cursor);
+      if (!parent) {
+        break;
+      }
+      chain.push(parent);
+      cursor = parent.parent_screen_id ? normalizeScreenId(parent.parent_screen_id) : null;
+    }
+
+    return chain;
+  }, [selectedScreen, screenMap]);
+  const altCandidateScreens = useMemo(
+    () =>
+      altCandidateScreenIds
+        .map((screenId) => screenMap.get(normalizeScreenId(screenId)))
+        .filter((screen): screen is DesignScreen => Boolean(screen)),
+    [altCandidateScreenIds, screenMap]
+  );
+  const canEditSelectedScreen = Boolean(
+    selectedSession && /^DES-\d+$/.test(selectedSession.id) && selectedScreen
+  );
   const canPreview = useMemo(
     () =>
       Boolean(selectedScreen?.html_file) ||
@@ -252,6 +330,72 @@ export function DesignView() {
       fetchSessions();
     }
   }, [lastSseEvent, fetchSessions]);
+
+  useEffect(() => {
+    if (lastSseEvent?.type !== 'design_edit_status' || !selectedSession) {
+      return;
+    }
+
+    const eventDesignId = typeof (lastSseEvent as { designId?: unknown }).designId === 'string'
+      ? (lastSseEvent as { designId: string }).designId
+      : null;
+    if (eventDesignId && eventDesignId !== selectedSession.id) {
+      return;
+    }
+
+    const eventData = (lastSseEvent as { data?: DesignEditStatusEventData }).data;
+    if (!eventData?.status) {
+      return;
+    }
+
+    const eventJobId = typeof eventData.job_id === 'string' ? eventData.job_id : null;
+    if (activeEditJobId && eventJobId && activeEditJobId !== eventJobId) {
+      return;
+    }
+
+    if (eventData.status === 'started') {
+      setEditStatusMessage('편집 중...');
+      setEditErrorMessage(null);
+      return;
+    }
+
+    if (eventData.status === 'failed') {
+      setActiveEditJobId(null);
+      setActiveEditJobMode(null);
+      setEditStatusMessage(null);
+      setEditErrorMessage(
+        typeof eventData.error === 'string' && eventData.error.length > 0
+          ? eventData.error
+          : '편집 요청이 실패했습니다'
+      );
+      return;
+    }
+
+    if (eventData.status === 'completed') {
+      const completedMode = eventData.mode === 'alt' || eventData.mode === 'edit'
+        ? eventData.mode
+        : activeEditJobMode;
+      const screenIds = Array.isArray(eventData.screen_ids)
+        ? eventData.screen_ids
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => normalizeScreenId(value))
+          .filter((value) => value.length > 0)
+        : [];
+
+      setActiveEditJobId(null);
+      setActiveEditJobMode(null);
+      setEditErrorMessage(null);
+      setEditStatusMessage('완료');
+
+      if (completedMode === 'alt') {
+        setAltCandidateScreenIds(screenIds.slice(0, 3));
+      } else {
+        setAltCandidateScreenIds([]);
+        setPendingAutoSelectScreenId(screenIds[0] ?? null);
+        setInlineEditMode(null);
+      }
+    }
+  }, [lastSseEvent, selectedSession, activeEditJobId, activeEditJobMode]);
 
   useEffect(() => {
     setViewMode('html');
@@ -421,10 +565,116 @@ export function DesignView() {
     projectId,
   ]);
 
+  useEffect(() => {
+    if (!pendingAutoSelectScreenId) {
+      return;
+    }
+
+    const targetScreenFile = `${normalizeScreenId(pendingAutoSelectScreenId)}.md`;
+    if (screenFiles.includes(targetScreenFile)) {
+      setSelectedScreenFile(targetScreenFile);
+      setPendingAutoSelectScreenId(null);
+      setEditStatusMessage(null);
+    }
+  }, [pendingAutoSelectScreenId, screenFiles]);
+
+  useEffect(() => {
+    setInlineEditMode(null);
+    setEditPrompt('');
+    setIsEditSubmitting(false);
+    setActiveEditJobId(null);
+    setActiveEditJobMode(null);
+    setEditStatusMessage(null);
+    setEditErrorMessage(null);
+    setPendingAutoSelectScreenId(null);
+    setAltCandidateScreenIds([]);
+  }, [selectedSession?.id]);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchSessions();
   };
+
+  const selectScreenById = useCallback((screenId: string) => {
+    const normalized = normalizeScreenId(screenId);
+    setSelectedScreenFile(`${normalized}.md`);
+  }, []);
+
+  const handleOpenInlineEditor = useCallback((mode: InlineEditMode) => {
+    setInlineEditMode(mode);
+    setEditErrorMessage(null);
+    setEditStatusMessage(null);
+    if (mode !== 'alt') {
+      setAltCandidateScreenIds([]);
+    }
+  }, []);
+
+  const handleSendEdit = useCallback(async () => {
+    if (!projectId || !selectedSession || !selectedScreen || !inlineEditMode) {
+      return;
+    }
+
+    const prompt = editPrompt.trim();
+    if (!prompt) {
+      return;
+    }
+
+    const payload: Record<string, unknown> = {
+      prompt,
+      mode: inlineEditMode,
+      screen_id: normalizeScreenId(selectedScreen.id),
+    };
+    if (inlineEditMode === 'alt') {
+      payload.variant_options = {
+        count: 2,
+        creative_range: 'EXPLORE',
+      };
+    }
+
+    setIsEditSubmitting(true);
+    setEditErrorMessage(null);
+    setEditStatusMessage('편집 요청 중...');
+    setPendingAutoSelectScreenId(null);
+    if (inlineEditMode !== 'alt') {
+      setAltCandidateScreenIds([]);
+    }
+
+    try {
+      const response = await apiFetch<DesignEditResponse>(
+        `/api/designs/${selectedSession.id}/edit`,
+        projectId,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        }
+      );
+      setActiveEditJobId(response.job_id);
+      setActiveEditJobMode(inlineEditMode);
+      setEditStatusMessage('편집 중...');
+      setEditPrompt('');
+    } catch {
+      setEditStatusMessage(null);
+      setEditErrorMessage('편집 요청 전송에 실패했습니다');
+    } finally {
+      setIsEditSubmitting(false);
+    }
+  }, [projectId, selectedSession, selectedScreen, inlineEditMode, editPrompt]);
+
+  const handleUndo = useCallback(() => {
+    const previousScreen = historyChain[0];
+    if (!previousScreen) {
+      return;
+    }
+    selectScreenById(previousScreen.id);
+  }, [historyChain, selectScreenById]);
+
+  const handleSelectAltScreen = useCallback((screenId: string) => {
+    selectScreenById(screenId);
+    setAltCandidateScreenIds([]);
+    setInlineEditMode(null);
+    setEditStatusMessage(null);
+    setEditErrorMessage(null);
+  }, [selectScreenById]);
 
   if (!projectId) {
     return (
@@ -447,7 +697,6 @@ export function DesignView() {
     );
   }
 
-  const screenFiles = hasStyles ? styleScreenFiles : (selectedSession?.screen_files ?? []);
   const parsedScreen = screenContent ? parseScreenContent(screenContent) : null;
   const parsedScreenTitle = parsedScreen?.title ? parsedScreen.title : 'Design 화면';
   const hasHtmlPreview = canPreview;
@@ -489,26 +738,62 @@ export function DesignView() {
                 {file === selectedScreenFile ? (
                   <>
                     <h3 className="text-lg font-semibold mb-3">{parsedScreenTitle}</h3>
-                    {hasHtmlPreview && (
-                      <div className="flex gap-1 mb-3">
-                        <Button
-                          type="button"
-                          variant={viewMode === 'image' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setViewMode('image')}
-                        >
-                          이미지
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={viewMode === 'html' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setViewMode('html')}
-                        >
-                          HTML 미리보기
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {hasHtmlPreview && (
+                        <>
+                          <Button
+                            type="button"
+                            variant={viewMode === 'image' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setViewMode('image')}
+                          >
+                            이미지
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={viewMode === 'html' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setViewMode('html')}
+                          >
+                            HTML 미리보기
+                          </Button>
+                        </>
+                      )}
+                      {canEditSelectedScreen && (
+                        <>
+                          <Button
+                            type="button"
+                            variant={inlineEditMode === 'edit' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => handleOpenInlineEditor('edit')}
+                            disabled={Boolean(activeEditJobId)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={inlineEditMode === 'alt' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => handleOpenInlineEditor('alt')}
+                            disabled={Boolean(activeEditJobId)}
+                          >
+                            <GitBranch className="h-3.5 w-3.5" />
+                            Alt
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleUndo}
+                            disabled={historyChain.length === 0 || Boolean(activeEditJobId)}
+                          >
+                            <Undo2 className="h-3.5 w-3.5" />
+                            Undo
+                          </Button>
+                        </>
+                      )}
+                    </div>
                     {hasHtmlPreview && viewMode === 'html' && htmlPreviewSrc ? (
                       <iframe
                         title={`${selectedSession?.id ?? 'design'}-${file}-html-preview`}
@@ -553,6 +838,122 @@ export function DesignView() {
                           <div className="text-sm text-muted-foreground">디자인 상세가 없습니다</div>
                         )}
                       </>
+                    )}
+                    {canEditSelectedScreen && inlineEditMode && (
+                      <Card className="mt-4">
+                        <CardContent className="p-3 space-y-3">
+                          <div className="text-sm font-medium">
+                            {inlineEditMode === 'edit' ? 'Edit 프롬프트' : 'Alt 프롬프트'}
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              value={editPrompt}
+                              onChange={(event) => setEditPrompt(event.target.value)}
+                              placeholder={inlineEditMode === 'edit' ? '예: 사이드바 추가' : '예: 카드형 대안 2개'}
+                              disabled={isEditSubmitting || Boolean(activeEditJobId)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  void handleSendEdit();
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                void handleSendEdit();
+                              }}
+                              disabled={isEditSubmitting || Boolean(activeEditJobId) || editPrompt.trim().length === 0}
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                              Send
+                            </Button>
+                          </div>
+                          {editStatusMessage && (
+                            <p className="text-xs text-muted-foreground">{editStatusMessage}</p>
+                          )}
+                          {editErrorMessage && (
+                            <p className="text-xs text-destructive">{editErrorMessage}</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+                    {altCandidateScreens.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-sm font-medium mb-2">Alt 결과 비교</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {altCandidateScreens.map((candidate) => (
+                            <Card key={candidate.id} className="overflow-hidden">
+                              {candidate.image_url ? (
+                                <img
+                                  src={candidate.image_url}
+                                  alt={candidate.title ?? candidate.id}
+                                  className="w-full h-40 object-cover"
+                                />
+                              ) : (
+                                <div className="h-40 flex items-center justify-center text-xs text-muted-foreground bg-muted/40">
+                                  이미지 없음
+                                </div>
+                              )}
+                              <CardContent className="p-3 space-y-2">
+                                <p className="text-sm font-medium">{candidate.title ?? candidate.id}</p>
+                                <p className="text-xs text-muted-foreground">{normalizeScreenId(candidate.id)}</p>
+                                <div className="flex items-center justify-between">
+                                  {candidate.url ? (
+                                    <a
+                                      href={candidate.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                    >
+                                      <ExternalLink className="h-3 w-3" /> Stitch
+                                    </a>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">미리보기 링크 없음</span>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => handleSelectAltScreen(candidate.id)}
+                                  >
+                                    선택
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {canEditSelectedScreen && historyChain.length > 0 && (
+                      <Card className="mt-4">
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium">편집 히스토리</p>
+                            <span className="text-xs text-muted-foreground">{historyChain.length} / 20</span>
+                          </div>
+                          <ScrollArea className="max-h-44 pr-3">
+                            <div className="space-y-1">
+                              {historyChain.map((historyScreen) => (
+                                <button
+                                  key={`${historyScreen.id}-${historyScreen.created_at ?? ''}`}
+                                  type="button"
+                                  onClick={() => selectScreenById(historyScreen.id)}
+                                  className="w-full text-left rounded border px-2 py-1.5 hover:bg-muted/40"
+                                >
+                                  <p className="text-xs font-medium">
+                                    {historyScreen.title ?? normalizeScreenId(historyScreen.id)}
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {normalizeScreenId(historyScreen.id)}
+                                  </p>
+                                </button>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </CardContent>
+                      </Card>
                     )}
                   </>
                 ) : (

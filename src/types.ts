@@ -226,6 +226,7 @@ export interface DesignStyle {
 export interface DesignScreen {
   id: string;
   stitch_screen_id?: string;
+  parent_screen_id?: string | null;
   title?: string;
   url?: string;
   image_url?: string | null;
@@ -243,6 +244,10 @@ export interface DesignSession {
   created_at?: string;
   linked_plan?: string | null;
   linked_req?: string | null;
+  stitch_project_id?: string | null;
+  revision?: number;
+  editing_by?: string | null;
+  editing_at?: string | null;
   screens?: DesignScreen[];
   styles?: DesignStyle[];
   [key: string]: unknown;

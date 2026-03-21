@@ -15,12 +15,12 @@ if ! [[ "$MAX_BLOCKS" =~ ^[0-9]+$ ]] || [ "$MAX_BLOCKS" -lt 1 ]; then
   MAX_BLOCKS=3
 fi
 
-FRAME_TTL="${MST_FRAME_TTL:-600}"
+FRAME_TTL="${MST_FRAME_TTL:-1800}"
 if ! [[ "$FRAME_TTL" =~ ^[0-9]+$ ]] || [ "$FRAME_TTL" -lt 0 ]; then
   FRAME_TTL=600
 fi
 
-CONTINUATION_TTL="${MST_CONTINUATION_TTL:-60}"
+CONTINUATION_TTL="${MST_CONTINUATION_TTL:-1800}"
 if ! [[ "$CONTINUATION_TTL" =~ ^[0-9]+$ ]] || [ "$CONTINUATION_TTL" -lt 0 ]; then
   CONTINUATION_TTL=60
 fi
