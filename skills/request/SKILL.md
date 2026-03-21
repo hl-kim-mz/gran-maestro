@@ -628,6 +628,28 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
           - `last_modified`
           - `spec_generated_at`
         - `intent_context_active=false`면 §3.2 섹션 전체를 skip한다 (에러 아님).
+   h-0.7. **Regression Test 선행 태스크 생성** (Step h-1 이전, MANDATORY):
+      - 목적: 기존 코드 수정 REQ에서 코드 변경 전에 **기존 동작 보존 회귀 검증** 태스크를 선행 배치한다.
+      - 트리거 조건(모두 충족 시 생성):
+        - 수정 대상에 기존 파일/함수의 **비즈니스 로직 변경**이 포함됨.
+        - 단순 boilerplate 변경만이 아님.
+      - 제외 조건:
+        - boilerplate-only 변경 (예: import 추가, 라우터 등록, wiring/설정 연결만 변경).
+        - 완전 신규 기능 (새 파일만 생성, 기존 코드 비즈니스 로직 변경 없음).
+      - 생성 규칙:
+        - 각 코드 수정 태스크 앞에 `"기존 기능 regression test 작성"` 성격의 선행 태스크를 생성한다.
+        - 선행 태스크는 후행 코드 수정 태스크의 `blockedBy` 선행 조건으로 연결한다.
+        - 태스크 범위는 반드시 **수정 대상 파일/함수 + 1단계 연관 모듈(static import/caller)** 로 한정한다.
+        - 테스트 방식은 **새 테스트 작성**을 기본으로 하며, 기존 테스트가 있으면 **기존 테스트와 병행 실행**한다.
+      - Spec AC 보조 태그 부여 규칙 (`[impact-check]` 패턴 준용):
+        - 위 선행 태스크로 생성/변환되는 AC 헤더에는 `[regression-test]` 보조 태그를 포함한다.
+        - `[regression-test]`는 기존 보조 태그 체계(`[unit-test]`, `[api-test]`, ...)에 편입되며 Given/When/Then/Test 형식을 그대로 따른다.
+        - 복수 보조 태그 공존 시 `[impact-check]` 우선 라우팅 규칙은 유지하고, `[regression-test]`는 Pass A의 회귀 테스트 실행 대상으로 함께 보존한다.
+      - 역할 구분 (PLN-291 하위호환, MANDATORY):
+        - `[IMPACT]`/`[impact-check]` = 수정 영향으로 **다른 영역**이 깨지지 않았는지 확인.
+        - `[regression-test]` = **수정 대상 자체**의 기존 동작이 유지되는지 확인.
+        - 동일 파일 대상이라도 검증 목적이 다르므로 중복이 아니다.
+
    h-1. **다중 태스크 분해 처리** (PM 자율 판단 — plan 유무와 무관):
       - plan.md에 `## 태스크 분해` 섹션이 있더라도 무시한다. 태스크 분해는 plan의 관심사가 아니며 코드베이스 탐색 결과를 바탕으로 아래 기준에 따라 PM이 독자적으로 결정한다.
       - pm-conductor.md Step 6.6 판단 따름; 2단계 이상 결정 시 동일 절차

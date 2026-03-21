@@ -63,10 +63,11 @@ argument-hint: "[REQ-ID] [--auto]"
    - 태그 누락 시 기본값은 `manual`.
    - `[browser-test]`는 Pass A에서 실제 브라우저 실행 분기 대상으로 표시한다.
 1-d. **테스트 유형 보조 태그 파싱**: AC 헤더에서 `[automatable]`/`[manual]`/`[browser-test]` 이후의 보조 태그를 추가 파싱하여 `ac_test_type`으로 보관한다.
-   - 인식 보조 태그: `[build-check]`, `[lint-check]`, `[unit-test]`, `[integration]`, `[api-test]`, `[e2e-browser]`, `[visual]`, `[performance]`, `[impact-check]`
+   - 인식 보조 태그: `[build-check]`, `[lint-check]`, `[unit-test]`, `[integration]`, `[api-test]`, `[e2e-browser]`, `[visual]`, `[performance]`, `[impact-check]`, `[regression-test]`
    - 보조 태그가 없으면 `ac_test_type = null` (기존 동작 유지, 하위 호환).
    - `[e2e-browser]` 보조 태그는 기존 `[browser-test]` ac_type 실행 분기를 재사용한다.
    - `[impact-check]` 보조 태그가 있으면 해당 AC를 `impact_reviewer` 라우팅 대상으로 표시한다.
+   - `[regression-test]` 보조 태그가 있으면 해당 AC를 regression 검증 대상(선행 작성된 회귀 테스트 재실행)으로 표시한다.
    - 하나의 AC에 복수 보조 태그가 있으면 첫 번째 태그를 `ac_test_type`으로 사용한다.
 2. **변경 파일 목록 수집**: `git log --name-only` 또는 `git diff <base>..HEAD --name-only` 기반으로 REQ 관련 변경 파일 목록 작성.
 3. **AC별 파일 매핑 준비**: 각 AC 항목과 관련 변경 파일 연결.
@@ -218,6 +219,19 @@ argument-hint: "[REQ-ID] [--auto]"
   - Pass A의 `failed_ac_ids`/`failure_class`/`evidence` 집계에도 포함하지 않는다.
 - 하위호환: `[impact-check]` AC가 0건이면 이 분기를 graceful skip하고 기존 Pass A 동작을 그대로 유지한다.
 
+#### [regression-test] AC 실행 분기 (Pass A 내부, MANDATORY)
+
+- 대상: Step 2에서 `[regression-test]` 보조 태그가 파싱된 Spec AC.
+- 실행 규칙:
+  - AC `Test:` 필드에 명시된 회귀 테스트 명령어를 실행한다.
+  - 명령어 성공(exit code 0)이면 PASS, 실패(exit code != 0 또는 assertion 실패)면 FAIL.
+  - 회귀 테스트는 "수정 대상 파일/함수 + 1단계 연관 모듈(static import/caller)"의 기존 동작 보존 확인 목적임을 근거에 명시한다.
+- 실패 처리(강제):
+  - `[regression-test]` AC가 1건이라도 FAIL이면 해당 review iteration을 `pass_a_failed`로 처리한다.
+  - 이 규칙은 일반 SHOULD 경고 정책보다 우선한다(즉, 회귀 테스트 실패는 iteration FAIL).
+  - 실패 근거는 `ac-results.md`와 `pass-a-result.md`에 반드시 남긴다.
+- 하위호환: `[regression-test]` AC가 0건이면 이 분기를 graceful skip하고 기존 Pass A 동작을 그대로 유지한다.
+
 - **[build-check]**: AC의 `Test:` 필드에 명시된 빌드 명령어를 실행한다. exit code 0이면 PASS, 아니면 FAIL.
 - **[lint-check]**: AC의 `Test:` 필드에 명시된 린트 명령어를 실행한다. 위반 0건이면 PASS.
 - **[unit-test]**: AC의 `Test:` 필드에 명시된 테스트 명령어를 실행한다. 전체 PASS이면 PASS.
@@ -230,6 +244,7 @@ argument-hint: "[REQ-ID] [--auto]"
 - **[e2e-browser]**: 기존 `browser-test AC 실행 분기`를 그대로 재사용한다. 별도 구현 없음.
 - **[visual]**: 비주얼 비교 도구를 감지하고 AC의 `Test:` 필드 명령어를 실행한다.
 - **[performance]**: 벤치마크 도구를 감지하고 AC의 `Test:` 필드 명령어를 실행한다.
+- **[regression-test]**: 위 `[regression-test] AC 실행 분기`를 따른다 (실패 시 iteration FAIL 강제).
 
 **공통 규칙**:
 - 모든 보조 태그 실행은 AC의 `Test:` 필드에 명시된 명령어를 기반으로 한다.
