@@ -155,8 +155,10 @@ argument-hint: "[REQ-ID] [--auto]"
        - Playwright: 대상 `TEST_URL`로 직접 navigate하여 페이지 컨텍스트를 확보한다 (탭 나열 불필요 — Playwright가 자체 브라우저 인스턴스를 관리).
      - Step 2. 대상 페이지 스크린샷 촬영:
        기존 스크린샷 캡처 패턴과 동일한 도구를 사용해 현재 페이지 상태를 캡처한다.
+       - `{PRECHECK_SCREENSHOT_PATH}` = `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/browser-tests/BT-{RV-NNN}/screenshots/precheck-{AC-ID}.webp`
        - Playwright: `Skill(skill: "playwright-cli", args: "screenshot --url {TEST_URL} --output {PRECHECK_SCREENSHOT_PATH}")`
-       - Claude in Chrome: `mcp__claude-in-chrome__computer(action: "screenshot", tabId: {TARGET_TAB_ID})`
+       - Claude in Chrome: `mcp__claude-in-chrome__computer(action: "screenshot", tabId: {TARGET_TAB_ID})` → 결과를 `{PRECHECK_SCREENSHOT_PATH}`에 저장
+       - 저장 성공 시 `results[].precheck_screenshot` = `"screenshots/precheck-{AC-ID}.webp"` 기록. 실패 시 `null`.
      - Step 3. 주요 선택자 DOM 존재 확인:
        실제 인터랙션에 필요한 주요 선택자를 확인한다.
        - Claude in Chrome: `mcp__claude-in-chrome__find`
@@ -228,7 +230,8 @@ argument-hint: "[REQ-ID] [--auto]"
         "ac_id": "AC-001",
         "status": "PASS | FAIL | SKIP",
         "reason": "tool_unavailable | assertion_failed | ...",
-        "screenshot": "screenshots/AC-001.webp"
+        "screenshot": "screenshots/AC-001.webp",
+        "precheck_screenshot": "screenshots/precheck-AC-001.webp"
       }
     ]
   }
