@@ -133,6 +133,22 @@ argument-hint: "[REQ-ID] [--auto]"
      - 1순위: Playwright CLI 스킬 사용 가능 여부 (`Skill(skill: "playwright-cli", ...)` 호출 가능한지)
      - 2순위: Claude in Chrome MCP 도구 사용 가능 여부 (`mcp__claude-in-chrome__computer` 도구가 로드 가능한지)
      - 감지 결과를 `tool` 변수에 기록: `"playwright"` | `"claude-in-chrome"` | `"unavailable"`
+  2.5. 사전 검증 프로토콜 (MANDATORY): `tool != "unavailable"`일 때, 실제 AC 인터랙션 전에 아래 3단계를 선행한다.
+     - Step 1. 열린 탭 나열 + 대상 탭 식별:
+       - Claude in Chrome: `mcp__claude-in-chrome__tabs_context_mcp`(`tabs_context_mcp`)를 호출해 열린 브라우저 탭을 나열하고, AC 실행 대상 탭(`TARGET_TAB_ID`)을 식별한다.
+       - Playwright: 대상 `TEST_URL`로 직접 navigate하여 페이지 컨텍스트를 확보한다 (탭 나열 불필요 — Playwright가 자체 브라우저 인스턴스를 관리).
+     - Step 2. 대상 페이지 스크린샷 촬영:
+       기존 스크린샷 캡처 패턴과 동일한 도구를 사용해 현재 페이지 상태를 캡처한다.
+       - Playwright: `Skill(skill: "playwright-cli", args: "screenshot --url {TEST_URL} --output {PRECHECK_SCREENSHOT_PATH}")`
+       - Claude in Chrome: `mcp__claude-in-chrome__computer(action: "screenshot", tabId: {TARGET_TAB_ID})`
+     - Step 3. 주요 선택자 DOM 존재 확인:
+       실제 인터랙션에 필요한 주요 선택자를 확인한다.
+       - Claude in Chrome: `mcp__claude-in-chrome__find`
+       - Playwright: selector 확인(`locator`/`waitForSelector`)으로 동등 검증
+     - 게이트 조건:
+       위 3단계를 모두 PASS한 경우에만 기존 Step 3(AC 실행)으로 진행한다.
+     - 실패 처리:
+       3단계 중 하나라도 실패하면 사전 검증 프로토콜을 1회 재시도한다. 재시도 후에도 실패하면 해당 AC를 `FAIL`로 처리하고 실제 인터랙션을 진행하지 않는다.
   3. 가용 도구가 있으면 각 browser-test AC를 실제 브라우저에서 실행하고 PASS/FAIL을 판정한다.
      - AC의 `Given/When/Then/Test` 문장을 그대로 실행 시나리오 입력으로 사용한다.
      - **스크린샷 캡처/저장 (MANDATORY — 생략 금지)**:
