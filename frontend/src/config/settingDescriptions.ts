@@ -143,6 +143,8 @@ export const SETTING_DESCRIPTIONS: Record<string, string | SettingMeta> = {
   'code_review.agents': '코드 리뷰 참여 에이전트 수',
   'code_review.agent_roster': '코드 리뷰 에이전트 명단',
   'code_review.parallel': '병렬 코드 리뷰',
+  'code_review.use_native_review': 'Codex 네이티브 review 서브커맨드 사용 여부',
+  'code_review.native_review_prompt': 'Codex 네이티브 review에 추가로 전달할 프롬프트',
   'cleanup.ideation_keep_count': 'Ideation 세션 유지 수',
   'cleanup.discussion_keep_count': 'Discussion 세션 유지 수',
   'cleanup.debug_keep_count': 'Debug 세션 유지 수',

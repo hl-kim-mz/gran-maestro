@@ -89,7 +89,7 @@ const MODEL_ROLE_DISPLAY_ORDER = ['pm_conductor', 'architect', 'developer', 'rev
 
 const WORKFLOW_INFO_FOCUS_FIELDS: Partial<Record<WorkflowNode['id'], string[]>> = {
   stitch: ['enabled', 'auto_detect', 'auto_trigger', 'project_id', 'model_id', 'failure_policy'],
-  code_review: ['enabled', 'agents', 'agent_roster', 'parallel'],
+  code_review: ['enabled', 'agents', 'agent_roster', 'parallel', 'use_native_review', 'native_review_prompt'],
   collaborative_debug: ['finding_char_limit', 'merge_wait_ms', 'auto_trigger_from_request'],
   'workflow.feedback': ['max_feedback_rounds'],
   'models.providers': ['codex', 'gemini', 'claude'],

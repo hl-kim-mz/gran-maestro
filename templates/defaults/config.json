@@ -227,7 +227,9 @@
       "codex",
       "gemini"
     ],
-    "parallel": true
+    "parallel": true,
+    "use_native_review": false,
+    "native_review_prompt": ""
   },
   "fact_check": {
     "max_verification_rounds": 3,

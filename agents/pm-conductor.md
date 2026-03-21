@@ -267,6 +267,9 @@ Phase 1 runs in two modes:
    `config.code_review.enabled`가 `true`이고 `config.code_review.agents > 0`인 경우 실행:
    - `agent_roster`에서 `agents` 수만큼 에이전트를 순서대로 선택
    - 각 에이전트에 대해 `templates/review-request.md`로 독립 리뷰 프롬프트 생성 (PERSPECTIVE는 에이전트 타입에 따라 자동 주입)
+   - codex 에이전트 dispatch 시:
+     - `config.code_review.use_native_review=true`이고 `codex review --help`가 성공하면 `codex review --base {worktree.base_branch} "{PERSPECTIVE}\n\n{FOCUS_HINTS}\n\n{native_review_prompt}"` 형태로 실행한다 (`native_review_prompt`가 비어 있으면 해당 블록 생략).
+     - `codex review`가 미지원/실패하면 기존 `codex --full-auto "{prompt}"` 방식으로 fallback한다.
    - `config.code_review.parallel: true`이면 기존 패스(2.5, 2.7, 2.8)와 동시 실행 (`run_in_background: true`)
    - trace label: `phase3-review-explore-{agent}` (예: `phase3-review-explore-codex`, `phase3-review-explore-gemini`)
    - 결과를 Review Report "추가 독립 리뷰어 의견" 섹션에 통합
@@ -386,7 +389,7 @@ Skill(skill: "mst:codex", args: "--prompt-file .gran-maestro/requests/REQ-001/ta
 | Phase 3 | 일관성 검토 (기본) | `Write → prompts/phase3-consistency-review.md` (review-request 템플릿, Codex PERSPECTIVE) → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --trace {REQ}/{TASK}/phase3-consistency-review")` | 20+ 파일 시 Gemini PERSPECTIVE로 별도 프롬프트 선행 |
 | Phase 3 | 품질 프리체크 | `Write → prompts/phase3-quality-precheck.md` (review-request 템플릿, Codex PERSPECTIVE) → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --trace {REQ}/{TASK}/phase3-quality-precheck")` | self-exploration: lint, 컨벤션, 네이밍 |
 | Phase 3 | 보안 스캐닝 | `Write → prompts/phase3-security-scan.md` (review-request 템플릿, Codex PERSPECTIVE) → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --trace {REQ}/{TASK}/phase3-security-scan")` | self-exploration: call chain 기반 취약점 탐색 |
-| Phase 3 | 추가 독립 리뷰어 (Codex) | `Write → prompts/phase3-review-explore-codex.md` (review-request 템플릿, Codex PERSPECTIVE) → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --trace {REQ}/{TASK}/phase3-review-explore-codex")` | config.code_review.agents ≥ 1 시 실행 |
+| Phase 3 | 추가 독립 리뷰어 (Codex) | `Write → prompts/phase3-review-explore-codex.md` (review-request 템플릿, Codex PERSPECTIVE) → `config.code_review.use_native_review=true && codex review 사용 가능`이면 `codex review --base {base_branch} "{PERSPECTIVE}\n\n{FOCUS_HINTS}\n\n{native_review_prompt}"`, 아니면 `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --trace {REQ}/{TASK}/phase3-review-explore-codex")` fallback | config.code_review.agents ≥ 1 시 실행 |
 | Phase 3 | 추가 독립 리뷰어 (Gemini) | `Write → prompts/phase3-review-explore-gemini.md` (review-request 템플릿, Gemini PERSPECTIVE) → `Skill(skill: "mst:gemini", args: "--prompt-file {prompt_path} --trace {REQ}/{TASK}/phase3-review-explore-gemini")` | config.code_review.agents ≥ 2 시 실행 |
 | Phase 4 | 피드백 문서 생성 | `Write → prompts/phase4-feedback.md` → `Skill(skill: "mst:codex", args: "--prompt-file {prompt_path} --output {feedback_path} --trace {REQ}/{TASK}/phase4-feedback")` | feedback-composer 템플릿 사용 |
 | /mst:codex, /mst:gemini | 사용자 직접 호출 | `--trace` 없이 인라인 프롬프트 그대로 사용 | 모드 무관, 결과 직접 표시 |

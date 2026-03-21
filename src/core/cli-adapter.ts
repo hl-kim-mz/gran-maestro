@@ -147,9 +147,34 @@ export class CodexAdapter implements CLIAdapter {
     return await runWithTimeout(cmd, opts.workingDir, opts.timeout_ms);
   }
 
+  async review(prompt: string, baseBranch: string, opts: CLIOptions): Promise<CLIResult> {
+    const escapedPrompt = prompt.replace(/"/g, '\\"');
+    const escapedBaseBranch = baseBranch.replace(/"/g, '\\"');
+    let cmd = `codex review --base "${escapedBaseBranch}" "${escapedPrompt}"`;
+    if (opts.model) {
+      cmd += ` --model ${opts.model}`;
+    }
+    if (opts.outputFormat === 'json') {
+      cmd += ' --json';
+    }
+    if (opts.ephemeral) {
+      cmd += ' --ephemeral';
+    }
+    return await runWithTimeout(cmd, opts.workingDir, opts.timeout_ms);
+  }
+
   async isAvailable(): Promise<boolean> {
     try {
       const result = await runWithTimeout('codex --version', '.', 10_000);
+      return result.success;
+    } catch {
+      return false;
+    }
+  }
+
+  async isReviewAvailable(): Promise<boolean> {
+    try {
+      const result = await runWithTimeout('codex review --help', '.', 10_000);
       return result.success;
     } catch {
       return false;
