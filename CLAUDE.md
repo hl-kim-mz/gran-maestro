@@ -54,6 +54,16 @@ docs/                # 문서
 3. **CHANGELOG.md 업데이트**: 위와 동일
 4. **버전업 커밋**: `Bump version to X.Y.Z` 메시지로 커밋 (CHANGELOG.md 변경 포함)
 
+## 기능 변경 시 필수 고려사항
+
+기능이 추가·변경·삭제되면, 요청받은 내용 외에 아래 항목의 수정 필요 여부를 반드시 검토합니다:
+
+1. **대시보드 변경점**: 대시보드 UI에 표시되는 데이터·화면·동작이 영향받는지 확인, 해당 시 `frontend/` 수정 및 빌드
+2. **config 변경**: `config.json`/`config.resolved.json`에 키 추가·변경·삭제가 필요한지 확인
+   - config 키가 변경되면 대시보드 Settings의 해당 탭 UI도 반드시 동기화
+   - 기본값이 필요한 경우 `templates/defaults/config.json`도 함께 수정
+3. **README 업데이트**: 사용자 대면 기능이 변경된 경우 `README.md`의 관련 섹션 수정
+
 ## 커밋 & 푸시 체크리스트
 
 커밋/푸시 요청 시 아래를 반드시 확인합니다:
