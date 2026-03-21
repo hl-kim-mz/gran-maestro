@@ -25,8 +25,31 @@ if ! [[ "$CONTINUATION_TTL" =~ ^[0-9]+$ ]] || [ "$CONTINUATION_TTL" -lt 0 ]; the
   CONTINUATION_TTL=60
 fi
 
-last_assistant_message="$(cat || true)"
+STDIN_RAW="$(cat || true)"
+last_assistant_message="$STDIN_RAW"
 TTL_REMOVED=0
+
+# --- stop_hook_active 파싱 (stdin JSON) ---
+# Claude Code Stop hook은 JSON으로 stop_hook_active 플래그를 전달할 수 있음
+# true이면 이미 block 중이므로 즉시 allow (무한 루프 방지)
+STOP_HOOK_ACTIVE="$(printf '%s' "$STDIN_RAW" | python3 -c 'import json, sys
+try:
+    data = json.loads(sys.stdin.read() or "{}")
+    val = data.get("stop_hook_active")
+    if val is True:
+        print("true")
+    elif val is False:
+        print("false")
+    else:
+        print("unknown")
+except Exception:
+    print("unknown")
+' 2>/dev/null || echo "unknown")"
+
+if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
+  debug_log "allow" "reason=stop_hook_active_true"
+  exit 0
+fi
 
 # --- 유틸리티 함수 ---
 
@@ -163,6 +186,7 @@ now = datetime.now(timezone.utc)
 status = "stale"
 parent_skill = "unknown"
 return_step = "next_step"
+next_step = ""
 age = ttl + 1
 
 try:
@@ -174,11 +198,14 @@ except Exception:
 if isinstance(data, dict):
     ps = data.get("parent_skill")
     rs = data.get("return_step")
+    ns = data.get("next_step")
     created_at = data.get("created_at")
     if isinstance(ps, str) and ps.strip():
         parent_skill = ps.strip()
     if isinstance(rs, str) and rs.strip():
         return_step = rs.strip()
+    if isinstance(ns, str) and ns.strip():
+        next_step = ns.strip()
     if isinstance(created_at, str) and created_at.strip():
         try:
             dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
@@ -190,17 +217,23 @@ if isinstance(data, dict):
             status = "stale"
             age = ttl + 1
 
-print(f"{status}\t{parent_skill}\t{return_step}\t{age}")
+print(f"{status}\t{parent_skill}\t{return_step}\t{age}\t{next_step}")
 ' "$PENDING_FILE" "$CONTINUATION_TTL" 2>/dev/null || true)"
 
   status="$(printf '%s' "$info" | cut -f1)"
   parent_skill="$(printf '%s' "$info" | cut -f2)"
   return_step="$(printf '%s' "$info" | cut -f3)"
   age="$(printf '%s' "$info" | cut -f4)"
+  next_step="$(printf '%s' "$info" | cut -f5)"
 
   if [ "$status" = "fresh" ]; then
-    debug_log "block" "reason=pending_continuation parent=$parent_skill return_step=$return_step age=${age}s ttl=${CONTINUATION_TTL}s"
-    printf '%s\n' "{\"decision\":\"block\",\"reason\":\"부모 스킬로 복귀: $parent_skill (return_step=$return_step). pending_continuation is active age=${age}s <= ttl=${CONTINUATION_TTL}s. Do not stop — emit the next tool call immediately.\"}"
+    local reason_detail="부모 스킬로 복귀: $parent_skill (return_step=$return_step)."
+    if [ -n "$next_step" ]; then
+      reason_detail="$reason_detail Execute $next_step."
+    fi
+    reason_detail="$reason_detail pending_continuation is active age=${age}s <= ttl=${CONTINUATION_TTL}s. Do not stop — emit the next tool call immediately."
+    debug_log "block" "reason=pending_continuation parent=$parent_skill return_step=$return_step next_step=$next_step age=${age}s ttl=${CONTINUATION_TTL}s"
+    printf '%s\n' "{\"decision\":\"block\",\"reason\":\"$reason_detail\"}"
     exit 0
   fi
 

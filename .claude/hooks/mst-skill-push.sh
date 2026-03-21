@@ -55,18 +55,31 @@ fi
 # Skill 호출은 부모 복귀 이후 "다음 행동 진행" 신호로 간주하므로 pending 플래그 제거
 rm -f "$PENDING_FILE" "${PENDING_FILE}.tmp" 2>/dev/null || true
 
-# tool_input.skill에서 스킬명 추출
-SKILL_NAME="$(printf '%s' "$INPUT" | python3 -c 'import json, sys
+# tool_input.skill + args에서 스킬명 및 return_step 힌트 추출
+SKILL_INFO="$(printf '%s' "$INPUT" | python3 -c 'import json, sys, re
 try:
     data = json.loads(sys.stdin.read() or "{}")
     tool_input = data.get("tool_input") or {}
-    if isinstance(tool_input, dict):
-        print(tool_input.get("skill") or "")
-    else:
-        print("")
+    if not isinstance(tool_input, dict):
+        tool_input = {}
+    skill = tool_input.get("skill") or ""
+    args = tool_input.get("args") or ""
+    # --trace 패턴에서 현재 Step 힌트 추론: --trace "Step 5: ..." 또는 args 내 Step N 패턴
+    return_step = ""
+    if isinstance(args, str):
+        m = re.search(r"--trace\s+[\"'"'"']?([^\"'"'"']+)", args)
+        if m:
+            return_step = m.group(1).strip()
+        elif not return_step:
+            m = re.search(r"(Step\s+\d+[^,;]*)", args, re.IGNORECASE)
+            if m:
+                return_step = m.group(1).strip()
+    print(f"{skill}\t{return_step}")
 except Exception:
-    print("")
+    print("\t")
 ' 2>/dev/null || true)"
+SKILL_NAME="$(printf '%s' "$SKILL_INFO" | cut -f1)"
+RETURN_STEP_HINT="$(printf '%s' "$SKILL_INFO" | cut -f2)"
 if [ -z "$SKILL_NAME" ]; then
   exit 0
 fi
@@ -95,6 +108,7 @@ path = sys.argv[1]
 skill = sys.argv[2]
 timestamp = sys.argv[3]
 max_depth = int(sys.argv[4])
+return_step = sys.argv[5] if len(sys.argv) > 5 else ""
 
 try:
     with open(path, "r", encoding="utf-8") as f:
@@ -110,12 +124,15 @@ for frame in data:
     if isinstance(frame, dict):
         frame["pushed_at"] = timestamp
 
-data.append({"skill": skill, "pushed_at": timestamp})
+frame_obj = {"skill": skill, "pushed_at": timestamp}
+if return_step:
+    frame_obj["return_step"] = return_step
+data.append(frame_obj)
 if len(data) > max_depth:
     data = data[-max_depth:]
 
 print(json.dumps(data, ensure_ascii=True))
-' "$STACK_FILE" "$SKILL_NAME" "$TIMESTAMP" "$MAX_DEPTH" > "${STACK_FILE}.tmp" 2>/dev/null; then
+' "$STACK_FILE" "$SKILL_NAME" "$TIMESTAMP" "$MAX_DEPTH" "$RETURN_STEP_HINT" > "${STACK_FILE}.tmp" 2>/dev/null; then
   mv "${STACK_FILE}.tmp" "$STACK_FILE" || true
 else
   rm -f "${STACK_FILE}.tmp"
@@ -135,7 +152,7 @@ if [ "$TRIMMED" -gt 0 ]; then
   echo "[mst-skill-push] warning: stack depth exceeded max_depth=$MAX_DEPTH, trimmed_oldest=$TRIMMED" >&2
 fi
 
-debug_log "push" "skill=$SKILL_NAME depth=$POST_LEN max_depth=$MAX_DEPTH trimmed=$TRIMMED"
+debug_log "push" "skill=$SKILL_NAME depth=$POST_LEN max_depth=$MAX_DEPTH trimmed=$TRIMMED return_step=$RETURN_STEP_HINT"
 
 # PreToolUse는 allow 반환 (실행을 차단하지 않음)
 exit 0

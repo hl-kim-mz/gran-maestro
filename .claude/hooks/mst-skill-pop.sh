@@ -120,9 +120,15 @@ parent_skill = ""
 return_step = "next_step"
 if isinstance(data, list) and len(data) >= 2 and isinstance(data[-2], dict):
     parent_skill = data[-2].get("skill") or ""
+    # Check parent frame for return_step first
     candidate = data[-2].get("return_step")
     if isinstance(candidate, str) and candidate.strip():
         return_step = candidate.strip()
+# Also check the child frame (being popped) for return_step hint
+if isinstance(data, list) and data and isinstance(data[-1], dict):
+    child_rs = data[-1].get("return_step")
+    if isinstance(child_rs, str) and child_rs.strip():
+        return_step = child_rs.strip()
 
 print(parent_skill)
 print(return_step)
@@ -167,6 +173,7 @@ created_at = sys.argv[4]
 payload = {
     "parent_skill": parent_skill,
     "return_step": return_step or "next_step",
+    "next_step": return_step or "next_step",
     "created_at": created_at,
 }
 

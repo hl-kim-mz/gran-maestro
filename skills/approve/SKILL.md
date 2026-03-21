@@ -606,8 +606,10 @@ while (실행 중인 태스크가 있음):
 > Step 5 ~ Step 6 ~ Phase 3 ~ 최종 수락까지 **중간 멈춤 없이 연속 실행**한다.
 > "진행합니다", "다음 단계로 이동합니다" 등의 **텍스트만 출력하고 멈추는 것은 절대 금지**.
 > 텍스트를 출력했으면 **반드시 해당 단계의 도구 호출(Bash/Edit/Skill 등)을 즉시 실행**한다.
-> `step=returned` 마커가 발생한 응답은 반드시 `NEXT_ACTION: ...` 강제 패턴을 포함해야 하며, 반환은 종료가 아니라 다음 단계 전환 신호다.
-> `step=returned` 직후 `NEXT_ACTION` 없이 응답 종료하는 패턴을 금지한다.
+> **서브스킬 반환 직후 강제 패턴**: 서브스킬(mst:claude, mst:codex, mst:gemini, mst:review 등)이 반환되면,
+> 반환 텍스트(`[TRACE_SAVED]` 등)와 무관하게 **즉시** `NEXT_ACTION: <다음 Step 설명>` 패턴을 출력하고
+> 해당 Step의 도구 호출을 실행한다. 서브스킬 반환은 종료가 아니라 **다음 단계 전환 신호**다.
+> 서브스킬 반환 직후 `NEXT_ACTION` 없이 응답 종료하는 패턴을 금지한다.
 > 이 규칙은 이 approve 스킬의 모든 후속 Step에 적용된다.
 
 각 태스크 완료 즉시 사전 검증 실행:
@@ -1007,13 +1009,13 @@ else:
 - 기본 마커 포맷: `[MST skill={name} step={N}/{M} return_to={parent_skill/step | null}]`
 - 필드 규칙:
   - `skill`: 현재 실행 중인 스킬 이름
-  - `step`: 현재 단계(`N/M`) 또는 서브스킬 종료 시 `returned`
+  - `step`: 현재 단계(`N/M`)
   - `return_to`: 최상위 스킬이면 `null`, 서브스킬이면 `{parent_skill}/{step_number}`
-- 서브스킬 종료 마커: `[MST skill={subskill} step=returned return_to={parent/step}]`
 - C/D 분리 마커 규칙을 추가로 사용하지 않는다. 반드시 단일 MST 마커만 사용한다.
+- 서브스킬 반환 시: `step=returned` 마커에 의존하지 않는다. 서브스킬 호출(Skill 도구) 반환 자체가 전환 신호이며, 즉시 `NEXT_ACTION: <다음 Step>` 패턴을 출력하고 다음 도구 호출을 실행한다.
 - 예시:
   - `[MST skill={name} step=1/3 return_to=null]`
-  - `[MST skill={subskill} step=returned return_to={parent_skill}/{step_number}]`
+  - 서브스킬 반환 직후: `NEXT_ACTION: Step 5 사전 검증` → 즉시 Bash/Read 등 도구 호출
 
 ## 예시
 
