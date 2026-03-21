@@ -387,6 +387,20 @@
   },
   "d3": {
     "enabled": true,
+    "agents": {
+      "codex": {
+        "count": 2,
+        "tier": "premium"
+      },
+      "gemini": {
+        "count": 0,
+        "tier": "premium"
+      },
+      "claude": {
+        "count": 0,
+        "tier": "economy"
+      }
+    },
     "cynefin_skip": [
       "simple",
       "chaotic"

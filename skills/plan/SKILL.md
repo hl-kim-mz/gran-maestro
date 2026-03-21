@@ -781,6 +781,9 @@ Step 3.9 진입 시 초안은 전략적 검토가 반영된 정제 버전이다.
 - 키가 없으면 `templates/defaults/config.json`의 동일 섹션으로 fallback한다.
 - 기본값:
   - `d3.enabled=true`
+  - `d3.agents.codex={count:2,tier:"premium"}`
+  - `d3.agents.gemini={count:0,tier:"premium"}`
+  - `d3.agents.claude={count:0,tier:"economy"}`
   - `d3.cynefin_skip=["simple","chaotic"]`
   - `d3.light_mode=true`
   - `d3.ambiguity_threshold=0.5`
@@ -799,8 +802,14 @@ Step 3.9 진입 시 초안은 전략적 검토가 반영된 정제 버전이다.
 
 #### 3.9.2: light D3 기본 실행 (독립 에이전트)
 
+- D3 실행 에이전트는 config의 `d3.agents`를 기준으로 결정한다 (`debug.agents`, `explore.agents`와 동일 패턴):
+  1. `{PROJECT_ROOT}/.gran-maestro/config.resolved.json`의 `d3.agents`를 우선 사용
+  2. 키가 없으면 `templates/defaults/config.json`의 `d3.agents`로 fallback
+  3. 둘 다 없으면 기본값 `codex={count:2,tier:"premium"}`, `gemini={count:0,tier:"premium"}`, `claude={count:0,tier:"economy"}` 적용
+  4. provider별 `count > 0` 항목만 dispatch 대상에 포함하고, 각 provider의 `count`만큼 독립 실행 엔트리를 생성
+  5. 각 실행 엔트리의 모델 tier는 `d3.agents.{provider}.tier`를 사용하고, 모델명은 `config.models.providers.{provider}[tier || default_tier]`로 resolve
 - D3는 반드시 **독립 컨텍스트**로 호출한다:
-  - 허용 패턴: `Task(subagent_type: "general-purpose")` 또는 `Skill(skill: "mst:codex")` / `Skill(skill: "mst:gemini")`
+  - 허용 패턴: `Task(subagent_type: "general-purpose")` 또는 `Skill(skill: "mst:codex")` / `Skill(skill: "mst:gemini")` / `Skill(skill: "mst:claude")`
   - 입력 제한: AC 텍스트 + 용어집 + 제약만 전달, plan 대화 맥락은 전달하지 않는다.
 - 기본 실행은 `d3.light_mode=true` 기준으로 수행한다 (저비용 모드).
 - `complicated`/`complex` 도메인에서는 D3 실행 전에 AC 형식/완결성 micro-screen을 1회 수행한다.
