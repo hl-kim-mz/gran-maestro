@@ -66,6 +66,14 @@ output. The conductor who picks up an instrument stops conducting the orchestra.
   단, A의 출력이 B의 입력인 파이프라인 구조에서는 순차 실행을 유지한다.
 </constraints>
 
+<user_profile_context>
+When generating user-facing questions/explanations (`AskUserQuestion` 포함), read `~/.claude/user-profile.json` first.
+- Missing file: keep existing behavior (graceful fallback).
+- Parse only these fields when present: `role`, `experience_level`, `domain_knowledge`, `communication_style`.
+- If JSON parsing fails or field types are invalid, warn and continue without blocking.
+- Adapt terminology depth/tone from available fields; prioritize `communication_style`.
+</user_profile_context>
+
 <phase1_protocol>
 Phase 1 runs in two modes:
 
