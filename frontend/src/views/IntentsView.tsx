@@ -392,7 +392,7 @@ export function IntentsView() {
       setEditingIntentId(null);
 
       if (saved.id) {
-        navigate(`/intents/${saved.id}`);
+        navigate(`/memory/intents/${saved.id}`);
       }
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : '저장에 실패했습니다');
@@ -417,9 +417,9 @@ export function IntentsView() {
       const remaining = intents.filter((intent) => intent.id !== selectedIntentId);
 
       if (remaining.length === 0) {
-        navigate('/intents');
+        navigate('/memory/intents');
       } else {
-        navigate(`/intents/${remaining[0].id}`);
+        navigate(`/memory/intents/${remaining[0].id}`);
       }
     } catch (error: unknown) {
       setStatusMessage(error instanceof Error ? error.message : '삭제에 실패했습니다');
@@ -503,7 +503,7 @@ export function IntentsView() {
                   icon={<BookOpen className="h-3.5 w-3.5 text-muted-foreground" />}
                   extraBadge={intent.tags && intent.tags.length > 0 ? `tags ${intent.tags.length}` : undefined}
                   isSelected={selectedIntentId === intent.id}
-                  onClick={() => navigate(`/intents/${intent.id}`)}
+                  onClick={() => navigate(`/memory/intents/${intent.id}`)}
                 />
               ))}
 
@@ -664,7 +664,7 @@ export function IntentsView() {
                             <button
                               key={`${related.id}-${related.depth}`}
                               type="button"
-                              onClick={() => navigate(`/intents/${related.id}`)}
+                              onClick={() => navigate(`/memory/intents/${related.id}`)}
                               className="w-full rounded-md border p-3 text-left hover:bg-muted/40 transition-colors"
                             >
                               <div className="flex items-center justify-between gap-2">

@@ -229,6 +229,13 @@
     ],
     "parallel": true
   },
+  "fact_check": {
+    "max_verification_rounds": 3,
+    "agent": {
+      "provider": "claude",
+      "tier": "economy"
+    }
+  },
   "cleanup": {
     "ideation_keep_count": 10,
     "discussion_keep_count": 10,

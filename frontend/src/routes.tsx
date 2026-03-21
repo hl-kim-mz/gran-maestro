@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { OverviewView } from './views/OverviewView';
 import { PlansView } from './views/PlansView';
 import { WorkflowView } from './views/WorkflowView';
@@ -8,8 +8,14 @@ import { DebugView } from './views/DebugView';
 import { DesignView } from './views/DesignView';
 import { DocumentsView } from './views/DocumentsView';
 import { IntentsView } from './views/IntentsView';
+import { FactCheckView } from './views/FactCheckView';
 import { SettingsView } from './views/SettingsView';
 import { ArchivesView } from './views/ArchivesView';
+
+function IntentLegacyRedirect() {
+  const { intentId } = useParams();
+  return <Navigate to={intentId ? `/memory/intents/${intentId}` : '/memory/intents'} replace />;
+}
 
 export function AppRoutes() {
   return (
@@ -32,8 +38,12 @@ export function AppRoutes() {
       <Route path="/designs" element={<DesignView />} />
       <Route path="/designs/:designId" element={<DesignView />} />
       <Route path="/documents" element={<DocumentsView />} />
-      <Route path="/intents" element={<IntentsView />} />
-      <Route path="/intents/:intentId" element={<IntentsView />} />
+      <Route path="/intents" element={<Navigate to="/memory/intents" replace />} />
+      <Route path="/intents/:intentId" element={<IntentLegacyRedirect />} />
+      <Route path="/memory/intents" element={<IntentsView />} />
+      <Route path="/memory/intents/:intentId" element={<IntentsView />} />
+      <Route path="/memory/fact-checks" element={<FactCheckView />} />
+      <Route path="/memory/fact-checks/:fcId" element={<FactCheckView />} />
       <Route path="/archives" element={<ArchivesView />} />
       <Route path="/settings" element={<SettingsView />} />
       <Route path="*" element={<Navigate to="/overview" replace />} />

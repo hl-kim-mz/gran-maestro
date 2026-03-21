@@ -165,6 +165,15 @@ argument-hint: "{문서 주제 또는 작성하려는 문서 설명}"
 
 문서 근거 수집은 반드시 **3채널**을 모두 점검합니다.
 
+#### 공식 소스 우선 수집 정책 (MANDATORY)
+
+- 수집 순서 기본값은 `High → Medium → Low` 입니다.
+- 공식 소스 우선 원칙을 적용합니다.
+  - 우선 수집: 공식 문서/표준 문서/저장소 소스코드
+  - 보강 수집: 커뮤니티 Q&A/공개 토론
+  - 참고 수집: 개인 블로그/2차 요약
+- `Medium`/`Low` 정보는 `High` 근거가 없으면 확정 근거로 단독 사용하지 않습니다.
+
 1. 코드베이스 탐색
    - `Skill(skill: "mst:explore", args: "{주제} --focus 관련 코드/주석/기존 문서")`
    - `Glob`/`Grep`으로 관련 파일, README, docs, 주석, API 시그니처 탐색
@@ -219,7 +228,10 @@ argument-hint: "{문서 주제 또는 작성하려는 문서 설명}"
 - `AskUserQuestion` 없이 PM이 자율 보완하고 `auto-decisions.md`에 근거를 기록합니다.
 
 1. 팩트체크
-   - 코드/API/설정과 문서 내용의 사실 일치 여부 확인
+   - `claim 추출`: 문서의 사실 주장(수치, 버전, 경로, API 동작, 제약)을 claim 단위로 분해
+   - `교차 검증`: 각 claim을 코드베이스 + WebSearch/WebFetch + 공식 문서로 교차 검증
+   - `결과 기록`: `FC-NNN/fact-check.json`에 claim별 상태(`verified|failed|unverified`)와 evidence(type/url/snippet/accessed_at) 기록
+   - 하나라도 `failed` 또는 검증 불충분이면 Step 3으로 `루프백`하여 근거를 재수집 후 Step 4~5를 재실행
 2. 참조 확인
    - 링크, 경로, 명령어, 파일명 유효성 확인
 3. 일관성

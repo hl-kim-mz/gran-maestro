@@ -34,6 +34,7 @@ import { projectArchivesApi } from "./routes/archives.ts";
 import { projectCapturesApi } from "./routes/captures.ts";
 import { projectPresetsApi } from "./routes/presets.ts";
 import { projectIntentsApi } from "./routes/intents.ts";
+import { projectFactChecksApi } from "./routes/fact-checks.ts";
 
 import {
   BASE_DIR,
@@ -68,6 +69,7 @@ projectApi.route("/", projectArchivesApi);
 projectApi.route("/", projectCapturesApi);
 projectApi.route("/", projectPresetsApi);
 projectApi.route("/", projectIntentsApi);
+projectApi.route("/", projectFactChecksApi);
 projectApi.route("/", projectIdeationApi);
 projectApi.route("/", projectDiscussionApi);
 projectApi.route("/", projectTreeApi);

@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   Gauge,
   ClipboardList,
@@ -23,7 +23,7 @@ export const TABS = [
   { id: 'debug', label: 'Debug', icon: Bug, key: '5', path: '/debug' },
   { id: 'designs', label: 'Designs', icon: Palette, key: '6', path: '/designs' },
   { id: 'documents', label: 'Documents', icon: Files, key: '7', path: '/documents' },
-  { id: 'intents', label: 'Intents', icon: BookOpen, key: 'i', path: '/intents' },
+  { id: 'memory', label: 'Memory', icon: BookOpen, key: 'i', path: '/memory/intents' },
   { id: 'settings', label: 'Settings', icon: Settings, key: '8', path: '/settings' },
 ];
 
@@ -34,6 +34,9 @@ export function TabNav({
 }) {
   const { theme, setTheme } = useAppContext();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isMemoryActive = location.pathname.startsWith('/memory');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -58,16 +61,16 @@ export function TabNav({
   }, [navigate, onToggleShortcuts, setTheme, theme]);
 
   return (
-    <div className="bg-background border-b px-6">
-      <nav className="bg-transparent h-12 flex gap-6 p-0 items-center">
+    <div className="bg-background border-b px-6 flex flex-col">
+      <nav className="bg-transparent h-12 flex gap-6 p-0 items-center overflow-x-auto">
         {TABS.map((tab) => (
           <NavLink
             key={tab.id}
             to={tab.path}
             end={tab.id === 'plans'}
             className={({ isActive }) =>
-              `flex items-center h-full px-2 gap-2 rounded-none transition-colors border-b-2 ${
-                isActive
+              `flex items-center h-full px-2 gap-2 rounded-none transition-colors border-b-2 whitespace-nowrap ${
+                isActive || (tab.id === 'memory' && isMemoryActive)
                   ? 'border-primary text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`
@@ -79,6 +82,30 @@ export function TabNav({
           </NavLink>
         ))}
       </nav>
+      {isMemoryActive && (
+        <nav className="bg-transparent h-10 flex gap-6 p-0 items-center overflow-x-auto border-t border-muted">
+          <NavLink
+            to="/memory/intents"
+            className={({ isActive }) =>
+              `flex items-center h-full px-2 gap-2 rounded-none transition-colors border-b-2 whitespace-nowrap ${
+                isActive ? 'border-primary text-foreground font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`
+            }
+          >
+            Intents
+          </NavLink>
+          <NavLink
+            to="/memory/fact-checks"
+            className={({ isActive }) =>
+              `flex items-center h-full px-2 gap-2 rounded-none transition-colors border-b-2 whitespace-nowrap ${
+                isActive ? 'border-primary text-foreground font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`
+            }
+          >
+            Fact-Check
+          </NavLink>
+        </nav>
+      )}
     </div>
   );
 }
