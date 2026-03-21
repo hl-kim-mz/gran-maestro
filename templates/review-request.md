@@ -19,13 +19,20 @@
 아래 블록은 `impact_reviewer` dispatch 시 `{{PERSPECTIVE}}`에 포함하여 사용한다.
 
 ```markdown
-- 분석 절차: `git diff --name-only` 기준 변경 파일 식별 → 각 파일의 정적 `import`/`require`를 1단계 역추적하여 의존하는 외부 모듈 식별 → 영향 받을 수 있는 기능/페이지/화면 보고
+- 분석 모드 분기: `review.roles.impact_reviewer.enhanced_analysis` (기본값 `true`)
+  - `true`: `git diff --name-only` 기준 변경 파일 식별 → 각 파일의 정적 `import`/`require`를 2단계 역추적(변경 파일 → 직접 의존자 → 간접 의존자) → 역추적된 의존 파일 소스를 Read 도구로 직접 읽고 변경 내용과 대조하여 기능 깨짐 여부 판단
+  - `false`: 기존 1단계 역추적만 수행(변경 파일 → 직접 의존자), 기존 `[IMPACT]` 태그 체계 유지
 - 제외 범위: 동적 import/런타임 의존성 추적 제외
+- "기능 유지"는 코드를 안 건드리는 것이 아니라 기능이 정상 동작하는 상태를 의미한다. 필요하면 함께 수정이 필요한 파일을 식별하라.
 - 영향 없으면 `영향 범위 분석 완료 — 해당 없음`으로 명시
 - 영향 이슈는 기존 등급 판별 가이드와 함께 아래 Impact 전용 rubric을 적용해 `[CRITICAL]`, `[MAJOR]`, `[MINOR]` 태깅:
   - 공개 API/라우트에 영향: [CRITICAL]
   - 공유 컴포넌트/유틸리티에 영향: [MAJOR]
   - 내부 모듈에만 영향: [MINOR]
+- `review-impact.md`에는 아래 항목을 반드시 포함:
+  - 확인한 파일 목록
+  - 판단 근거 (무엇을 읽고 어떤 비교로 판단했는지)
+  - 함께 수정 필요 파일 (각 파일별 수정 방향)
 ```
 
 ## 자기탐색 지시

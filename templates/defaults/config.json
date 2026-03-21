@@ -355,7 +355,8 @@
       "impact_reviewer": {
         "enabled": true,
         "agent": "codex",
-        "tier": "premium"
+        "tier": "premium",
+        "enhanced_analysis": true
       }
     }
   },
