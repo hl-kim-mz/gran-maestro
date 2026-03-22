@@ -4,6 +4,45 @@
 
 ---
 
+## [0.55.0] — 2026-03-22
+
+### 새 기능
+
+- **Reference 시스템**: 외부 참조 자료의 저장·신선도 체크·스킬 자동 참조 인프라 신설 + 대시보드 UI 및 Settings 연동
+- **plan-doc 문서 전용 플래닝**: 소스 조사→구조화→팩트체크 반복 루프 기반 문서 작성 스킬 추가
+- **Stitch MCP→SDK 전환**: @google/stitch-sdk 래퍼 기반으로 디자인 생성 파이프라인 전면 교체
+- **사용자 정의 Loop 종료 조건**: plan Step 2.45에서 수집한 커스텀 게이트를 review에서 검증하는 체계
+- **review browser-test 사전 검증**: 탭 나열·스크린샷·선택자 확인 3단계 게이트로 브라우저 테스트 안정성 향상
+- **review impact_reviewer**: Pass B에 영향 범위 분석 절차 추가 — 2단계 역추적 + 소스 읽기 + 기능 유지 판단
+- **review browser_tester 위임**: 저렴한 에이전트에 browser-test AC를 위임하는 config 기반 분기
+- **Stop hook next_action 체크**: plan→request 워크플로우 강제 시스템으로 스킬 체인 이탈 방지
+- **Stitch 인증 가이드 흐름**: 인증 실패 시 우회 대신 API Key 설정을 안내하는 구조화된 흐름
+- **디자인탭 시안별 편집/대체시안/새로고침**: Refresh API + Alt 설정 UI + 탭 비교 기능
+- **디자인탭 스크린 고유번호(SCR-NNN)**: 넘버링 + Copy 버튼으로 디자인 관리 편의성 향상
+- **HTML 미리보기 전체화면**: DesignView Dialog 기반 전체화면 모달 추가
+- **Hook 원본 디렉토리 체계**: hooks/ 원본 + .claude/hooks/ 복사본 구조로 Hook 관리 일원화
+
+### 개선
+
+- **plan 자율모드 가드레일**: -a 모드에서 직접 구현 전환 금지 + 실행 제약 보강
+- **테스트 방법론 통합**: plan 테스트 의도 질문 + request 테스트 전략 게이트 + spec 보조 태그
+- **Shell hook continuation 개선**: stop_hook_active 파싱 + 구체적 block 메시지 + PENDING_FILE next_step
+- **user-profile.json**: 13개 스킬 + pm-conductor AskUserQuestion 용어 수준 적응
+- **Settings Workflow Pipeline**: 독립 스크롤바 + models.roles 인라인 편집 + Review Iterations 표시
+- **대시보드 Designs 탭**: DESIGN.md 접이식 패널 + plan/request에서 자동 참조
+- **Codex native review 통합**: config use_native_review 필드로 옵셔널 코드리뷰 연동
+- **README 전체 현행화**: Quick Start 보강 + plan 중심 end-to-end 자동화 반영
+- **Trace 문서 경량화**: Bash 자동 생성 + TRACE_SAVED 메시지 제거
+- **explore 백그라운드 완료 대기 의무화**: 부분 결과로 종합 시작하는 문제 방지
+
+### 버그 수정
+
+- **아카이브 시스템**: 타입별 max_active_sessions 기본값 변경 + 버그 수정
+- **hook 경로 CWD 독립 처리**: 누락 hook 참조 제거
+- **PLUGIN_ROOT 경로 규칙**: SKILL.md 상대경로 에러 방지
+
+---
+
 ## [0.54.4] — 2026-03-19
 
 ### 새 기능
