@@ -4,6 +4,16 @@
 
 ---
 
+## [0.55.1] — 2026-03-22
+
+### 개선
+
+- **Reference 대시보드 content 조회**: Reference 상세 보기에서 content.md 내용이 표시되도록 수정
+- **대시보드 서버 권한 확장**: Deno --allow-run에 node, tar 추가로 디자인 refresh/아카이브 권한 오류 해소
+- **plan 테스트 전략 기본값 변경**: plan_qa_presets.test_strategy 기본값을 ask에서 apply-80으로 변경
+
+---
+
 ## [0.55.0] — 2026-03-22
 
 ### 새 기능
