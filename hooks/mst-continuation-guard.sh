@@ -62,11 +62,6 @@ except Exception:
     print("unknown")
 ' 2>/dev/null || echo "unknown")"
 
-if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
-  debug_log "allow" "reason=stop_hook_active_true"
-  exit 0
-fi
-
 # --- 유틸리티 함수 ---
 
 debug_log() {
@@ -78,6 +73,11 @@ debug_log() {
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%FT%TZ)"
   printf '%s event=%s %s\n' "$ts" "$event" "$detail" >> "$DEBUG_LOG_FILE" 2>/dev/null || true
 }
+
+if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
+  debug_log "allow" "reason=stop_hook_active_true"
+  exit 0
+fi
 
 contains_pattern() {
   local pattern="$1"
