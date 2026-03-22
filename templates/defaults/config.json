@@ -381,6 +381,10 @@
         "agent": "gemini",
         "tier": "premium"
       },
+      "browser_tester": {
+        "agent": "claude",
+        "tier": "economy"
+      },
       "intent_fidelity": {
         "agent": "claude",
         "tier": "premium"

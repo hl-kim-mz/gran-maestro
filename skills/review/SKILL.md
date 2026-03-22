@@ -112,6 +112,7 @@ argument-hint: "[REQ-ID] [--auto]"
    - 섹션 미존재 시: `intent_fidelity_skip_reason = "Intent Fidelity 리뷰 skip (Intent Trace 없음)"`를 설정하고 intent_fidelity dispatch를 auto-skip 처리한다.
 5. **config 로드**: `config.resolved.json`에서 아래 값을 확인.
    - `review.roles.*` 에이전트 키
+   - `review.roles.browser_tester.agent` / `review.roles.browser_tester.tier` (존재 시 Pass A의 browser-test AC 실행 주체를 PM 직접 실행 → 서브에이전트 위임으로 전환)
    - `review.roles.impact_reviewer.enabled` / `review.roles.impact_reviewer.agent` / `review.roles.impact_reviewer.tier` / `review.roles.impact_reviewer.enhanced_analysis` (기본값: `true`)
    - `review.roles.intent_fidelity.agent` / `review.roles.intent_fidelity.tier`
    - `intent_fidelity.enabled` (기본값: `true`)
@@ -145,11 +146,29 @@ argument-hint: "[REQ-ID] [--auto]"
      ```bash
      mkdir -p {PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/browser-tests/BT-{RV-NNN}/screenshots
      ```
-  2. 도구 가용성을 아래 우선순위로 감지한다.
+  1.5. 실행 모드를 결정한다.
+     - `config.resolved.json.review.roles.browser_tester.agent`가 존재하면 `execution_mode = delegated`.
+       - `delegate_agent = review.roles.browser_tester.agent`
+       - `delegate_tier = review.roles.browser_tester.tier || providers[delegate_agent].default_tier`
+     - 키가 없거나 값이 비어 있으면 `execution_mode = pm_direct`로 간주하고 기존 PM 직접 실행 절차를 그대로 유지한다 (하위 호환).
+  2. `execution_mode == delegated`이면 browser-test AC 실행을 서브에이전트에 위임한다.
+     - 에이전트 유형별 dispatch는 본 문서의 `에이전트 유형별 dispatch 패턴`을 그대로 사용한다 (codex/gemini/claude 공통 규칙 재사용).
+     - 위임 프롬프트는 파일로 저장 후 전달한다:
+       - `Write → {PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/reviews/{RV_ID}/browser-tester-prompt.md`
+     - 프롬프트에는 아래 내용을 포함한다.
+       - 대상 AC 목록(`ac_type == browser-test`)
+       - 본 섹션의 도구 감지/사전 검증/실행/스크린샷 저장 규칙
+       - 결과 반환 스키마(`results[].ac_id/status/reason/screenshot/precheck_screenshot`)
+     - PM은 에이전트 반환 결과를 수신해 `{...}/browser-tests/BT-{RV-NNN}/results.json`에 기록한다.
+     - 실패 fallback:
+       - 서브에이전트 실행 실패/타임아웃/결과 파싱 실패 시 해당 AC를 `FAIL` 또는 `SKIP(agent_failed)`로 기록하고 다음 AC로 진행한다.
+       - 워크플로우는 중단하지 않는다.
+  3. `execution_mode == pm_direct`이면 기존 PM 직접 실행 절차를 따른다.
+  3.1. 도구 가용성을 아래 우선순위로 감지한다.
      - 1순위: Playwright CLI 스킬 사용 가능 여부 (`Skill(skill: "playwright-cli", ...)` 호출 가능한지)
      - 2순위: Claude in Chrome MCP 도구 사용 가능 여부 (`mcp__claude-in-chrome__computer` 도구가 로드 가능한지)
      - 감지 결과를 `tool` 변수에 기록: `"playwright"` | `"claude-in-chrome"` | `"unavailable"`
-  2.5. 사전 검증 프로토콜 (MANDATORY): `tool != "unavailable"`일 때, 실제 AC 인터랙션 전에 아래 3단계를 선행한다.
+  3.2. 사전 검증 프로토콜 (MANDATORY): `tool != "unavailable"`일 때, 실제 AC 인터랙션 전에 아래 3단계를 선행한다.
      - Step 1. 열린 탭 나열 + 대상 탭 식별:
        - Claude in Chrome: `mcp__claude-in-chrome__tabs_context_mcp`(`tabs_context_mcp`)를 호출해 열린 브라우저 탭을 나열하고, AC 실행 대상 탭(`TARGET_TAB_ID`)을 식별한다.
        - Playwright: 대상 `TEST_URL`로 직접 navigate하여 페이지 컨텍스트를 확보한다 (탭 나열 불필요 — Playwright가 자체 브라우저 인스턴스를 관리).
@@ -164,10 +183,10 @@ argument-hint: "[REQ-ID] [--auto]"
        - Claude in Chrome: `mcp__claude-in-chrome__find`
        - Playwright: selector 확인(`locator`/`waitForSelector`)으로 동등 검증
      - 게이트 조건:
-       위 3단계를 모두 PASS한 경우에만 기존 Step 3(AC 실행)으로 진행한다.
+       위 3단계를 모두 PASS한 경우에만 아래 3.3(AC 실행)으로 진행한다.
      - 실패 처리:
        3단계 중 하나라도 실패하면 사전 검증 프로토콜을 1회 재시도한다. 재시도 후에도 실패하면 해당 AC를 `FAIL`로 처리하고 실제 인터랙션을 진행하지 않는다.
-  3. 가용 도구가 있으면 각 browser-test AC를 실제 브라우저에서 실행하고 PASS/FAIL을 판정한다.
+  3.3. 가용 도구가 있으면 각 browser-test AC를 실제 브라우저에서 실행하고 PASS/FAIL을 판정한다.
      - AC의 `Given/When/Then/Test` 문장을 그대로 실행 시나리오 입력으로 사용한다.
      - **스크린샷 캡처/저장 (MANDATORY — 생략 금지)**:
        각 AC 실행 직후 반드시 스크린샷을 캡처하고 파일로 저장한다.
@@ -213,7 +232,7 @@ argument-hint: "[REQ-ID] [--auto]"
        - 경고 출력: `"[WARN] {AC-ID} 스크린샷 저장 실패 — screenshot=null로 기록"`
        - 워크플로우는 중단하지 않고 다음 AC로 진행한다.
 
-  4. 가용 도구가 없으면 워크플로우를 중단하지 않고 해당 AC를 `SKIP(tool_unavailable)`으로 기록한다.
+  3.4. 가용 도구가 없으면 워크플로우를 중단하지 않고 해당 AC를 `SKIP(tool_unavailable)`으로 기록한다.
      - 이 경우 MUST AC라도 `pass_a_failed`로 강등하지 않는다.
      - 사용자 보고에는 "브라우저 도구 미가용으로 browser-test AC를 SKIP"을 명시한다.
      - `results[].screenshot` = `null`, `results[].reason` = `"tool_unavailable"` 기록.

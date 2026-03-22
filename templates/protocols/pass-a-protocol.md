@@ -3,7 +3,7 @@
 > 이 Step의 목적: AC 충족 여부를 확정해 Pass B 진입 가능성을 결정한다 / 핵심 출력물: `pass_a_result`, `failed_ac_ids`, `failure_class`, `evidence`
 > ⚠️ CRITICAL: MUST AC가 1개라도 FAIL이면 `pass_a_failed`로 즉시 전환하고 Pass B로 진행하지 않는다.
 
-**책임**: PM이 직접 수행 (개발자 자가 보고 신뢰 안 함)
+**책임**: PM이 최종 판정 수행 (개발자 자가 보고 신뢰 안 함). 단, `[browser-test]` AC 실행은 `review.roles.browser_tester` 설정 시 서브에이전트 위임 가능.
 
 #### AC 등급별 판정 의사결정
 
@@ -18,6 +18,13 @@
 2. **Playwright 조건부 실행**: 프로젝트에 Playwright가 있으면 (`package.json`에 `playwright` 의존성 또는 `playwright.config.*` 파일 존재) `npx playwright test` 실행 후 스크린샷 증거 수집. Playwright가 없으면 이 단계 건너뜀.
 3. 실행 결과가 `Then:` 기대값과 일치 여부 판정
 4. 테스트 코드가 없으면 → `failure_class: ac_unclear`
+
+#### browser-test 위임 모드 (선택)
+
+1. `config.resolved.json.review.roles.browser_tester.agent`가 설정되어 있으면 PM은 `[browser-test]` AC 실행을 해당 에이전트에 위임한다.
+2. 위임 에이전트는 `skills/review/SKILL.md`의 browser-test 실행 분기 규칙(도구 감지, 사전 검증, 스크린샷 저장, 결과 스키마)을 동일하게 따른다.
+3. PM은 반환된 결과를 검토해 `results.json`에 기록하고 PASS/FAIL/SKIP을 최종 판정한다.
+4. `browser_tester`가 미설정이면 기존 PM 직접 실행 모드를 유지한다 (하위 호환).
 
 #### manual AC 검증 (PM 직접 확인)
 
