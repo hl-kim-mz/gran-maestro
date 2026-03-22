@@ -4,6 +4,29 @@
 
 ---
 
+## [0.55.3] — 2026-03-22
+
+### 새 기능
+
+- **PAC-Evidence Ledger**: review Pass A에서 AC/PAC 검증 증거를 evidence-ledger.md로 자동 수집, accept 시 증거 존재 여부 검증 게이트 추가
+- **4-Phase 의미 게이트**: plan/request/review/accept 스킬에 Gate + Anti-Rationalization Checklist 표준화
+- **Risk-tiered TDD**: plan/request 스킬에 TIER-A/TIER-B 태깅 메커니즘 도입
+- **4-Phase 디버깅 템플릿**: debug 에이전트 프롬프트에 구조화 보고 양식 주입 + 3회 실패 시 architect 승격
+
+### 개선
+
+- **mst:claude CLI 전환**: claude 서브에이전트 실행 방식을 Agent에서 Bash(claude CLI) 기반으로 전환
+- **자율 모드 판단 교정**: AUTO_MODE 판단 패턴 프레이밍 교정 + Cynefin 자동 분류 보조
+- **Stale 마커 구조적 해결**: session-init hook에 plan.json next_action 정리 로직 추가
+- **HUD 이모지 제거**: statusline 출력에서 불필요한 이모지 제거
+
+### 버그 수정
+
+- **HUD 스킬 depth 표시 오류**: skill 필드 sanitization (쓰기+읽기 양쪽 방어)
+- **review SKILL 중복 섹션 정리**: evidence-ledger 프로토콜 중복 제거
+
+---
+
 ## [0.55.2] — 2026-03-22
 
 ### 개선
