@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 interface ReferenceItem {
   id: string;
@@ -303,9 +304,7 @@ export function ReferenceView() {
                       <CardTitle className="text-base">Content</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="bg-muted/30 border px-4 py-3 rounded-md text-sm whitespace-pre-wrap font-mono">
-                        {referenceDetail.content}
-                      </div>
+                      <MarkdownRenderer content={referenceDetail.content} className="px-1" />
                     </CardContent>
                   </Card>
                 )}
