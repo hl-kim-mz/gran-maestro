@@ -7,6 +7,9 @@ set -euo pipefail
 STACK_FILE="/tmp/mst-call-stack-${PPID}.json"
 COUNTER_FILE="/tmp/mst-stop-hook-count-${PPID}"
 PENDING_FILE="/tmp/mst-pending-continuation-${PPID}"
+NEXT_ACTION_FILE="/tmp/mst-next-action-${PPID}.json"
+NEXT_ACTION_COUNTER_FILE="/tmp/mst-next-action-count-${PPID}"
+NEXT_ACTION_STATE_FILE="/tmp/mst-next-action-state-${PPID}"
 
 # 콜스택 초기화 (빈 배열)
 printf '[]' > "$STACK_FILE"
@@ -15,6 +18,7 @@ printf '[]' > "$STACK_FILE"
 printf '0' > "$COUNTER_FILE"
 
 # pending continuation 플래그 및 임시 파일 초기화
-rm -f "$PENDING_FILE" "${PENDING_FILE}.tmp" "${STACK_FILE}.tmp" "${COUNTER_FILE}.tmp" 2>/dev/null || true
+rm -f "$NEXT_ACTION_FILE" "${NEXT_ACTION_FILE}.tmp" 2>/dev/null || true
+rm -f "$PENDING_FILE" "${PENDING_FILE}.tmp" "${STACK_FILE}.tmp" "${COUNTER_FILE}.tmp" "$NEXT_ACTION_COUNTER_FILE" "${NEXT_ACTION_COUNTER_FILE}.tmp" "$NEXT_ACTION_STATE_FILE" "${NEXT_ACTION_STATE_FILE}.tmp" 2>/dev/null || true
 
 exit 0

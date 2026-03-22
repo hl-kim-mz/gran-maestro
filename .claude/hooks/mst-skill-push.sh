@@ -6,6 +6,9 @@ set -euo pipefail
 
 STACK_FILE="/tmp/mst-call-stack-${PPID}.json"
 PENDING_FILE="/tmp/mst-pending-continuation-${PPID}"
+NEXT_ACTION_FILE="/tmp/mst-next-action-${PPID}.json"
+NEXT_ACTION_COUNTER_FILE="/tmp/mst-next-action-count-${PPID}"
+NEXT_ACTION_STATE_FILE="/tmp/mst-next-action-state-${PPID}"
 DEBUG_LOG_FILE="/tmp/mst-hook-debug-${PPID}.log"
 INPUT="$(cat || true)"
 
@@ -38,6 +41,125 @@ print(len(data))
   else
     printf '0'
   fi
+}
+
+read_next_action_marker_meta() {
+  [ -f "$NEXT_ACTION_FILE" ] || {
+    printf '\t\t\n'
+    return 0
+  }
+  python3 -c 'import json, sys
+path = sys.argv[1]
+project_root = ""
+source_id = ""
+expected_skill = ""
+
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    print("\t\t")
+    sys.exit(0)
+
+if isinstance(data, dict):
+    pr = data.get("project_root")
+    sid = data.get("source_id")
+    es = data.get("expected_skill")
+    if isinstance(pr, str) and pr.strip():
+        project_root = pr.strip()
+    if isinstance(sid, str) and sid.strip():
+        source_id = sid.strip()
+    if isinstance(es, str) and es.strip():
+        expected_skill = es.strip()
+
+print(f"{project_root}\t{source_id}\t{expected_skill}")
+' "$NEXT_ACTION_FILE" 2>/dev/null || printf '\t\t\n'
+}
+
+clear_next_action_on_request_push() {
+  local marker_info project_root source_id expected_skill
+  marker_info="$(read_next_action_marker_meta)"
+  project_root="$(printf '%s' "$marker_info" | cut -f1)"
+  source_id="$(printf '%s' "$marker_info" | cut -f2)"
+  expected_skill="$(printf '%s' "$marker_info" | cut -f3)"
+
+  # 1) /tmp marker + 관련 카운터/상태 정리 (authoritative clear)
+  rm -f \
+    "$NEXT_ACTION_FILE" \
+    "${NEXT_ACTION_FILE}.tmp" \
+    "$NEXT_ACTION_COUNTER_FILE" \
+    "${NEXT_ACTION_COUNTER_FILE}.tmp" \
+    "$NEXT_ACTION_STATE_FILE" \
+    "${NEXT_ACTION_STATE_FILE}.tmp" \
+    2>/dev/null || true
+
+  debug_log "next_action_clear_tmp" "skill=mst:request expected_skill=${expected_skill:-unknown} source_id=${source_id:-unknown} project_root=${project_root:-unknown}"
+
+  # 2) project_root를 사용해 plan.json next_action 클리어 (순차 best-effort)
+  [ -n "$project_root" ] || {
+    debug_log "next_action_clear_plan_skip" "reason=missing_project_root source_id=${source_id:-unknown}"
+    return 0
+  }
+
+  local clear_info clear_status clear_count clear_scanned
+  clear_info="$(python3 -c 'import glob, json, os, sys
+
+project_root = sys.argv[1]
+source_id = sys.argv[2] if len(sys.argv) > 2 else ""
+
+if not project_root or not os.path.isdir(project_root):
+    print("no_project_root\t0\t0")
+    sys.exit(0)
+
+plans_root = os.path.join(project_root, ".gran-maestro", "plans")
+if not os.path.isdir(plans_root):
+    print("no_plans_root\t0\t0")
+    sys.exit(0)
+
+targets = []
+if source_id:
+    hinted = os.path.join(plans_root, source_id, "plan.json")
+    if os.path.isfile(hinted):
+        targets.append(hinted)
+if not targets:
+    targets = sorted(glob.glob(os.path.join(plans_root, "PLN-*", "plan.json")), reverse=True)
+
+cleared = 0
+scanned = 0
+for path in targets:
+    scanned += 1
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        continue
+    if not isinstance(data, dict):
+        continue
+    if "next_action" not in data:
+        continue
+    data.pop("next_action", None)
+    tmp_path = f"{path}.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as wf:
+            json.dump(data, wf, ensure_ascii=False, indent=2)
+            wf.write("\n")
+        os.replace(tmp_path, path)
+        cleared += 1
+    except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+        continue
+
+print(f"ok\t{cleared}\t{scanned}")
+' "$project_root" "$source_id" 2>/dev/null || echo "error\t0\t0")"
+
+  clear_status="$(printf '%s' "$clear_info" | cut -f1)"
+  clear_count="$(printf '%s' "$clear_info" | cut -f2)"
+  clear_scanned="$(printf '%s' "$clear_info" | cut -f3)"
+  debug_log "next_action_clear_plan" "status=$clear_status cleared=$clear_count scanned=$clear_scanned source_id=${source_id:-unknown} project_root=$project_root"
 }
 
 # tool_name이 "Skill"인지 확인
@@ -89,6 +211,10 @@ case "$SKILL_NAME" in
   mst:*) ;;
   *) exit 0 ;;
 esac
+
+if [ "$SKILL_NAME" = "mst:request" ]; then
+  clear_next_action_on_request_push
+fi
 
 # 스택 파일 초기화 (없으면)
 if [ ! -f "$STACK_FILE" ]; then
