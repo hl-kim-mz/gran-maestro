@@ -25,7 +25,20 @@ argument-hint: "[--auto] [--variants] [--init] [--req REQ-NNN] [--model pro|flas
      b. **세션 캐시 확인**: 현재 세션 중 이미 `list_projects`를 성공 호출한 결과가 있으면 재사용 (재호출 생략)
      c. 캐시 미존재 시: `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-projects")` 호출 (30초 타임아웃)
         - 성공: 결과를 세션 캐시에 저장 → 계속
-        - 실패/타임아웃: `[Stitch] 연결 불가 — 건너뜀. /mst:stitch로 수동 실행 가능.` 출력 후 종료
+        - 응답 JSON이 `ok=false` 이고 `auth_required=true`면 아래 가이드 흐름 실행:
+          1) `setup_url`(없으면 `https://stitch.withgoogle.com/settings`) 확인 후 브라우저 열기 시도:
+             - `Bash(command: "open {setup_url}")` (실패 시 URL을 그대로 출력하고 수동 접속 안내)
+          2) `AskUserQuestion`으로 API Key 입력 요청:
+             - 안내 문구에 `env_var`(기본 `STITCH_API_KEY`)와 `setup_url`을 포함
+          3) 사용자가 입력한 값을 현재 세션에 설정:
+             - `export STITCH_API_KEY="{USER_INPUT_API_KEY}"`
+          4) 방금 실패한 동일 명령을 즉시 자동 재시도:
+             - `Bash(command: "node {PLUGIN_ROOT}/scripts/stitch-sdk.mjs list-projects")`
+          5) 재시도 성공 시 세션 캐시에 저장 후 계속
+          6) 영구 저장 안내:
+             - `echo 'export STITCH_API_KEY="{USER_INPUT_API_KEY}"' >> ~/.zshrc`
+             - `source ~/.zshrc`
+        - 실패/타임아웃(또는 재시도 실패): `[Stitch] 연결 불가 — 건너뜀. /mst:stitch로 수동 실행 가능.` 출력 후 종료
 
 
 ## 스킬 실행 마커 (MANDATORY)
