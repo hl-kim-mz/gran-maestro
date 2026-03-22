@@ -838,11 +838,13 @@ else:
 
 1. `review.auto_review` 설정 확인 (`{PROJECT_ROOT}/.gran-maestro/config.resolved.json` 읽기):
    - `AUTO_MODE`는 단건 프로토콜 진입 시 단일 초기화된 값을 그대로 사용한다 (이중 판단 금지).
-   - `false` (기본): 아래 태스크 상태 검증 후 "최종 수락" 섹션으로 직행 (mst:review 미호출):
+   - `false` (기본): 아래 태스크 상태 검증 후 최종 수락 실행 (mst:review 미호출):
      1. `request.json.tasks` 전체 확인: 모든 태스크가 `committed` 이상 상태인지 검증
         - 태스크 상태 순서: `pending → executing → pre_check → committed → done`
         - `committed` 미만 태스크 존재 시: "태스크 {TASK_ID}가 아직 committed 상태가 아닙니다" 경고 후 대기
-     2. 검증 통과 시 "최종 수락" 섹션으로 직행
+     2. 검증 통과 시 `workflow.auto_accept_result` 설정에 따라 즉시 실행:
+        - **`true` (기본)**: `Skill(skill: "mst:accept", args: "{REQ_ID}")` 호출 → accept 완료 후 DAG 연쇄 실행 판단 (아래 "passed 분기 내 DAG 연쇄" 규칙과 동일)
+        - **`false`**: Phase 3 리뷰 PASS로 간주하고 멈추고, 사용자에게 `/mst:accept {REQ_ID}`를 수동으로 호출하라고 안내
    - `true` 또는 `AUTO_MODE=true`이면 mst:review 호출 진행
 
 2. mst:review 호출:
@@ -857,8 +859,66 @@ else:
 
    **review_issues_summary 로드**: 최신 `reviews/RV-NNN/review.json`을 Read → `review_issues_summary` 파싱 (critical/major/minor 카운트 + auto_fixed/skipped 배열)
 
-   - **`status: "passed"`**: `review_summary.status → "passed"` → "최종 수락 (Phase 3 → Phase 5)" 섹션으로 진행
-     (`workflow.auto_accept_result` 설정 동일 적용)
+   - **`status: "passed"`**: `review_summary.status → "passed"` → `workflow.auto_accept_result` 설정에 따라 즉시 실행:
+     - **`true` (기본)**: 아래와 같이 accept 스킬을 명시적으로 호출:
+       ```
+       Skill(skill: "mst:accept", args: "{REQ_ID}")
+       ```
+       > ⚠️ **MANDATORY**: in-context 실행 시 Plan 상태 동기화가 생략되는 것을 방지하기 위해
+       > 반드시 Skill 도구를 통해 mst:accept를 호출해야 합니다.
+       accept 완료 후 아래 **DAG 자동 연쇄 실행**을 즉시 판단한다.
+     - **`false`**: Phase 3 리뷰 PASS 후 멈추고, 사용자에게 `/mst:accept {REQ_ID}`를 수동으로 호출하라고 안내. 설정 변경: `/mst:settings workflow.auto_accept_result false`
+
+     **DAG 자동 연쇄 실행** (accept 완료 직후, `auto_accept_result == true`인 경우에만 실행):
+
+     아래 조건을 모두 충족하면 같은 plan의 후속 REQ를 자동 연쇄 실행한다.
+     (`auto_accept_result == false`인 경우의 DAG 연쇄 규칙은 `mst:accept`(Step 5.6)에서 실행)
+
+     **실행 조건**:
+     1. 현재 REQ의 `request.json`에서 `source_plan`이 `"PLN-NNN"` 형태로 존재
+     2. 현재 REQ의 `request.json`에서 `dag_auto_chain == true`
+     3. 현재 REQ 상태가 `done` 또는 `completed` 또는 `accepted`
+
+     하나라도 불충족이면 DAG 연쇄 실행 단계는 skip하고 기존 approve 종료 동작을 유지한다.
+
+     **다음 REQ 탐색 규칙**:
+     1. 매 반복마다 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.json` Read 후 `linked_requests` 전체를 plan 정의 순서대로 재평가
+     2. 후보 필터:
+        - 현재 REQ 및 이미 연쇄 완료(`chain_results`)된 REQ는 제외
+        - 완료/종료 상태(`done`, `completed`, `accepted`, `cancelled`)는 제외
+        - 실행 가능 상태(`pending_dependency`, `phase1_analysis`, `spec_ready`)만 후보로 인정
+     3. `blockedBy` 해소 판정:
+        - 후보 REQ의 `dependencies.blockedBy` 내 각 선행 REQ 상태를 확인
+        - 모든 선행 REQ가 `done`/`completed`/`accepted`이면 "실행 가능"으로 판단
+     4. 실행 가능한 첫 번째 후보를 "다음 REQ"로 선택
+
+     **자동 연쇄 실행 루프**:
+     ```pseudo
+     chain_results = [{ req_id: CURRENT_REQ_ID, status: "completed" }]
+
+     while true:
+       plan = Read({PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.json)
+       next_req = first runnable req from plan.linked_requests (full scan each loop)
+       if not next_req:
+         break
+
+       출력: "[DAG 연쇄] 다음 실행: {next_req.id} ({next_req.title})"
+       Skill(skill: "mst:request", args: "--plan {source_plan} --resume {next_req.id} -a")
+
+       refreshed = Read({PROJECT_ROOT}/.gran-maestro/requests/{next_req.id}/request.json)
+       if refreshed.status in ["done", "completed", "accepted"]:
+         chain_results.append({ req_id: next_req.id, status: "completed" })
+         continue
+
+       pending_tail = remaining non-terminal req ids in same plan
+       출력: "[DAG 연쇄 중단] {next_req.id} 실패. 후속 REQ: {pending_tail.join(', ')}"
+       종료
+
+     if all linked_requests are done/completed/accepted:
+       출력: "[DAG 연쇄 완료] {source_plan}의 모든 REQ가 완료되었습니다. ..."
+     else:
+       출력: "[DAG 연쇄 종료] 실행 가능한 다음 REQ가 없어 종료했습니다."
+     ```
    - **`status: "gap_found"`**:
      `review_issues_summary`를 참조하여 이슈 등급별 분기:
 
@@ -935,9 +995,9 @@ else:
    - **`status: "limit_reached"`**:
      - 일반 모드: AskUserQuestion → [추가 반복 허용 (+1회)] / [현재 상태로 수락] / [중단]
        - 추가 반복: review 재호출
-       - 현재 수락: "최종 수락" 섹션으로 진행 (`workflow.auto_accept_result` 동일 적용)
+       - 현재 수락: `workflow.auto_accept_result` 설정에 따라 즉시 실행 (위 `status: "passed"` 분기의 accept 호출 + DAG 연쇄 규칙과 동일)
        - 중단: `request.json.status → "cancelled"`
-     - `--auto` 모드: `review_summary.status = "limit_reached"` 기록 후 "최종 수락" 섹션으로 진행
+     - `--auto` 모드: `review_summary.status = "limit_reached"` 기록 후 `workflow.auto_accept_result` 설정에 따라 즉시 실행 (위 `status: "passed"` 분기의 accept 호출 + DAG 연쇄 규칙과 동일)
 
 단, `--auto` 플래그 맥락: approve가 `--auto`로 실행된 경우 review 호출 시 컨텍스트로 전달됨.
 
@@ -947,92 +1007,6 @@ else:
 - 동일 에이전트 재시도: 최대 2회
 - fallback 에이전트 재시도: 최대 2회
 - 모두 실패 시: 사용자 개입 요청
-
-### 최종 수락 (Phase 3 → Phase 5) — 자동 실행
-
-Phase 3 리뷰 PASS 후 `workflow.auto_accept_result` 설정에 따라 동작합니다:
-
-- **`true` (기본)**: 아래와 같이 accept 스킬을 명시적으로 호출합니다:
-  ```
-  Skill(skill: "mst:accept", args: "{REQ_ID}")
-  ```
-  > ⚠️ **MANDATORY**: in-context 실행 시 Step 6 (Plan 상태 동기화)가 생략되는 것을 방지하기 위해
-  > 반드시 Skill 도구를 통해 mst:accept를 호출해야 합니다.
-- **`false`**: Phase 3 리뷰 PASS 후 멈추고, 사용자에게 `/mst:accept`를 수동으로 호출하라고 안내합니다.
-
-설정 변경: `/mst:settings workflow.auto_accept_result false`
-
-### 최종 수락 후 DAG 자동 연쇄 실행
-
-최종 수락(`mst:accept`) 직후, 아래 조건을 모두 충족하면 같은 plan의 후속 REQ를 자동 연쇄 실행합니다.
-
-- `workflow.auto_accept_result == true`: approve가 `mst:accept` 성공 직후 본 섹션을 실행
-- `workflow.auto_accept_result == false`: approve는 수동 수락 안내 후 종료하며, 동일 DAG 연쇄 규칙은 `mst:accept`(Step 5.6)에서 실행
-
-#### 실행 조건
-
-1. 현재 REQ의 `request.json`에서 `source_plan`이 `"PLN-NNN"` 형태로 존재
-2. 현재 REQ의 `request.json`에서 `dag_auto_chain == true`
-3. 현재 REQ 상태가 `done` 또는 `completed` 또는 `accepted`
-
-하나라도 불충족이면 DAG 연쇄 실행 단계는 skip하고 기존 approve 종료 동작을 유지합니다.
-
-#### 다음 REQ 탐색 규칙
-
-1. 매 반복마다 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.json` Read 후 `linked_requests` 전체를 plan 정의 순서대로 재평가
-2. 후보 필터:
-   - 현재 REQ 및 이미 연쇄 완료(`chain_results`)된 REQ는 제외
-   - 완료/종료 상태(`done`, `completed`, `accepted`, `cancelled`)는 제외
-   - 실행 가능 상태(`pending_dependency`, `phase1_analysis`, `spec_ready`)만 후보로 인정
-3. `blockedBy` 해소 판정:
-   - 후보 REQ의 `dependencies.blockedBy` 내 각 선행 REQ 상태를 확인
-   - 모든 선행 REQ가 `done`/`completed`/`accepted`이면 "실행 가능"으로 판단
-4. 실행 가능한 첫 번째 후보를 "다음 REQ"로 선택
-
-#### 자동 연쇄 실행 루프
-
-```pseudo
-chain_results = [{ req_id: CURRENT_REQ_ID, status: "completed" }]
-
-while true:
-  plan = Read({PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.json)
-  next_req = first runnable req from plan.linked_requests (full scan each loop)
-  if not next_req:
-    break
-
-  출력: "[DAG 연쇄] 다음 실행: {next_req.id} ({next_req.title})"
-
-  # 다음 REQ를 request -> approve 라이프사이클로 시작 (기존 REQ 재개 계약)
-  Skill(skill: "mst:request", args: "--plan {source_plan} --resume {next_req.id} -a")
-
-  refreshed = Read({PROJECT_ROOT}/.gran-maestro/requests/{next_req.id}/request.json)
-  if refreshed.status in ["done", "completed", "accepted"]:
-    chain_results.append({ req_id: next_req.id, status: "completed" })
-    continue
-
-  # 실패/중단 감지 시 즉시 중단
-  pending_tail = remaining non-terminal req ids in same plan
-  출력: "[DAG 연쇄 중단] {next_req.id} 실패. 후속 REQ: {pending_tail.join(', ')}"
-  종료
-
-if all linked_requests are done/completed/accepted:
-  출력: "[DAG 연쇄 완료] {source_plan}의 모든 REQ가 완료되었습니다. {REQ-A}(완료), {REQ-B}(완료), ..."
-else:
-  출력: "[DAG 연쇄 종료] 실행 가능한 다음 REQ가 없어 종료했습니다. 남은 REQ는 미완료 상태입니다."
-```
-
-#### 실패 처리 규칙 (MANDATORY)
-
-- 연쇄 중 `mst:request --resume REQ-NNN` 호출 실패/중단/비정상 종료 시 즉시 중단
-- 실패한 REQ 이후 후속 REQ는 절대 자동 시작하지 않음
-- 중단 보고는 아래 형식을 따른다:
-  - `[DAG 연쇄 중단] REQ-B 실패. 후속 REQ: REQ-C, REQ-D`
-
-#### 완료 보고 규칙 (MANDATORY)
-
-- 같은 plan의 `linked_requests` 전체가 `done`/`completed`/`accepted`이면 DAG 완주로 간주
-- 완주 시 아래 형식으로 요약 보고:
-  - `[DAG 연쇄 완료] PLN-NNN의 모든 REQ가 완료되었습니다. REQ-A(완료), REQ-B(완료), REQ-C(완료)`
 
 
 ## 스킬 실행 마커 (MANDATORY)
