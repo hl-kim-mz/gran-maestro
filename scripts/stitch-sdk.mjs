@@ -172,6 +172,48 @@ function maskSecrets(text) {
   return masked;
 }
 
+function safeStringify(obj, indent = 2) {
+  const seen = new WeakSet();
+  return JSON.stringify(
+    obj,
+    (_key, val) => {
+      if (typeof val === "object" && val !== null) {
+        if (seen.has(val)) {
+          return "[Circular]";
+        }
+        seen.add(val);
+      }
+      return val;
+    },
+    indent,
+  );
+}
+
+function normalizeSdkObject(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  if (typeof obj.toJSON === "function") {
+    try {
+      return obj.toJSON();
+    } catch {
+      // fall through
+    }
+  }
+  if (obj.data && typeof obj.data === "object" && !Array.isArray(obj.data)) {
+    const result = { projectId: obj.projectId };
+    for (const [k, v] of Object.entries(obj.data)) {
+      result[k] = v;
+    }
+    return result;
+  }
+  const result = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k !== "client") {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
 function cleanObject(obj) {
   const result = {};
   for (const [k, v] of Object.entries(obj)) {
@@ -275,8 +317,9 @@ async function runListProjects(stitch) {
   if (typeof stitch.projects === "function") {
     try {
       const projects = await stitch.projects();
+      const normalized = normalizeMaybeArray(projects, "projects").map(normalizeSdkObject);
       return {
-        projects,
+        projects: normalized,
         source: "sdk.projects",
       };
     } catch {
@@ -297,24 +340,35 @@ async function runGetProject(stitch, args) {
     throw new Error("--project-id is required");
   }
 
-  const project = typeof stitch.project === "function" ? stitch.project(projectId) : null;
-  if (project && typeof project.get === "function") {
+  // SDK project handle doesn't have get() — try listing and filtering
+  if (typeof stitch.projects === "function") {
     try {
-      const data = await project.get();
-      return {
-        project: data,
-        source: "sdk.project.get",
-      };
+      const projects = await stitch.projects();
+      const list = normalizeMaybeArray(projects, "projects");
+      const match = list.find(
+        (p) => String(p.projectId) === String(projectId) || (p.data && p.data.name === `projects/${projectId}`),
+      );
+      if (match) {
+        return {
+          project: normalizeSdkObject(match),
+          source: "sdk.projects.find",
+        };
+      }
     } catch {
       // fall through to callTool
     }
   }
 
-  const raw = await callTool(stitch, "get_project", { projectId });
-  return {
-    project: raw,
-    source: "sdk.callTool:get_project",
-  };
+  try {
+    const name = `projects/${projectId}`;
+    const raw = await callTool(stitch, "get_project", cleanObject({ projectId, name }));
+    return {
+      project: raw,
+      source: "sdk.callTool:get_project",
+    };
+  } catch {
+    throw new Error(`Project ${projectId} not found. The project may not exist or the API key may not have access.`);
+  }
 }
 
 async function runCreateProject(stitch, args) {
@@ -340,9 +394,10 @@ async function runListScreens(stitch, args) {
   if (project && typeof project.screens === "function") {
     try {
       const screens = await project.screens();
+      const normalized = normalizeMaybeArray(screens, "screens").map(normalizeSdkObject);
       return {
         projectId,
-        screens,
+        screens: normalized,
         source: "sdk.project.screens",
       };
     } catch {
@@ -364,6 +419,10 @@ async function resolveScreenHandle(stitch, projectId, screenId) {
   }
 
   const project = typeof stitch.project === "function" ? stitch.project(projectId) : null;
+  if (project && typeof project.getScreen === "function") {
+    return project.getScreen(screenId);
+  }
+  // fallback: older SDK versions may use screen()
   if (project && typeof project.screen === "function") {
     return project.screen(screenId);
   }
@@ -760,10 +819,10 @@ async function main() {
     }
 
     const payload = asJsonResponse(command, data, true);
-    console.log(JSON.stringify(payload, null, 2));
+    console.log(safeStringify(payload));
   } catch (error) {
     const payload = asJsonError(command, error);
-    console.error(JSON.stringify(payload, null, 2));
+    console.error(safeStringify(payload));
     process.exit(1);
   }
 }

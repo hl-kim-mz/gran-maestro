@@ -254,6 +254,82 @@ print(json.dumps(kept, ensure_ascii=True))
   fi
 }
 
+read_active_request_context() {
+  # Scan .gran-maestro/requests/ for the most recent active request
+  # and return actionable next-step instructions based on its phase.
+  local project_root
+  project_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$project_root" ] || { printf '\t\t\t\n'; return 0; }
+
+  local requests_dir="$project_root/.gran-maestro/requests"
+  [ -d "$requests_dir" ] || { printf '\t\t\t\n'; return 0; }
+
+  python3 -c 'import glob, json, os, sys, signal
+
+requests_dir = sys.argv[1]
+project_root = sys.argv[2] if len(sys.argv) > 2 else ""
+
+signal.signal(signal.SIGALRM, lambda s, f: (_ for _ in ()).throw(TimeoutError()))
+signal.setitimer(signal.ITIMER_REAL, 0.3)
+
+try:
+    candidates = sorted(glob.glob(os.path.join(requests_dir, "REQ-*", "request.json")), reverse=True)
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+
+        status = data.get("status", "")
+        req_id = data.get("id", "")
+        if not req_id:
+            continue
+
+        # Skip terminal states
+        if status in ("done", "completed", "accepted", "cancelled", "archived"):
+            continue
+
+        next_action = ""
+        if status == "phase2_execution":
+            tasks = data.get("tasks", [])
+            pending = [t for t in tasks if isinstance(t, dict) and t.get("status") not in ("committed", "done", "completed")]
+            if pending:
+                next_action = f"Task execution in progress. {len(pending)} pending tasks. Continue dispatching agents."
+            else:
+                next_action = f"All tasks committed. Transition to Phase 3: update status to phase3_review, then call Skill(skill: \"mst:review\", args: \"{req_id} --auto\")."
+
+        elif status == "phase3_review":
+            rs = data.get("review_summary", {})
+            rv_status = rs.get("status", "") if isinstance(rs, dict) else ""
+            if rv_status == "passed":
+                next_action = f"Review PASSED. Immediately call Skill(skill: \"mst:accept\", args: \"{req_id}\") to complete Phase 5 (merge)."
+            elif rv_status in ("failed", "gap_found"):
+                next_action = f"Review found gaps. Read reviews/ for latest RV-NNN/review.json, create fix tasks, and re-dispatch."
+            else:
+                next_action = f"Review in progress. Check reviews/ directory for latest RV-NNN/review.json results."
+
+        elif status == "spec_ready":
+            next_action = f"Spec ready. Call Skill(skill: \"mst:approve\", args: \"{req_id}\") to begin execution."
+
+        else:
+            next_action = f"Continue workflow from {status}."
+
+        print(f"{req_id}\t{status}\t{next_action}")
+        sys.exit(0)
+
+    print("\t\t")
+except TimeoutError:
+    print("\t\t")
+except Exception:
+    print("\t\t")
+finally:
+    signal.setitimer(signal.ITIMER_REAL, 0)
+' "$requests_dir" "$project_root" 2>/dev/null || printf '\t\t\n'
+}
+
 check_pending_continuation() {
   [ -f "$PENDING_FILE" ] || return 1
 
@@ -313,8 +389,19 @@ print(f"{status}\t{parent_skill}\t{return_step}\t{age}\t{next_step}")
     if [ -n "$next_step" ]; then
       reason_detail="$reason_detail Execute $next_step."
     fi
+
+    # Enrich with active request context for actionable instructions
+    local req_ctx req_id req_status req_next_action
+    req_ctx="$(read_active_request_context 2>/dev/null || true)"
+    req_id="$(printf '%s' "$req_ctx" | cut -f1)"
+    req_status="$(printf '%s' "$req_ctx" | cut -f2)"
+    req_next_action="$(printf '%s' "$req_ctx" | cut -f3)"
+    if [ -n "$req_next_action" ]; then
+      reason_detail="$reason_detail [ACTIVE REQUEST: $req_id ($req_status)] $req_next_action"
+    fi
+
     reason_detail="$reason_detail pending_continuation is active age=${age}s <= ttl=${CONTINUATION_TTL}s. Do not stop — emit the next tool call immediately."
-    block_with_reason "pending_continuation" "$reason_detail" "parent=$parent_skill return_step=$return_step next_step=$next_step age=${age}s ttl=${CONTINUATION_TTL}s"
+    block_with_reason "pending_continuation" "$reason_detail" "parent=$parent_skill return_step=$return_step next_step=$next_step age=${age}s ttl=${CONTINUATION_TTL}s req_id=$req_id req_status=$req_status"
   fi
 
   rm -f "$PENDING_FILE" "${PENDING_FILE}.tmp" 2>/dev/null || true
@@ -492,8 +579,20 @@ check_next_action_continuation() {
   if [ "$marker_status" = "valid" ]; then
     local marker_key reason_detail
     marker_key="${expected_skill}|${source_id}|${created_at}"
-    reason_detail="next_action guard is active (source=$source_skill:$source_id, expected=$expected_skill). plan→request 워크플로우를 계속 진행해야 하므로 Stop을 차단합니다. Do not stop — emit Skill($expected_skill) immediately."
-    block_with_reason "next_action" "$reason_detail" "source_skill=$source_skill source_id=$source_id expected_skill=$expected_skill auto_mode=$auto_mode project_root=$project_root created_at=$created_at marker_status=$marker_status" "$marker_key"
+    reason_detail="next_action guard is active (source=$source_skill:$source_id, expected=$expected_skill). plan→request 워크플로우를 계속 진행해야 하므로 Stop을 차단합니다."
+
+    # Enrich with active request context
+    local na_req_ctx na_req_id na_req_status na_req_next
+    na_req_ctx="$(read_active_request_context 2>/dev/null || true)"
+    na_req_id="$(printf '%s' "$na_req_ctx" | cut -f1)"
+    na_req_status="$(printf '%s' "$na_req_ctx" | cut -f2)"
+    na_req_next="$(printf '%s' "$na_req_ctx" | cut -f3)"
+    if [ -n "$na_req_next" ]; then
+      reason_detail="$reason_detail [ACTIVE REQUEST: $na_req_id ($na_req_status)] $na_req_next"
+    fi
+
+    reason_detail="$reason_detail Do not stop — emit Skill($expected_skill) immediately."
+    block_with_reason "next_action" "$reason_detail" "source_skill=$source_skill source_id=$source_id expected_skill=$expected_skill auto_mode=$auto_mode project_root=$project_root created_at=$created_at marker_status=$marker_status req_id=$na_req_id" "$marker_key"
   fi
 
   if [ "$marker_status" = "inactive" ]; then
@@ -519,8 +618,20 @@ check_next_action_continuation() {
   if [ "$fallback_status" = "hit" ] && [ -n "$fb_expected" ]; then
     local marker_key reason_detail
     marker_key="${fb_expected}|${fb_source_id}|${fb_created_at}"
-    reason_detail="next_action fallback(plan.json) is active (source=${fb_source_skill}:${fb_source_id}, expected=${fb_expected}). plan→request 워크플로우를 계속 진행해야 하므로 Stop을 차단합니다. Do not stop — emit Skill(${fb_expected}) immediately."
-    block_with_reason "next_action" "$reason_detail" "source_skill=$fb_source_skill source_id=$fb_source_id expected_skill=$fb_expected auto_mode=$fb_auto_mode project_root=$fb_project_root created_at=$fb_created_at marker_status=$marker_status fallback=plan_json" "$marker_key"
+    reason_detail="next_action fallback(plan.json) is active (source=${fb_source_skill}:${fb_source_id}, expected=${fb_expected}). plan→request 워크플로우를 계속 진행해야 하므로 Stop을 차단합니다."
+
+    # Enrich with active request context
+    local fb_req_ctx fb_req_id fb_req_status fb_req_next
+    fb_req_ctx="$(read_active_request_context 2>/dev/null || true)"
+    fb_req_id="$(printf '%s' "$fb_req_ctx" | cut -f1)"
+    fb_req_status="$(printf '%s' "$fb_req_ctx" | cut -f2)"
+    fb_req_next="$(printf '%s' "$fb_req_ctx" | cut -f3)"
+    if [ -n "$fb_req_next" ]; then
+      reason_detail="$reason_detail [ACTIVE REQUEST: $fb_req_id ($fb_req_status)] $fb_req_next"
+    fi
+
+    reason_detail="$reason_detail Do not stop — emit Skill(${fb_expected}) immediately."
+    block_with_reason "next_action" "$reason_detail" "source_skill=$fb_source_skill source_id=$fb_source_id expected_skill=$fb_expected auto_mode=$fb_auto_mode project_root=$fb_project_root created_at=$fb_created_at marker_status=$marker_status fallback=plan_json req_id=$fb_req_id" "$marker_key"
   fi
 
   if [ "$fallback_status" = "timeout" ] || [ "$fallback_status" = "error" ]; then
@@ -591,7 +702,18 @@ else:
     print("unknown")
 ' "$STACK_FILE" 2>/dev/null || true)"
 
+# Enrich with active request context for actionable instructions
+REQ_CTX="$(read_active_request_context 2>/dev/null || true)"
+REQ_ID="$(printf '%s' "$REQ_CTX" | cut -f1)"
+REQ_STATUS="$(printf '%s' "$REQ_CTX" | cut -f2)"
+REQ_NEXT_ACTION="$(printf '%s' "$REQ_CTX" | cut -f3)"
+STACK_BLOCK_MSG="Call stack depth=$STACK_DEPTH ($CURRENT_SKILL inside $PARENT_SKILL). Return to parent skill $PARENT_SKILL and continue with the next step."
+if [ -n "$REQ_NEXT_ACTION" ]; then
+  STACK_BLOCK_MSG="$STACK_BLOCK_MSG [ACTIVE REQUEST: $REQ_ID ($REQ_STATUS)] $REQ_NEXT_ACTION"
+fi
+STACK_BLOCK_MSG="$STACK_BLOCK_MSG Do not stop — emit the next tool call immediately."
+
 block_with_reason \
   "stack_depth" \
-  "Call stack depth=$STACK_DEPTH ($CURRENT_SKILL inside $PARENT_SKILL). Return to parent skill $PARENT_SKILL and continue with the next step. Do not stop — emit the next tool call immediately." \
-  "stack_depth=$STACK_DEPTH current=$CURRENT_SKILL parent=$PARENT_SKILL"
+  "$STACK_BLOCK_MSG" \
+  "stack_depth=$STACK_DEPTH current=$CURRENT_SKILL parent=$PARENT_SKILL req_id=$REQ_ID req_status=$REQ_STATUS"
