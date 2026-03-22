@@ -3,13 +3,17 @@ set -euo pipefail
 
 # Stop hook — pending/next_action/depth 기반 continuation guard
 
-STACK_FILE="/tmp/mst-call-stack-${PPID}.json"
-COUNTER_FILE="/tmp/mst-stop-hook-count-${PPID}"
-NEXT_ACTION_FILE="/tmp/mst-next-action-${PPID}.json"
-NEXT_ACTION_COUNTER_FILE="/tmp/mst-next-action-count-${PPID}"
-NEXT_ACTION_STATE_FILE="/tmp/mst-next-action-state-${PPID}"
-PENDING_FILE="/tmp/mst-pending-continuation-${PPID}"
-DEBUG_LOG_FILE="/tmp/mst-hook-debug-${PPID}.log"
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+MST_TMP="${PROJECT_ROOT}/.gran-maestro/tmp"
+mkdir -p "$MST_TMP"
+
+STACK_FILE="${MST_TMP}/mst-call-stack-${PPID}.json"
+COUNTER_FILE="${MST_TMP}/mst-stop-hook-count-${PPID}"
+NEXT_ACTION_FILE="${MST_TMP}/mst-next-action-${PPID}.json"
+NEXT_ACTION_COUNTER_FILE="${MST_TMP}/mst-next-action-count-${PPID}"
+NEXT_ACTION_STATE_FILE="${MST_TMP}/mst-next-action-state-${PPID}"
+PENDING_FILE="${MST_TMP}/mst-pending-continuation-${PPID}"
+DEBUG_LOG_FILE="${MST_TMP}/mst-hook-debug-${PPID}.log"
 
 MAX_BLOCKS="${MST_MAX_BLOCKS:-3}"
 if ! [[ "$MAX_BLOCKS" =~ ^[0-9]+$ ]] || [ "$MAX_BLOCKS" -lt 1 ]; then

@@ -4,9 +4,13 @@ set -euo pipefail
 # PostToolUse hook — Skill(mst:*) 완료 시 콜스택에서 pop
 # stdin: Claude Code PostToolUse JSON (tool_name, tool_input, tool_response 등)
 
-STACK_FILE="/tmp/mst-call-stack-${PPID}.json"
-PENDING_FILE="/tmp/mst-pending-continuation-${PPID}"
-DEBUG_LOG_FILE="/tmp/mst-hook-debug-${PPID}.log"
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+MST_TMP="${PROJECT_ROOT}/.gran-maestro/tmp"
+mkdir -p "$MST_TMP"
+
+STACK_FILE="${MST_TMP}/mst-call-stack-${PPID}.json"
+PENDING_FILE="${MST_TMP}/mst-pending-continuation-${PPID}"
+DEBUG_LOG_FILE="${MST_TMP}/mst-hook-debug-${PPID}.log"
 INPUT="$(cat || true)"
 
 debug_log() {

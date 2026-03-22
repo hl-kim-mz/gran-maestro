@@ -22,13 +22,15 @@ TEMP_PROJECT_ROOT=""
 #   printf ... | bash "$SCRIPT" > "$OUTFILE"
 # bash's PPID = this script's PID ($$).
 MY_PID="$$"
-STACK_FILE="/tmp/mst-call-stack-${MY_PID}.json"
-COUNTER_FILE="/tmp/mst-stop-hook-count-${MY_PID}"
-PENDING_FILE="/tmp/mst-pending-continuation-${MY_PID}"
-NEXT_ACTION_FILE="/tmp/mst-next-action-${MY_PID}.json"
-NEXT_ACTION_COUNTER_FILE="/tmp/mst-next-action-count-${MY_PID}"
-NEXT_ACTION_STATE_FILE="/tmp/mst-next-action-state-${MY_PID}"
-DEBUG_LOG="/tmp/mst-hook-debug-${MY_PID}.log"
+MST_TMP="${SCRIPT_DIR}/.gran-maestro/tmp"
+mkdir -p "$MST_TMP"
+STACK_FILE="${MST_TMP}/mst-call-stack-${MY_PID}.json"
+COUNTER_FILE="${MST_TMP}/mst-stop-hook-count-${MY_PID}"
+PENDING_FILE="${MST_TMP}/mst-pending-continuation-${MY_PID}"
+NEXT_ACTION_FILE="${MST_TMP}/mst-next-action-${MY_PID}.json"
+NEXT_ACTION_COUNTER_FILE="${MST_TMP}/mst-next-action-count-${MY_PID}"
+NEXT_ACTION_STATE_FILE="${MST_TMP}/mst-next-action-state-${MY_PID}"
+DEBUG_LOG="${MST_TMP}/mst-hook-debug-${MY_PID}.log"
 
 cleanup() {
   rm -f \
@@ -165,12 +167,15 @@ probe_next_action_counter_limit() {
 set -euo pipefail
 GUARD_SCRIPT="$1"
 PID="$$"
+PROBE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+PROBE_TMP="${PROBE_ROOT}/.gran-maestro/tmp"
+mkdir -p "$PROBE_TMP"
 OUTFILE="/tmp/mst-probe-next-action-out-${PID}.txt"
 INFILE="/tmp/mst-probe-next-action-in-${PID}.txt"
-NEXT_ACTION_FILE="/tmp/mst-next-action-${PID}.json"
-NEXT_ACTION_COUNTER_FILE="/tmp/mst-next-action-count-${PID}"
-NEXT_ACTION_STATE_FILE="/tmp/mst-next-action-state-${PID}"
-COUNTER_FILE="/tmp/mst-stop-hook-count-${PID}"
+NEXT_ACTION_FILE="${PROBE_TMP}/mst-next-action-${PID}.json"
+NEXT_ACTION_COUNTER_FILE="${PROBE_TMP}/mst-next-action-count-${PID}"
+NEXT_ACTION_STATE_FILE="${PROBE_TMP}/mst-next-action-state-${PID}"
+COUNTER_FILE="${PROBE_TMP}/mst-stop-hook-count-${PID}"
 
 cleanup_probe() {
   rm -f "$OUTFILE" "$INFILE" "$NEXT_ACTION_FILE" "${NEXT_ACTION_FILE}.tmp" "$NEXT_ACTION_COUNTER_FILE" "${NEXT_ACTION_COUNTER_FILE}.tmp" "$NEXT_ACTION_STATE_FILE" "${NEXT_ACTION_STATE_FILE}.tmp" "$COUNTER_FILE" "${COUNTER_FILE}.tmp" 2>/dev/null || true
@@ -201,12 +206,15 @@ probe_global_counter_limit() {
 set -euo pipefail
 GUARD_SCRIPT="$1"
 PID="$$"
+PROBE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+PROBE_TMP="${PROBE_ROOT}/.gran-maestro/tmp"
+mkdir -p "$PROBE_TMP"
 OUTFILE="/tmp/mst-probe-global-out-${PID}.txt"
 INFILE="/tmp/mst-probe-global-in-${PID}.txt"
-PENDING_FILE="/tmp/mst-pending-continuation-${PID}"
-COUNTER_FILE="/tmp/mst-stop-hook-count-${PID}"
-NEXT_ACTION_COUNTER_FILE="/tmp/mst-next-action-count-${PID}"
-NEXT_ACTION_STATE_FILE="/tmp/mst-next-action-state-${PID}"
+PENDING_FILE="${PROBE_TMP}/mst-pending-continuation-${PID}"
+COUNTER_FILE="${PROBE_TMP}/mst-stop-hook-count-${PID}"
+NEXT_ACTION_COUNTER_FILE="${PROBE_TMP}/mst-next-action-count-${PID}"
+NEXT_ACTION_STATE_FILE="${PROBE_TMP}/mst-next-action-state-${PID}"
 
 cleanup_probe() {
   rm -f "$OUTFILE" "$INFILE" "$PENDING_FILE" "${PENDING_FILE}.tmp" "$COUNTER_FILE" "${COUNTER_FILE}.tmp" "$NEXT_ACTION_COUNTER_FILE" "${NEXT_ACTION_COUNTER_FILE}.tmp" "$NEXT_ACTION_STATE_FILE" "${NEXT_ACTION_STATE_FILE}.tmp" 2>/dev/null || true
