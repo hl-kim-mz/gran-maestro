@@ -418,7 +418,7 @@
     ]
   },
   "plan_qa_presets": {
-    "test_strategy": "ask",
+    "test_strategy": "apply-80",
     "loop_exit": "ask",
     "loop_exit_n": 3
   },
