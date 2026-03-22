@@ -233,10 +233,12 @@ PM이 요청을 아래 기준으로 4개 도메인 중 하나로 분류한다.
 - Chaotic → /mst:debug 먼저 실행 후 plan 재개 안내
 
 **AUTO_MODE=false**:
-분류 결과와 권장 전략을 AskUserQuestion으로 제시:
-- "이 분류로 진행": 제안 전략 그대로 적용
-- "도메인을 직접 선택": 사용자가 도메인 재지정
-- 각 도메인 설명을 description에 포함
+PM이 분류한 도메인의 label에 (Recommended)를 추가하고, 4개 도메인을 각각 독립 옵션으로 AskUserQuestion에 제시한다.
+각 옵션의 description에는 해당 도메인 선택 시 달라지는 워크플로우 분기를 [영향] + [적합] 태그로 요약한다:
+- Simple: [영향] 모호성 루프 간소화, MoSCoW Must/Won't만 확인, D3 Gate 자동 skip / [적합] 기존 패턴 적용, 범위 명확한 작업
+- Complicated: [영향] ideation/discussion 적극 활용, 전략 검토(Step 3.8) 수행, D3 Gate 필수 / [적합] 트레이드오프 분석 필요한 작업
+- Complex: [영향] REQ 분리 강력 권장, 단계적 탐색 제안, D3 Gate 필수 / [적합] 정답 불명확, 실험적 접근 필요
+- Chaotic: [영향] /mst:debug 선행 후 plan 재개, D3 Gate 자동 skip / [적합] 버그/장애/긴급 대응
 
 **AUTO_MODE=true**:
 PM이 자율 분류 → auto-decisions.md에 기록 → 전략 자동 적용
