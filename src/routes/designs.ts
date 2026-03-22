@@ -41,6 +41,23 @@ interface DesignEditJobContext {
   jobId: string;
 }
 
+interface DesignRefreshJobContext {
+  projectId?: string;
+  desId: string;
+  desDir: string;
+  designPath: string;
+  stitchProjectId: string;
+  notifyUrl: string;
+  jobId: string;
+}
+
+interface DesignRefreshResult {
+  added_screen_ids: string[];
+  removed_stitch_screen_ids: string[];
+  refreshed_screen_ids: string[];
+  failed_screen_ids: string[];
+}
+
 interface StitchCliEnvelope {
   ok?: boolean;
   data?: unknown;
@@ -55,6 +72,16 @@ interface StitchScreenArtifact {
   url: string | null;
   image_url: string | null;
   html: string | null;
+}
+
+class RefreshConflictError extends Error {
+  editingBy: string;
+
+  constructor(editingBy: string) {
+    super("Edit in progress");
+    this.name = "RefreshConflictError";
+    this.editingBy = editingBy;
+  }
 }
 
 function isSafePathSegment(value: string): boolean {
@@ -268,6 +295,33 @@ function formatScreenBaseName(index: number): string {
   return `screen-${String(index).padStart(3, "0")}`;
 }
 
+function resolveScreenBaseName(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  if (/^screen-\d+$/.test(normalized)) {
+    return normalized;
+  }
+  if (/^screen-\d+\.(md|html)$/.test(normalized)) {
+    return normalized.replace(/\.(md|html)$/, "");
+  }
+  return null;
+}
+
+function resolveScreenHtmlFileName(screen: DesignScreen): string | null {
+  if (typeof screen.html_file === "string" && /^screen-\d+\.html$/.test(screen.html_file)) {
+    return screen.html_file;
+  }
+  const baseName = resolveScreenBaseName(screen.id);
+  return baseName ? `${baseName}.html` : null;
+}
+
+function resolveScreenMarkdownFileName(screen: DesignScreen): string | null {
+  const baseName = resolveScreenBaseName(screen.id);
+  return baseName ? `${baseName}.md` : null;
+}
+
 function buildScreenMarkdown(
   localScreenId: string,
   stitchScreenId: string,
@@ -289,6 +343,89 @@ function buildScreenMarkdown(
     prompt,
     "",
   ].join("\n");
+}
+
+function buildRefreshedScreenMarkdown(
+  localScreenId: string,
+  stitchScreenId: string,
+  refreshedAt: string,
+  imageUrl?: string | null,
+): string {
+  const lines = [
+    `## ${localScreenId}`,
+    "",
+    `- stitch_screen_id: ${stitchScreenId}`,
+    `- mode: refresh`,
+    `- refreshed_at: ${refreshedAt}`,
+  ];
+
+  if (typeof imageUrl === "string" && imageUrl.trim().length > 0) {
+    lines.push("", `![Screen image](${imageUrl.trim()})`);
+  }
+
+  lines.push(
+    "",
+    "### Note",
+    "",
+    "Synced from Stitch refresh.",
+    "",
+  );
+
+  return lines.join("\n");
+}
+
+function syncScreenImageInMarkdown(content: string, imageUrl: string | null): string {
+  const imagePattern = /!\[[^\]]*\]\(([^)]+)\)/;
+  const normalizedImageUrl = typeof imageUrl === "string" ? imageUrl.trim() : "";
+
+  if (normalizedImageUrl.length === 0) {
+    if (!imagePattern.test(content)) {
+      return content;
+    }
+
+    const removed = content
+      .replace(imagePattern, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trimEnd();
+
+    return removed.length > 0 ? `${removed}\n` : "";
+  }
+
+  const imageLine = `![Screen image](${normalizedImageUrl})`;
+  if (imagePattern.test(content)) {
+    return content.replace(imagePattern, imageLine);
+  }
+
+  const trimmed = content.trimEnd();
+  if (trimmed.length === 0) {
+    return `${imageLine}\n`;
+  }
+
+  return `${trimmed}\n\n${imageLine}\n`;
+}
+
+async function refreshScreenMarkdownFile(
+  desDir: string,
+  markdownFile: string,
+  localScreenId: string,
+  stitchScreenId: string,
+  refreshedAt: string,
+  imageUrl: string | null,
+): Promise<void> {
+  const markdownPath = `${desDir}/${markdownFile}`;
+  const current = await readTextFile(markdownPath);
+  if (current === null) {
+    await Deno.writeTextFile(
+      markdownPath,
+      buildRefreshedScreenMarkdown(localScreenId, stitchScreenId, refreshedAt, imageUrl),
+    );
+    return;
+  }
+
+  const updated = syncScreenImageInMarkdown(current, imageUrl);
+  if (updated !== current) {
+    await Deno.writeTextFile(markdownPath, updated);
+  }
 }
 
 async function runStitchCommand(command: string, args: string[]): Promise<unknown> {
@@ -471,6 +608,192 @@ function buildStitchArgs(
     command: "variants",
     args,
   };
+}
+
+async function runDesignRefreshJob(context: DesignRefreshJobContext): Promise<DesignRefreshResult> {
+  const { projectId, desId, desDir, designPath, stitchProjectId, notifyUrl, jobId } = context;
+  await postDesignEditStatus(notifyUrl, projectId, desId, jobId, "started", {
+    mode: "refresh",
+  });
+
+  try {
+    const remoteIds = [...await listStitchScreenIds(stitchProjectId)];
+    const artifactEntries = await Promise.all(
+      remoteIds.map(async (screenId) => {
+        try {
+          const artifact = await getStitchScreenArtifact(stitchProjectId, screenId);
+          return [screenId, artifact, false] as const;
+        } catch {
+          return [screenId, null, true] as const;
+        }
+      }),
+    );
+    const failedScreenIds = artifactEntries
+      .filter(([, , failed]) => failed)
+      .map(([screenId]) => screenId);
+    const failedScreenIdSet = new Set(failedScreenIds);
+    const artifactsById = new Map<string, StitchScreenArtifact>(
+      artifactEntries.flatMap(([screenId, artifact]) =>
+        artifact ? [[screenId, artifact] as const] : []
+      ),
+    );
+    const remoteIdSet = new Set(remoteIds);
+
+    const lock = await acquireLock(`${designPath}.lock`, 5_000);
+    let addedScreenIds: string[] = [];
+    let removedStitchScreenIds: string[] = [];
+    let refreshedScreenIds: string[] = [];
+    let failedStitchScreenIds: string[] = [];
+    try {
+      const current = await readJsonFile<DesignSession>(designPath);
+      if (!current) {
+        throw new Error("Design not found");
+      }
+      if (typeof current.editing_by === "string" && current.editing_by.length > 0) {
+        throw new RefreshConflictError(current.editing_by);
+      }
+
+      const existingScreens: DesignScreen[] = Array.isArray(current.screens) ? current.screens : [];
+      const consumedRemoteIds = new Set<string>();
+      const nextScreens: DesignScreen[] = [];
+      const refreshedAt = new Date().toISOString();
+
+      for (const screen of existingScreens) {
+        const stitchId = typeof screen.stitch_screen_id === "string" ? screen.stitch_screen_id.trim() : "";
+        if (!stitchId) {
+          nextScreens.push(screen);
+          continue;
+        }
+        if (!remoteIdSet.has(stitchId)) {
+          removedStitchScreenIds.push(stitchId);
+          continue;
+        }
+
+        consumedRemoteIds.add(stitchId);
+        if (failedScreenIdSet.has(stitchId)) {
+          nextScreens.push(screen);
+          continue;
+        }
+
+        const artifact = artifactsById.get(stitchId);
+        if (!artifact) {
+          nextScreens.push(screen);
+          continue;
+        }
+
+        const htmlFile = resolveScreenHtmlFileName(screen);
+        const markdownFile = resolveScreenMarkdownFileName(screen);
+        if (htmlFile) {
+          const htmlContent = artifact?.html && artifact.html.trim().length > 0 ? artifact.html : DEFAULT_SCREEN_HTML;
+          await Deno.writeTextFile(`${desDir}/${htmlFile}`, htmlContent);
+        }
+        if (markdownFile) {
+          await refreshScreenMarkdownFile(
+            desDir,
+            markdownFile,
+            resolveScreenBaseName(screen.id) ?? screen.id,
+            artifact.stitch_screen_id,
+            refreshedAt,
+            artifact.image_url ?? screen.image_url ?? null,
+          );
+        }
+
+        refreshedScreenIds.push(screen.id);
+        nextScreens.push({
+          ...screen,
+          stitch_screen_id: artifact.stitch_screen_id,
+          title: artifact.title ?? screen.title,
+          url: artifact.url ?? screen.url,
+          image_url: artifact.image_url ?? screen.image_url ?? null,
+          html_file: htmlFile ?? screen.html_file ?? null,
+        });
+      }
+
+      let nextNumber = await nextScreenNumber(desDir);
+      for (const stitchId of remoteIds) {
+        if (consumedRemoteIds.has(stitchId)) {
+          continue;
+        }
+        if (failedScreenIdSet.has(stitchId)) {
+          continue;
+        }
+
+        const artifact = artifactsById.get(stitchId);
+        if (!artifact) {
+          continue;
+        }
+
+        const screenBase = formatScreenBaseName(nextNumber);
+        nextNumber += 1;
+        const mdFile = `${screenBase}.md`;
+        const htmlFile = `${screenBase}.html`;
+        const htmlContent = artifact.html && artifact.html.trim().length > 0 ? artifact.html : DEFAULT_SCREEN_HTML;
+
+        await Deno.writeTextFile(
+          `${desDir}/${mdFile}`,
+          buildRefreshedScreenMarkdown(screenBase, artifact.stitch_screen_id, refreshedAt, artifact.image_url),
+        );
+        await Deno.writeTextFile(`${desDir}/${htmlFile}`, htmlContent);
+
+        nextScreens.push({
+          id: screenBase,
+          stitch_screen_id: artifact.stitch_screen_id,
+          title: artifact.title ?? screenBase,
+          url: artifact.url ?? undefined,
+          image_url: artifact.image_url,
+          html_file: htmlFile,
+          created_at: refreshedAt,
+          status: "done",
+        });
+        addedScreenIds.push(screenBase);
+        refreshedScreenIds.push(screenBase);
+      }
+
+      const updated: DesignSession = {
+        ...current,
+        id: current.id || desId,
+        screens: nextScreens,
+        editing_by: current.editing_by ?? null,
+        editing_at: current.editing_at ?? null,
+      };
+      const saved = await writeJsonFile(designPath, updated);
+      if (!saved) {
+        throw new Error("Failed to update design.json");
+      }
+
+      addedScreenIds = [...new Set(addedScreenIds)];
+      removedStitchScreenIds = [...new Set(removedStitchScreenIds)];
+      refreshedScreenIds = [...new Set(refreshedScreenIds)];
+      failedStitchScreenIds = [...new Set(failedScreenIds)];
+    } finally {
+      await releaseLock(lock);
+    }
+
+    await postDesignEditStatus(notifyUrl, projectId, desId, jobId, "completed", {
+      mode: "refresh",
+      added_count: addedScreenIds.length,
+      removed_count: removedStitchScreenIds.length,
+      refreshed_count: refreshedScreenIds.length,
+      screen_ids: refreshedScreenIds,
+      added_screen_ids: addedScreenIds,
+      removed_stitch_screen_ids: removedStitchScreenIds,
+      failed_count: failedStitchScreenIds.length,
+      failed_screen_ids: failedStitchScreenIds,
+    });
+
+    return {
+      added_screen_ids: addedScreenIds,
+      removed_stitch_screen_ids: removedStitchScreenIds,
+      refreshed_screen_ids: refreshedScreenIds,
+      failed_screen_ids: failedStitchScreenIds,
+    };
+  } catch (error) {
+    await postDesignEditStatus(notifyUrl, projectId, desId, jobId, "failed", {
+      mode: "refresh",
+      error: asErrorMessage(error),
+    });
+    throw error;
+  }
 }
 
 async function runDesignEditJob(context: DesignEditJobContext): Promise<void> {
@@ -778,6 +1101,90 @@ projectDesignsApi.post("/designs/:desId/edit", async (c) => {
   });
 
   return c.json({ job_id: jobId, status: "queued" }, 202);
+});
+
+projectDesignsApi.get("/designs/:desId/refresh", async (c) => {
+  const projectId = c.req.param("projectId");
+  const baseDir = resolveBaseDir(projectId);
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const origin = c.req.header("Origin");
+  if (origin && !isAllowedDesignOrigin(origin)) {
+    return c.json({ error: "Invalid origin" }, 403);
+  }
+
+  const desId = c.req.param("desId");
+  if (!/^DES-\d+$/.test(desId)) {
+    return c.json({ error: "Invalid design ID" }, 400);
+  }
+
+  const desDir = `${baseDir}/designs/${desId}`;
+  if (!(await dirExists(desDir))) {
+    return c.json({ error: "Design not found" }, 404);
+  }
+
+  const designPath = `${desDir}/design.json`;
+  const lock = await acquireLock(`${designPath}.lock`, 5_000);
+  let stitchProjectId = "";
+  try {
+    const current = await readJsonFile<DesignSession>(designPath);
+    if (!current) {
+      return c.json({ error: "Design not found" }, 404);
+    }
+
+    if (typeof current.editing_by === "string" && current.editing_by.length > 0) {
+      return c.json({
+        error: "Edit in progress",
+        editing_by: current.editing_by,
+      }, 409);
+    }
+
+    stitchProjectId = typeof current.stitch_project_id === "string"
+      ? current.stitch_project_id.trim()
+      : "";
+  } finally {
+    await releaseLock(lock);
+  }
+  if (!stitchProjectId) {
+    return c.json({ error: "Stitch 프로젝트가 연결되지 않았습니다" }, 422);
+  }
+
+  const notifyUrl = `${new URL(c.req.url).origin}/notify`;
+  const jobId = buildDesignEditJobId();
+
+  try {
+    const result = await runDesignRefreshJob({
+      projectId,
+      desId,
+      desDir,
+      designPath,
+      stitchProjectId,
+      notifyUrl,
+      jobId,
+    });
+
+    return c.json({
+      ok: true,
+      job_id: jobId,
+      ...result,
+    });
+  } catch (error) {
+    if (error instanceof RefreshConflictError) {
+      return c.json({
+        ok: false,
+        job_id: jobId,
+        error: error.message,
+        editing_by: error.editingBy,
+      }, 409);
+    }
+    return c.json({
+      ok: false,
+      job_id: jobId,
+      error: asErrorMessage(error),
+    }, 500);
+  }
 });
 
 projectDesignsApi.get("/designs/:desId", async (c) => {

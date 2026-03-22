@@ -13,7 +13,8 @@ import { RefreshButton } from '@/components/shared/RefreshButton';
 import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ExternalLink, Palette, FileText, ChevronDown, ChevronRight, Pencil, GitBranch, Send, Undo2, Maximize2, Clipboard, Check } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ExternalLink, Palette, FileText, ChevronDown, ChevronRight, Pencil, GitBranch, Send, Undo2, Maximize2, Clipboard, Check, RefreshCw } from 'lucide-react';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -68,16 +69,25 @@ interface ScreenFilesResponse {
 
 type InlineEditMode = 'edit' | 'alt';
 type CopyFeedbackState = 'copied' | 'failed';
+type AltCreativeRange = 'REFINE' | 'EXPLORE' | 'REIMAGINE';
+
+const ALT_DEFAULT_PROMPT = '대체 디자인 생성';
 
 interface DesignEditResponse {
   job_id: string;
   status: string;
 }
 
+interface DesignRefreshResponse {
+  ok?: boolean;
+  job_id?: string;
+  error?: string;
+}
+
 interface DesignEditStatusEventData {
   status?: 'started' | 'completed' | 'failed' | string;
   job_id?: string;
-  mode?: InlineEditMode | string;
+  mode?: InlineEditMode | 'refresh' | string;
   screen_ids?: string[];
   error?: string;
 }
@@ -174,10 +184,18 @@ export function DesignView() {
   const [activeEditJobMode, setActiveEditJobMode] = useState<InlineEditMode | null>(null);
   const [editStatusMessage, setEditStatusMessage] = useState<string | null>(null);
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
+  const [altVariantCount, setAltVariantCount] = useState<2 | 3 | 4>(2);
+  const [altCreativeRange, setAltCreativeRange] = useState<AltCreativeRange>('EXPLORE');
   const [pendingAutoSelectScreenId, setPendingAutoSelectScreenId] = useState<string | null>(null);
   const [altCandidateScreenIds, setAltCandidateScreenIds] = useState<string[]>([]);
   const [copyFeedback, setCopyFeedback] = useState<Record<string, CopyFeedbackState>>({});
   const copyFeedbackTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [altBaseScreenFile, setAltBaseScreenFile] = useState<string | null>(null);
+  const [isStitchRefreshing, setIsStitchRefreshing] = useState(false);
+  const [activeRefreshJobId, setActiveRefreshJobId] = useState<string | null>(null);
+  const [refreshStatusMessage, setRefreshStatusMessage] = useState<string | null>(null);
+  const [refreshErrorMessage, setRefreshErrorMessage] = useState<string | null>(null);
+  const [selectedSessionRefreshKey, setSelectedSessionRefreshKey] = useState(0);
 
   const statusFilterOptions: FilterOption[] = [
     { value: 'all', label: 'All Status' },
@@ -276,15 +294,58 @@ export function DesignView() {
 
     return chain;
   }, [selectedScreen, screenMap]);
-  const altCandidateScreens = useMemo(
-    () =>
-      altCandidateScreenIds
-        .map((screenId) => screenMap.get(normalizeScreenId(screenId)))
-        .filter((screen): screen is DesignScreen => Boolean(screen)),
-    [altCandidateScreenIds, screenMap]
+  const altComparisonTabs = useMemo(() => {
+    if (!altBaseScreenFile || altCandidateScreenIds.length === 0) {
+      return [] as Array<{ value: string; label: string }>;
+    }
+
+    const candidates = [...new Set(altCandidateScreenIds.map((id) => normalizeScreenId(id)))]
+      .filter((id) => id.length > 0)
+      .slice(0, 4);
+
+    return [
+      { value: altBaseScreenFile, label: '기존' },
+      ...candidates.map((id, index) => ({
+        value: `${id}.md`,
+        label: `대체시안${String.fromCharCode(65 + index)}`,
+      })),
+    ];
+  }, [altBaseScreenFile, altCandidateScreenIds]);
+  const activeAltComparisonTab = useMemo(() => {
+    if (!altBaseScreenFile || altComparisonTabs.length === 0) {
+      return null;
+    }
+
+    if (selectedScreenFile && altComparisonTabs.some((tab) => tab.value === selectedScreenFile)) {
+      return selectedScreenFile;
+    }
+
+    return altBaseScreenFile;
+  }, [altBaseScreenFile, altComparisonTabs, selectedScreenFile]);
+
+  useEffect(() => {
+    if (altComparisonTabs.length === 0) {
+      return;
+    }
+
+    const isInAltComparisonTabs = Boolean(
+      selectedScreenFile && altComparisonTabs.some((tab) => tab.value === selectedScreenFile)
+    );
+    if (isInAltComparisonTabs) {
+      return;
+    }
+
+    setAltCandidateScreenIds([]);
+    setAltBaseScreenFile(null);
+  }, [altComparisonTabs, selectedScreenFile]);
+  const isDesSession = Boolean(selectedSession && /^DES-\d+$/.test(selectedSession.id));
+  const hasLinkedStitchProject = Boolean(
+    typeof selectedSession?.stitch_project_id === 'string' && selectedSession.stitch_project_id.trim().length > 0
   );
-  const canEditSelectedScreen = Boolean(
-    selectedSession && /^DES-\d+$/.test(selectedSession.id) && selectedScreen
+  const canEditSelectedScreen = Boolean(isDesSession && selectedScreenFile);
+  const canRefreshFromStitch = canEditSelectedScreen && hasLinkedStitchProject;
+  const canOpenStitchProject = canRefreshFromStitch && Boolean(
+    typeof selectedSession?.stitch_project_url === 'string' && selectedSession.stitch_project_url.trim().length > 0
   );
   const canPreview = useMemo(
     () =>
@@ -373,7 +434,7 @@ export function DesignView() {
   }, []);
 
   useEffect(() => {
-    if (lastSseEvent?.type !== 'design_edit_status' || !selectedSession) {
+    if (lastSseEvent?.type !== 'design_edit_status' || !selectedSession || !projectId) {
       return;
     }
 
@@ -390,6 +451,43 @@ export function DesignView() {
     }
 
     const eventJobId = typeof eventData.job_id === 'string' ? eventData.job_id : null;
+    const eventMode = eventData.mode;
+
+    if (eventMode === 'refresh') {
+      if (activeRefreshJobId && eventJobId && activeRefreshJobId !== eventJobId) {
+        return;
+      }
+
+      if (eventData.status === 'started') {
+        setIsStitchRefreshing(true);
+        setRefreshErrorMessage(null);
+        setRefreshStatusMessage('새로고침 중...');
+        return;
+      }
+
+      if (eventData.status === 'failed') {
+        setIsStitchRefreshing(false);
+        setActiveRefreshJobId(null);
+        setRefreshStatusMessage(null);
+        setRefreshErrorMessage(
+          typeof eventData.error === 'string' && eventData.error.length > 0
+            ? eventData.error
+            : '새로고침 요청이 실패했습니다'
+        );
+        return;
+      }
+
+      if (eventData.status === 'completed') {
+        setIsStitchRefreshing(false);
+        setActiveRefreshJobId(null);
+        setRefreshErrorMessage(null);
+        setRefreshStatusMessage('새로고침 완료');
+        setSelectedSessionRefreshKey((value) => value + 1);
+        void fetchSessions();
+      }
+      return;
+    }
+
     if (activeEditJobId && eventJobId && activeEditJobId !== eventJobId) {
       return;
     }
@@ -416,27 +514,29 @@ export function DesignView() {
       const completedMode = eventData.mode === 'alt' || eventData.mode === 'edit'
         ? eventData.mode
         : activeEditJobMode;
-      const screenIds = Array.isArray(eventData.screen_ids)
+      const screenIds = [...new Set(Array.isArray(eventData.screen_ids)
         ? eventData.screen_ids
           .filter((value): value is string => typeof value === 'string')
           .map((value) => normalizeScreenId(value))
           .filter((value) => value.length > 0)
-        : [];
+        : [])];
 
       setActiveEditJobId(null);
       setActiveEditJobMode(null);
       setEditErrorMessage(null);
       setEditStatusMessage('완료');
+      setSelectedSessionRefreshKey((value) => value + 1);
+      void fetchSessions();
 
       if (completedMode === 'alt') {
-        setAltCandidateScreenIds(screenIds.slice(0, 3));
+        setAltCandidateScreenIds(screenIds.slice(0, 4));
       } else {
         setAltCandidateScreenIds([]);
         setPendingAutoSelectScreenId(screenIds[0] ?? null);
         setInlineEditMode(null);
       }
     }
-  }, [lastSseEvent, selectedSession, activeEditJobId, activeEditJobMode]);
+  }, [lastSseEvent, selectedSession, activeEditJobId, activeEditJobMode, activeRefreshJobId, fetchSessions, projectId]);
 
   useEffect(() => {
     setViewMode('html');
@@ -491,7 +591,7 @@ export function DesignView() {
         setScreenContent(null);
         setPlanDesignSections([]);
       });
-  }, [selectedSession?.id, projectId]);
+  }, [selectedSession?.id, projectId, selectedSessionRefreshKey]);
 
   useEffect(() => {
     setViewMode(canPreview ? 'html' : 'image');
@@ -630,8 +730,15 @@ export function DesignView() {
     setActiveEditJobMode(null);
     setEditStatusMessage(null);
     setEditErrorMessage(null);
+    setAltVariantCount(2);
+    setAltCreativeRange('EXPLORE');
     setPendingAutoSelectScreenId(null);
     setAltCandidateScreenIds([]);
+    setAltBaseScreenFile(null);
+    setIsStitchRefreshing(false);
+    setActiveRefreshJobId(null);
+    setRefreshStatusMessage(null);
+    setRefreshErrorMessage(null);
   }, [selectedSession?.id]);
 
   const handleRefresh = () => {
@@ -648,13 +755,17 @@ export function DesignView() {
     setInlineEditMode(mode);
     setEditErrorMessage(null);
     setEditStatusMessage(null);
-    if (mode !== 'alt') {
+    if (mode === 'alt') {
+      setEditPrompt((prev) => (prev.trim().length > 0 ? prev : ALT_DEFAULT_PROMPT));
+    } else {
+      setEditPrompt('');
       setAltCandidateScreenIds([]);
+      setAltBaseScreenFile(null);
     }
   }, []);
 
   const handleSendEdit = useCallback(async () => {
-    if (!projectId || !selectedSession || !selectedScreen || !inlineEditMode) {
+    if (!projectId || !selectedSession || !selectedScreenFile || !inlineEditMode) {
       return;
     }
 
@@ -663,15 +774,20 @@ export function DesignView() {
       return;
     }
 
+    const targetScreenId = normalizeScreenId(selectedScreen?.id ?? selectedScreenFile);
+    if (!targetScreenId) {
+      return;
+    }
+
     const payload: Record<string, unknown> = {
       prompt,
       mode: inlineEditMode,
-      screen_id: normalizeScreenId(selectedScreen.id),
+      screen_id: targetScreenId,
     };
     if (inlineEditMode === 'alt') {
       payload.variant_options = {
-        count: 2,
-        creative_range: 'EXPLORE',
+        count: altVariantCount,
+        creative_range: altCreativeRange,
       };
     }
 
@@ -679,8 +795,12 @@ export function DesignView() {
     setEditErrorMessage(null);
     setEditStatusMessage('편집 요청 중...');
     setPendingAutoSelectScreenId(null);
-    if (inlineEditMode !== 'alt') {
+    if (inlineEditMode === 'alt') {
+      setAltBaseScreenFile(selectedScreenFile);
       setAltCandidateScreenIds([]);
+    } else {
+      setAltCandidateScreenIds([]);
+      setAltBaseScreenFile(null);
     }
 
     try {
@@ -695,14 +815,16 @@ export function DesignView() {
       setActiveEditJobId(response.job_id);
       setActiveEditJobMode(inlineEditMode);
       setEditStatusMessage('편집 중...');
-      setEditPrompt('');
+      if (inlineEditMode === 'edit') {
+        setEditPrompt('');
+      }
     } catch {
       setEditStatusMessage(null);
       setEditErrorMessage('편집 요청 전송에 실패했습니다');
     } finally {
       setIsEditSubmitting(false);
     }
-  }, [projectId, selectedSession, selectedScreen, inlineEditMode, editPrompt]);
+  }, [projectId, selectedSession, selectedScreen, selectedScreenFile, inlineEditMode, editPrompt, altVariantCount, altCreativeRange]);
 
   const handleUndo = useCallback(() => {
     const previousScreen = historyChain[0];
@@ -712,13 +834,45 @@ export function DesignView() {
     selectScreenById(previousScreen.id);
   }, [historyChain, selectScreenById]);
 
-  const handleSelectAltScreen = useCallback((screenId: string) => {
-    selectScreenById(screenId);
-    setAltCandidateScreenIds([]);
-    setInlineEditMode(null);
-    setEditStatusMessage(null);
-    setEditErrorMessage(null);
-  }, [selectScreenById]);
+  const handleRefreshFromStitch = useCallback(async () => {
+    if (!projectId || !selectedSession || !canRefreshFromStitch) {
+      return;
+    }
+
+    setIsStitchRefreshing(true);
+    setRefreshErrorMessage(null);
+    setRefreshStatusMessage('새로고침 요청 중...');
+
+    try {
+      const response = await apiFetch<DesignRefreshResponse>(
+        `/api/designs/${selectedSession.id}/refresh`,
+        projectId
+      );
+
+      if (response.ok === false) {
+        throw new Error(response.error || '새로고침 요청이 실패했습니다');
+      }
+
+      setActiveRefreshJobId(response.job_id ?? null);
+      setRefreshStatusMessage('새로고침 중...');
+    } catch (error) {
+      setIsStitchRefreshing(false);
+      setActiveRefreshJobId(null);
+      setRefreshStatusMessage(null);
+      setRefreshErrorMessage(
+        error instanceof Error && error.message.length > 0
+          ? error.message
+          : '새로고침 요청 전송에 실패했습니다'
+      );
+    }
+  }, [projectId, selectedSession, canRefreshFromStitch]);
+
+  const handleOpenStitchProject = useCallback(() => {
+    if (!canOpenStitchProject || !selectedSession?.stitch_project_url) {
+      return;
+    }
+    window.open(selectedSession.stitch_project_url, '_blank', 'noopener,noreferrer');
+  }, [canOpenStitchProject, selectedSession?.stitch_project_url]);
 
   const handleCopyScreenId = useCallback(async (screenId: string) => {
     if (copyFeedbackTimeoutsRef.current[screenId]) {
@@ -925,9 +1079,37 @@ export function DesignView() {
                             <Undo2 className="h-3.5 w-3.5" />
                             Undo
                           </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              void handleRefreshFromStitch();
+                            }}
+                            disabled={!canRefreshFromStitch || isStitchRefreshing || Boolean(activeEditJobId)}
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 ${isStitchRefreshing ? 'animate-spin' : ''}`} />
+                            Refresh
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleOpenStitchProject}
+                            disabled={!canOpenStitchProject || isStitchRefreshing}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Stitch열기
+                          </Button>
                         </>
                       )}
                     </div>
+                    {canEditSelectedScreen && refreshStatusMessage && (
+                      <p className="text-xs text-muted-foreground mb-3">{refreshStatusMessage}</p>
+                    )}
+                    {canEditSelectedScreen && refreshErrorMessage && (
+                      <p className="text-xs text-destructive mb-3">{refreshErrorMessage}</p>
+                    )}
                     {hasHtmlPreview && viewMode === 'html' && htmlPreviewSrc ? (
                       <iframe
                         title={`${selectedSession?.id ?? 'design'}-${file}-html-preview`}
@@ -979,11 +1161,57 @@ export function DesignView() {
                           <div className="text-sm font-medium">
                             {inlineEditMode === 'edit' ? 'Edit 프롬프트' : 'Alt 프롬프트'}
                           </div>
+                          {inlineEditMode === 'alt' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">개수</p>
+                                <Select
+                                  value={String(altVariantCount)}
+                                  onValueChange={(value) => {
+                                    if (value === '2' || value === '3' || value === '4') {
+                                      setAltVariantCount(Number(value) as 2 | 3 | 4);
+                                    }
+                                  }}
+                                  disabled={isEditSubmitting || Boolean(activeEditJobId)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs" aria-label="Alt 시안 개수">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="2">2</SelectItem>
+                                    <SelectItem value="3">3</SelectItem>
+                                    <SelectItem value="4">4</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">Creative Range</p>
+                                <Select
+                                  value={altCreativeRange}
+                                  onValueChange={(value) => {
+                                    if (value === 'REFINE' || value === 'EXPLORE' || value === 'REIMAGINE') {
+                                      setAltCreativeRange(value);
+                                    }
+                                  }}
+                                  disabled={isEditSubmitting || Boolean(activeEditJobId)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs" aria-label="Alt Creative Range">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="REFINE">REFINE</SelectItem>
+                                    <SelectItem value="EXPLORE">EXPLORE</SelectItem>
+                                    <SelectItem value="REIMAGINE">REIMAGINE</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          )}
                           <div className="flex gap-2">
                             <Input
                               value={editPrompt}
                               onChange={(event) => setEditPrompt(event.target.value)}
-                              placeholder={inlineEditMode === 'edit' ? '예: 사이드바 추가' : '예: 카드형 대안 2개'}
+                              placeholder={inlineEditMode === 'edit' ? '예: 사이드바 추가' : ALT_DEFAULT_PROMPT}
                               disabled={isEditSubmitting || Boolean(activeEditJobId)}
                               onKeyDown={(event) => {
                                 if (event.key === 'Enter') {
@@ -1013,52 +1241,24 @@ export function DesignView() {
                         </CardContent>
                       </Card>
                     )}
-                    {altCandidateScreens.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-sm font-medium mb-2">Alt 결과 비교</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {altCandidateScreens.map((candidate) => (
-                            <Card key={candidate.id} className="overflow-hidden">
-                              {candidate.image_url ? (
-                                <img
-                                  src={candidate.image_url}
-                                  alt={candidate.title ?? candidate.id}
-                                  className="w-full h-40 object-cover"
-                                />
-                              ) : (
-                                <div className="h-40 flex items-center justify-center text-xs text-muted-foreground bg-muted/40">
-                                  이미지 없음
-                                </div>
-                              )}
-                              <CardContent className="p-3 space-y-2">
-                                <p className="text-sm font-medium">{candidate.title ?? candidate.id}</p>
-                                <p className="text-xs text-muted-foreground">{normalizeScreenId(candidate.id)}</p>
-                                <div className="flex items-center justify-between">
-                                  {candidate.url ? (
-                                    <a
-                                      href={candidate.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                                    >
-                                      <ExternalLink className="h-3 w-3" /> Stitch
-                                    </a>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground">미리보기 링크 없음</span>
-                                  )}
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    onClick={() => handleSelectAltScreen(candidate.id)}
-                                  >
-                                    선택
-                                  </Button>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
+                    {altComparisonTabs.length > 0 && (
+                      <Card className="mt-4">
+                        <CardContent className="p-3 space-y-2">
+                          <p className="text-sm font-medium">Alt 결과 비교</p>
+                          <Tabs
+                            value={activeAltComparisonTab ?? altComparisonTabs[0]?.value ?? ''}
+                            onValueChange={setSelectedScreenFile}
+                          >
+                            <TabsList className="w-full justify-start overflow-x-auto">
+                              {altComparisonTabs.map((tab) => (
+                                <TabsTrigger key={tab.value} value={tab.value}>
+                                  {tab.label}
+                                </TabsTrigger>
+                              ))}
+                            </TabsList>
+                          </Tabs>
+                        </CardContent>
+                      </Card>
                     )}
                     {canEditSelectedScreen && historyChain.length > 0 && (
                       <Card className="mt-4">
