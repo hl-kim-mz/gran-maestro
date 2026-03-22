@@ -166,6 +166,8 @@ export const SETTING_DESCRIPTIONS: Record<string, string | SettingMeta> = {
   'review.roles.arch_reviewer.tier': { description: '아키텍처 리뷰어 tier (premium/economy)', options: ['premium', 'economy'] },
   'review.roles.ui_reviewer.agent': 'UI 리뷰어 에이전트',
   'review.roles.ui_reviewer.tier': { description: 'UI 리뷰어 tier (premium/economy)', options: ['premium', 'economy'] },
+  'review.roles.browser_tester.agent': '브라우저 테스터 에이전트 (browser-test AC 위임 대상)',
+  'review.roles.browser_tester.tier': { description: '브라우저 테스터 tier (premium/economy)', options: ['premium', 'economy'] },
   'review.severity_auto_fix.enabled': '심각도 기반 자동 수정 활성화',
   'review.severity_auto_fix.pm_direct_fix_enabled': 'PM 직접 수정 활성화',
   'review.severity_auto_fix.pm_direct_fix_max_files': 'PM 직접 수정 최대 파일 수',
