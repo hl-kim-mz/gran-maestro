@@ -31,6 +31,32 @@ Maestro 모드 비활성 시 자동 활성화:
 - `requests/`, `worktrees/` 디렉토리 확인, 없으면 생성
 - 사용자에게 모드 전환 알림 (첫 활성화 시에만)
 
+## Gate
+
+### Entry
+
+- Step 0.5에서 `workflow.default_agent`를 읽어 Assigned Agent 결정 근거를 확보한다.
+- `--resume/--plan` 해석과 `source_plan` 정합성을 완료한 뒤에만 spec 작성 단계로 진입한다.
+- 실행 범위를 spec 산출(`request.json`, `tasks/*/spec.md`)로 제한하고 구현 행위는 차단한다.
+
+### Exit
+
+- 모든 대상 태스크의 `spec.md`가 생성되고 `request.json.tasks` 메타데이터가 동기화되어야 한다.
+- `request.json.status`가 `spec_ready`(또는 auto approve 연계 상태)로 갱신되어야 한다.
+- 승인 안내(`/mst:approve` 또는 `/mst:approve -a`) 또는 자동 진입 로그가 남아야 한다.
+
+### 금지 패턴
+
+- spec 저장/승인 확인 전에 코드 수정, 파일 편집, 빌드, 커밋을 수행한다.
+- `workflow.default_agent` 확인 없이 Assigned Agent를 추정으로 기입한다.
+- plan 컨텍스트가 있는데도 탐색/근거 수집을 생략하고 AC를 형식적으로 작성한다.
+
+## Anti-Rationalization Checklist
+
+- 합리화 패턴: "plan에서 이미 분석했으니 코드베이스 탐색을 축약해도 된다." | 확인 증거: spec `§0 Context Manifest`에 실제 탐색 근거 파일 경로를 남긴다.
+- 합리화 패턴: "단순 요청이니 AC를 짧게 쓰고 Given/When/Then/Test를 생략한다." | 확인 증거: 각 AC를 Given/When/Then/Test 형식으로 작성하고 AC ID를 `request.json.tasks[].covers_ac`에 매핑한다.
+- 합리화 패턴: "속도를 위해 승인/사전검토 분기를 임의로 건너뛴다." | 확인 증거: 실행 로그에 `AUTO_APPROVE` 결정 근거(CLI/config)와 적용 경로를 출력한다.
+
 ## 실행 프로토콜
 
 > **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
@@ -87,12 +113,6 @@ Maestro 모드 비활성 시 자동 활성화:
      [/REFERENCE_CONTEXT]
      ```
    - 참조가 없으면 `references: none`으로 명시한다.
-
-
-> ⚠️ **절대 금지 (예외 없음)**: spec.md 저장 및 `/mst:approve` 확인 전에는
-> 코드 수정·파일 편집·git 커밋·빌드 등 어떠한 구현 행위도 수행하지 않는다.
-> 요청이 아무리 단순하거나 수정 위치가 명확해 보여도 이 규칙은 적용된다.
-> CLI `--auto`/`-a` 플래그 또는 `config.auto_mode.request=true`(Step 0.5 참조)인 경우 승인 단계를 건너뛸 수 있다. CLI 인자가 우선한다.
 
 ### Step 0: 아카이브 체크 (자동)
 
