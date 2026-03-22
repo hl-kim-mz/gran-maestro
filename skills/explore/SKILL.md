@@ -60,9 +60,12 @@ Claude가 탐색 목표 분석 → Codex: 코드 구조/구현 패턴 추적; Ge
 
 (참고: claude는 explore의 explorers에서 제외되므로 dispatch 블록 불필요)
 
-### Step 3: Claude PM 종합
+### Step 3: 백그라운드 탐색 완료 대기 & Claude PM 종합
 
-`explore-{key}.md` 읽어 `explore-report.md` 작성. 완료 안내: `plan에서 참조하려면: {PROJECT_ROOT}/.gran-maestro/explore/EXP-NNN/explore-report.md`
+1. **완료 대기 (MANDATORY)**: Step 2에서 `run_in_background: true`로 dispatch한 **모든** 백그라운드 작업이 완료될 때까지 대기한다. 일부만 완료된 상태에서 종합을 시작하는 것은 **절대 금지**한다.
+   - 각 `explore-{key}.md` 파일에 `EXIT_CODE:` 행이 기록되었는지 확인하여 완료 여부를 판단한다.
+   - 아직 완료되지 않은 작업이 있으면 `TaskOutput`으로 완료를 대기한다.
+2. **종합**: 모든 탐색 결과가 준비된 후 `explore-{key}.md`를 읽어 `explore-report.md` 작성. 완료 안내: `plan에서 참조하려면: {PROJECT_ROOT}/.gran-maestro/explore/EXP-NNN/explore-report.md`
 
 ### Step 4: 사용자 표시
 
