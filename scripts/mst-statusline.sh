@@ -96,7 +96,7 @@ def format_elapsed(ts: str):
 def clean_skill(name):
     if not isinstance(name, str):
         return ""
-    return re.sub(r"^mst:", "", name.strip())
+    return re.sub(r"^mst:", "", name.split("\n", 1)[0].strip())
 
 frames = []
 if path:

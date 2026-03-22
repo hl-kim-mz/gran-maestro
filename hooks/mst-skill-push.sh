@@ -188,7 +188,7 @@ try:
     tool_input = data.get("tool_input") or {}
     if not isinstance(tool_input, dict):
         tool_input = {}
-    skill = tool_input.get("skill") or ""
+    skill = (tool_input.get("skill") or "").split("\n")[0].strip()
     args = tool_input.get("args") or ""
     # --trace 패턴에서 현재 Step 힌트 추론: --trace "Step 5: ..." 또는 args 내 Step N 패턴
     return_step = ""
