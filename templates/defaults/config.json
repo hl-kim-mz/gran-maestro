@@ -238,6 +238,30 @@
       "tier": "economy"
     }
   },
+  "reference": {
+    "cache_ttl_days": 7,
+    "cutoff_threshold_months": 1,
+    "auto_search": true,
+    "max_searches_per_step": 3,
+    "keywords_whitelist": [
+      "library",
+      "framework",
+      "api",
+      "sdk",
+      "protocol",
+      "version",
+      "dependency",
+      "react",
+      "next.js",
+      "typescript",
+      "python",
+      "node",
+      "라이브러리",
+      "프레임워크",
+      "의존성",
+      "버전"
+    ]
+  },
   "cleanup": {
     "ideation_keep_count": 10,
     "discussion_keep_count": 10,
