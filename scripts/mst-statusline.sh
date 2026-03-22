@@ -128,14 +128,14 @@ for frame in frames:
     labels.append(f"{skill}({format_elapsed(started_at)})")
 
 if not labels:
-    print("🎯 MST idle")
+    print("MST idle")
     sys.exit(0)
 
-line = "🎯 " + " > ".join(labels)
+line = " > ".join(labels)
 if context_id:
     line += f" ({context_id})"
 print(line)
-' "$stack_file" 2>/dev/null || printf '🎯 MST idle\n'
+' "$stack_file" 2>/dev/null || printf 'MST idle\n'
 }
 
 HUD_COMMAND="$(resolve_hud_command)"
