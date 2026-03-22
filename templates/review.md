@@ -44,6 +44,13 @@
 - [ ] AC-4: {통과 | 미충족 — 사유}
 - [ ] AC-5: {통과 | 미충족 — 사유}
 
+## Evidence Ledger 요약
+
+- Ledger 파일: `reviews/RV-NNN/evidence-ledger.md`
+- Spec AC 증거: {기록 건수}건 (PASS {N} / FAIL {N} / SKIP {N})
+- Plan AC(PAC) 증거: {기록 건수}건 (누락 PAC: {없음 | PAC-ID 목록})
+- 주요 실행 증거: {명령/기대/실제/exit code 핵심 요약}
+
 ## 등급별 코드리뷰 이슈 요약
 
 | 등급 | 건수 |

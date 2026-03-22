@@ -193,6 +193,45 @@ review 단계에서 외부 의존성 관련 AC/리뷰 포인트가 보이면 아
 
 > 이 Step의 목적: AC 충족 여부를 확정해 Pass B 진입 가능성을 결정한다 / 핵심 출력물: `pass_a_result`, `failed_ac_ids`, `failure_class`, `evidence`
 
+#### evidence-ledger.md 생성 프로토콜 (Pass A 내부, MANDATORY)
+
+- 목적: Pass A에서 수행한 AC/PAC 검증의 실제 실행 증거(명령/기대/실제/exit code)를 구조화해 선언형 완료를 방지한다.
+- 저장 경로: `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/reviews/{RV-NNN}/evidence-ledger.md`
+- Step 3 시작 시 아래 헤더로 파일을 생성한다.
+  ```markdown
+  # Evidence Ledger — RV-NNN
+
+  ## Spec AC 검증 증거
+  | ID | Type | Command | Expected | Actual | Exit Code |
+  |----|------|---------|----------|--------|-----------|
+
+  ## Plan AC (PAC) 검증 증거
+  | ID | Type | Command | Expected | Actual | Exit Code |
+  |----|------|---------|----------|--------|-----------|
+  ```
+- Spec AC 기록 규칙:
+  - `[automatable]` AC: `Test:` 명령 실행 직후 반드시 append한다.
+    - `Command`: 실행한 명령 원문
+    - `Expected`: AC의 Then/Test에서 도출한 기대 결과
+    - `Actual`: stdout/stderr 요약 또는 관찰 결과
+    - `Exit Code`: 실행 종료 코드(정수)
+  - `[manual]` AC: 명령 실행 없이 append한다.
+    - `Command`: `manual-judgement`
+    - `Expected`: AC의 Then 문장
+    - `Actual`: PM 판정 근거 텍스트(무엇을 확인했고 왜 PASS/FAIL인지)
+    - `Exit Code`: `N/A`
+- Plan AC(PAC) 기록 규칙:
+  - `source_plan`이 있고 `plan.ids.json`이 존재하면 PAC별 검증 결과를 동일 형식으로 append한다.
+  - PAC 항목에 실행 가능한 `Test:` 명령이 있으면 실행하고 `Command/Expected/Actual/Exit Code`를 기록한다.
+  - 실행 명령이 없는 PAC는 `manual-judgement`로 기록하고 PM 판정 근거를 `Actual`에 남긴다.
+  - `source_plan` 또는 `plan.ids.json`이 없으면 PAC 섹션은 skip한다 (하위 호환).
+- append 타이밍:
+  - 각 AC/PAC의 PASS/FAIL/SKIP 판정 직후 즉시 append한다 (배치 저장 금지).
+  - PASS/FAIL 여부와 무관하게 실행/판정이 있었으면 반드시 기록한다.
+- 호환성 보장(변경 금지):
+  - 기존 Pass A 판정 로직(`pass_a_result`, `failed_ac_ids`, `failure_class`, `evidence`)은 변경하지 않는다.
+  - `evidence-ledger.md` 생성은 기존 흐름에 추가되는 부가 산출물이며 `pass-a-result.md`를 대체하지 않는다.
+
 #### browser-test AC 실행 분기 (Pass A 내부, MANDATORY)
 
 - 대상: Step 2에서 `ac_type == browser-test`로 파싱된 Spec AC.
@@ -363,6 +402,7 @@ review 단계에서 외부 의존성 관련 AC/리뷰 포인트가 보이면 아
 - 모든 보조 태그 실행은 AC의 `Test:` 필드에 명시된 명령어를 기반으로 한다.
 - 도구 미설치 시: `SKIP(tool_unavailable)` 기록 + "[SKIP] {태그}: 도구 미설치 ({도구명})" 로그 출력.
 - 실행 결과는 `ac-results.md` 근거란에 반영한다.
+- 실행/판정 직후 `evidence-ledger.md`에도 `Command/Expected/Actual/Exit Code`를 append한다.
 
 ---
 
