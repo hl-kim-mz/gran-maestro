@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { apiFetch } from '@/hooks/useApi';
@@ -13,7 +13,7 @@ import { RefreshButton } from '@/components/shared/RefreshButton';
 import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ExternalLink, Palette, FileText, ChevronDown, ChevronRight, Pencil, GitBranch, Send, Undo2, Maximize2 } from 'lucide-react';
+import { ExternalLink, Palette, FileText, ChevronDown, ChevronRight, Pencil, GitBranch, Send, Undo2, Maximize2, Clipboard, Check } from 'lucide-react';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -67,6 +67,7 @@ interface ScreenFilesResponse {
 }
 
 type InlineEditMode = 'edit' | 'alt';
+type CopyFeedbackState = 'copied' | 'failed';
 
 interface DesignEditResponse {
   job_id: string;
@@ -122,6 +123,29 @@ function normalizeScreenId(screenId: string): string {
   return screenId.replace(/\.md$/, '').trim();
 }
 
+function extractSessionNumberToken(session: DesignSession | null): string {
+  if (!session) {
+    return '000';
+  }
+
+  const preferred = [session.id, session.linked_plan ?? ''];
+  for (const candidate of preferred) {
+    const desMatch = candidate.match(/^DES-(\d+)$/i);
+    if (desMatch) {
+      return desMatch[1].padStart(3, '0');
+    }
+  }
+
+  for (const candidate of preferred) {
+    const idMatch = candidate.match(/^(?:DES|PLN)-(\d+)$/i);
+    if (idMatch) {
+      return idMatch[1].padStart(3, '0');
+    }
+  }
+
+  return '000';
+}
+
 export function DesignView() {
   const { projectId, lastSseEvent, navigateTo } = useAppContext();
   const { designId } = useParams();
@@ -152,6 +176,8 @@ export function DesignView() {
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
   const [pendingAutoSelectScreenId, setPendingAutoSelectScreenId] = useState<string | null>(null);
   const [altCandidateScreenIds, setAltCandidateScreenIds] = useState<string[]>([]);
+  const [copyFeedback, setCopyFeedback] = useState<Record<string, CopyFeedbackState>>({});
+  const copyFeedbackTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const statusFilterOptions: FilterOption[] = [
     { value: 'all', label: 'All Status' },
@@ -277,6 +303,14 @@ export function DesignView() {
 
     return `/api/projects/${projectId}/designs/${selectedSession.id}/screens/${selectedScreenFile}/html`;
   }, [projectId, selectedSession, selectedScreenFile, hasStyles, activeStyle]);
+  const sessionNumberToken = useMemo(
+    () => extractSessionNumberToken(selectedSession),
+    [selectedSession?.id, selectedSession?.linked_plan]
+  );
+  const buildScreenScrId = useCallback(
+    (order: number) => `SCR-${sessionNumberToken}-${String(order).padStart(3, '0')}`,
+    [sessionNumberToken]
+  );
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -331,6 +365,12 @@ export function DesignView() {
       fetchSessions();
     }
   }, [lastSseEvent, fetchSessions]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(copyFeedbackTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId));
+    };
+  }, []);
 
   useEffect(() => {
     if (lastSseEvent?.type !== 'design_edit_status' || !selectedSession) {
@@ -580,6 +620,9 @@ export function DesignView() {
   }, [pendingAutoSelectScreenId, screenFiles]);
 
   useEffect(() => {
+    Object.values(copyFeedbackTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId));
+    copyFeedbackTimeoutsRef.current = {};
+    setCopyFeedback({});
     setInlineEditMode(null);
     setEditPrompt('');
     setIsEditSubmitting(false);
@@ -677,6 +720,47 @@ export function DesignView() {
     setEditErrorMessage(null);
   }, [selectScreenById]);
 
+  const handleCopyScreenId = useCallback(async (screenId: string) => {
+    if (copyFeedbackTimeoutsRef.current[screenId]) {
+      clearTimeout(copyFeedbackTimeoutsRef.current[screenId]);
+    }
+
+    let success = false;
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(screenId);
+        success = true;
+      } catch {
+        success = false;
+      }
+    }
+
+    if (!success) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = screenId;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch {
+        success = false;
+      }
+    }
+
+    setCopyFeedback((prev) => ({ ...prev, [screenId]: success ? 'copied' : 'failed' }));
+
+    copyFeedbackTimeoutsRef.current[screenId] = setTimeout(() => {
+      setCopyFeedback((prev) => {
+        const next = { ...prev };
+        delete next[screenId];
+        return next;
+      });
+    }, 2000);
+  }, []);
+
   if (!projectId) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -720,16 +804,41 @@ export function DesignView() {
         className="flex-1 flex flex-col overflow-hidden"
       >
         <div className="px-4 border-b">
-          <TabsList className="bg-transparent h-10 p-0 gap-4 overflow-x-auto">
-            {files.map((file) => (
-              <TabsTrigger
-                key={file}
-                value={file}
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
-              >
-                {file}
-              </TabsTrigger>
-            ))}
+          <TabsList className="bg-transparent h-10 p-0 gap-3 overflow-x-auto">
+            {files.map((file, index) => {
+              const scrId = buildScreenScrId(index + 1);
+              const feedback = copyFeedback[scrId];
+              return (
+                <div key={file} className="flex items-center gap-1">
+                  <TabsTrigger
+                    value={file}
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 gap-1"
+                  >
+                    <span className="font-mono text-[11px] text-muted-foreground">{scrId}</span>
+                    <span>{file}</span>
+                  </TabsTrigger>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={`h-5 w-5 shrink-0 p-0 ${feedback === 'failed' ? 'text-destructive' : 'text-muted-foreground hover:text-foreground'}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void handleCopyScreenId(scrId);
+                    }}
+                    title={feedback === 'copied' ? '복사됨' : feedback === 'failed' ? '복사 실패' : `${scrId} 복사`}
+                    aria-label={`${scrId} 복사`}
+                  >
+                    {feedback === 'copied' ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <Clipboard className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
           </TabsList>
         </div>
         {files.map((file) => (
@@ -1116,16 +1225,47 @@ export function DesignView() {
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   <div className="px-4 border-b">
-                    <TabsList className="bg-transparent h-10 p-0 gap-4 overflow-x-auto">
-                      {planDesignSections.map((section, index) => (
-                        <TabsTrigger
-                          key={index}
-                          value={String(index)}
-                          className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1"
-                        >
-                          {section.title || `섹션 ${index + 1}`}
-                        </TabsTrigger>
-                      ))}
+                    <TabsList className="bg-transparent h-10 p-0 gap-3 overflow-x-auto">
+                      {planDesignSections.map((section, index) => {
+                        const scrId = buildScreenScrId(index + 1);
+                        const feedback = copyFeedback[scrId];
+                        return (
+                          <div key={index} className="flex items-center gap-1">
+                            <TabsTrigger
+                              value={String(index)}
+                              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 gap-1"
+                            >
+                              <span className="font-mono text-[11px] text-muted-foreground">{scrId}</span>
+                              <span>{section.title || `섹션 ${index + 1}`}</span>
+                            </TabsTrigger>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className={`h-5 w-5 shrink-0 p-0 ${feedback === 'failed' ? 'text-destructive' : 'text-muted-foreground hover:text-foreground'}`}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                void handleCopyScreenId(scrId);
+                              }}
+                              title={
+                                feedback === 'copied'
+                                  ? '복사됨'
+                                  : feedback === 'failed'
+                                    ? '복사 실패'
+                                    : `${scrId} 복사`
+                              }
+                              aria-label={`${scrId} 복사`}
+                            >
+                              {feedback === 'copied' ? (
+                                <Check className="h-3 w-3" />
+                              ) : (
+                                <Clipboard className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </div>
+                        );
+                      })}
                     </TabsList>
                   </div>
                   {planDesignSections.map((section, index) => (
