@@ -181,7 +181,7 @@ fi
 # Skill 호출은 부모 복귀 이후 "다음 행동 진행" 신호로 간주하므로 pending 플래그 제거
 rm -f "$PENDING_FILE" "${PENDING_FILE}.tmp" 2>/dev/null || true
 
-# tool_input.skill + args에서 스킬명 및 return_step 힌트 추출
+# tool_input.skill + args에서 스킬명/return_step/context_id 추출
 SKILL_INFO="$(printf '%s' "$INPUT" | python3 -c 'import json, sys, re
 try:
     data = json.loads(sys.stdin.read() or "{}")
@@ -192,6 +192,7 @@ try:
     args = tool_input.get("args") or ""
     # --trace 패턴에서 현재 Step 힌트 추론: --trace "Step 5: ..." 또는 args 내 Step N 패턴
     return_step = ""
+    context_id = ""
     if isinstance(args, str):
         m = re.search(r"--trace\s+[\"'"'"']?([^\"'"'"']+)", args)
         if m:
@@ -200,12 +201,17 @@ try:
             m = re.search(r"(Step\s+\d+[^,;]*)", args, re.IGNORECASE)
             if m:
                 return_step = m.group(1).strip()
-    print(f"{skill}\t{return_step}")
+        # args에서 PLN-NNN/REQ-NNN 추출
+        m = re.search(r"\b((?:PLN|REQ)-\d+)\b", args, re.IGNORECASE)
+        if m:
+            context_id = m.group(1).upper()
+    print(f"{skill}\t{return_step}\t{context_id}")
 except Exception:
-    print("\t")
+    print("\t\t")
 ' 2>/dev/null || true)"
 SKILL_NAME="$(printf '%s' "$SKILL_INFO" | cut -f1)"
 RETURN_STEP_HINT="$(printf '%s' "$SKILL_INFO" | cut -f2)"
+CONTEXT_ID="$(printf '%s' "$SKILL_INFO" | cut -f3)"
 if [ -z "$SKILL_NAME" ]; then
   exit 0
 fi
@@ -268,6 +274,7 @@ skill = sys.argv[2]
 timestamp = sys.argv[3]
 max_depth = int(sys.argv[4])
 return_step = sys.argv[5] if len(sys.argv) > 5 else ""
+context_id = sys.argv[6] if len(sys.argv) > 6 else ""
 
 try:
     with open(path, "r", encoding="utf-8") as f:
@@ -281,17 +288,26 @@ if not isinstance(data, list):
 # Touch all existing frames to keep parents alive
 for frame in data:
     if isinstance(frame, dict):
+        original_pushed_at = frame.get("pushed_at")
         frame["pushed_at"] = timestamp
+        # started_at은 최초 push 시각으로 고정 (이미 있으면 유지)
+        if not isinstance(frame.get("started_at"), str) or not frame.get("started_at"):
+            if isinstance(original_pushed_at, str) and original_pushed_at:
+                frame["started_at"] = original_pushed_at
+            else:
+                frame["started_at"] = timestamp
 
-frame_obj = {"skill": skill, "pushed_at": timestamp}
+frame_obj = {"skill": skill, "pushed_at": timestamp, "started_at": timestamp}
 if return_step:
     frame_obj["return_step"] = return_step
+if context_id:
+    frame_obj["context_id"] = context_id
 data.append(frame_obj)
 if len(data) > max_depth:
     data = data[-max_depth:]
 
 print(json.dumps(data, ensure_ascii=True))
-' "$STACK_FILE" "$SKILL_NAME" "$TIMESTAMP" "$MAX_DEPTH" "$RETURN_STEP_HINT" > "${STACK_FILE}.tmp" 2>/dev/null; then
+' "$STACK_FILE" "$SKILL_NAME" "$TIMESTAMP" "$MAX_DEPTH" "$RETURN_STEP_HINT" "$CONTEXT_ID" > "${STACK_FILE}.tmp" 2>/dev/null; then
   mv "${STACK_FILE}.tmp" "$STACK_FILE" || true
 else
   rm -f "${STACK_FILE}.tmp"
