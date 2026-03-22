@@ -255,6 +255,12 @@ else: print("")
   fi
 fi
 
+MST_STACK_SOURCE="${MST_STACK_SOURCE:-transcript}"
+if [ "$MST_STACK_SOURCE" != "hook" ]; then
+  debug_log "push_skip" "skill=$SKILL_NAME stack_source=$MST_STACK_SOURCE"
+  exit 0
+fi
+
 # 스택 파일 초기화 (없으면)
 if [ ! -f "$STACK_FILE" ]; then
   printf '[]' > "$STACK_FILE"

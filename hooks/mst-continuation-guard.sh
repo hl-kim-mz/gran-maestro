@@ -89,27 +89,6 @@ contains_pattern() {
   printf '%s' "$last_assistant_message" | grep -Eiq -- "$pattern"
 }
 
-read_stack_length() {
-  local file="$1"
-  local length
-  length="$(python3 -c 'import json, sys
-path = sys.argv[1]
-try:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-except Exception:
-    data = []
-if not isinstance(data, list):
-    data = []
-print(len(data))
-' "$file" 2>/dev/null || true)"
-  if [[ "$length" =~ ^[0-9]+$ ]]; then
-    printf '%s' "$length"
-  else
-    printf '0'
-  fi
-}
-
 read_transcript_path_from_bridge() {
   local bridge_file="$1"
   [ -f "$bridge_file" ] || return 1
@@ -209,6 +188,104 @@ print(len(pending))
   return 1
 }
 
+read_parent_current_from_transcript() {
+  local transcript_path="$1"
+  [ -n "$transcript_path" ] || return 1
+
+  python3 -c 'import json, os, sys
+
+path = sys.argv[1]
+MAX_TAIL_BYTES = 512 * 1024
+SKILL_TOOL_NAMES = {"Skill", "proxy_Skill"}
+
+if not path or not os.path.isfile(path):
+    print("unknown")
+    print("unknown")
+    sys.exit(0)
+
+try:
+    file_size = os.path.getsize(path)
+except Exception:
+    print("unknown")
+    print("unknown")
+    sys.exit(0)
+
+try:
+    if file_size > MAX_TAIL_BYTES:
+        start_offset = max(0, file_size - MAX_TAIL_BYTES)
+        with open(path, "rb") as f:
+            f.seek(start_offset)
+            raw = f.read()
+        text = raw.decode("utf-8", errors="ignore")
+        lines = text.splitlines()
+        if start_offset > 0 and lines:
+            lines = lines[1:]
+    else:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.read().splitlines()
+except Exception:
+    print("unknown")
+    print("unknown")
+    sys.exit(0)
+
+stack = []
+for line in lines:
+    if not line.strip():
+        continue
+    try:
+        entry = json.loads(line)
+    except Exception:
+        continue
+    if not isinstance(entry, dict):
+        continue
+
+    message = entry.get("message")
+    if not isinstance(message, dict):
+        continue
+    content = message.get("content")
+    if not isinstance(content, list):
+        continue
+
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        block_type = block.get("type")
+        if block_type == "tool_use":
+            block_id = block.get("id")
+            block_name = block.get("name")
+            if not isinstance(block_id, str) or block_name not in SKILL_TOOL_NAMES:
+                continue
+            input_data = block.get("input")
+            if not isinstance(input_data, dict):
+                input_data = {}
+            skill = input_data.get("skill")
+            if not isinstance(skill, str):
+                skill = ""
+            stack.append({
+                "id": block_id,
+                "skill": skill.split("\n", 1)[0].strip() or "unknown",
+            })
+        elif block_type == "tool_result":
+            tool_use_id = block.get("tool_use_id")
+            if not isinstance(tool_use_id, str):
+                continue
+            for idx in range(len(stack) - 1, -1, -1):
+                if stack[idx].get("id") == tool_use_id:
+                    del stack[idx]
+                    break
+
+parent = "unknown"
+current = "unknown"
+if stack:
+    current = stack[-1].get("skill") or "unknown"
+if len(stack) >= 2:
+    parent = stack[-2].get("skill") or "unknown"
+
+print(parent)
+print(current)
+' "$transcript_path" 2>/dev/null || printf 'unknown\nunknown\n'
+}
+
 read_counter() {
   local file="$1"
   local current=0
@@ -298,64 +375,6 @@ block_with_reason() {
   debug_log "block" "reason=$reason $detail global_counter=$global_counter max_total_blocks=$MAX_TOTAL_BLOCKS next_action_counter=$next_action_counter max_next_action_blocks=$MAX_NEXT_ACTION_BLOCKS ttl_removed=$TTL_REMOVED"
   printf '%s\n' "{\"decision\":\"block\",\"reason\":\"$block_message\"}"
   exit 0
-}
-
-cleanup_expired_frames() {
-  [ -f "$STACK_FILE" ] || return 0
-
-  local before after tmp_file
-  before="$(read_stack_length "$STACK_FILE")"
-  tmp_file="${STACK_FILE}.tmp"
-
-  if python3 -c 'import json, sys
-from datetime import datetime, timezone
-
-path = sys.argv[1]
-ttl = int(sys.argv[2])
-now = datetime.now(timezone.utc)
-
-try:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-except Exception:
-    data = []
-
-if not isinstance(data, list):
-    data = []
-
-kept = []
-for frame in data:
-    if not isinstance(frame, dict):
-        kept.append(frame)
-        continue
-    pushed_at = frame.get("pushed_at")
-    if not isinstance(pushed_at, str):
-        kept.append(frame)
-        continue
-    try:
-        dt = datetime.fromisoformat(pushed_at.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        age = (now - dt.astimezone(timezone.utc)).total_seconds()
-        if age > ttl:
-            continue
-    except Exception:
-        pass
-    kept.append(frame)
-
-print(json.dumps(kept, ensure_ascii=True))
-' "$STACK_FILE" "$FRAME_TTL" > "$tmp_file" 2>/dev/null; then
-    mv "$tmp_file" "$STACK_FILE" || true
-  else
-    rm -f "$tmp_file"
-    return 0
-  fi
-
-  after="$(read_stack_length "$STACK_FILE")"
-  if [[ "$before" =~ ^[0-9]+$ ]] && [[ "$after" =~ ^[0-9]+$ ]] && [ "$before" -gt "$after" ]; then
-    TTL_REMOVED=$((before - after))
-    echo "[mst-continuation-guard] warning: removed stale frames ttl=${FRAME_TTL}s removed=$TTL_REMOVED" >&2
-  fi
 }
 
 read_active_request_context() {
@@ -765,24 +784,110 @@ check_pending_continuation || true
 
 check_next_action_continuation || true
 
-# --- 4. 콜스택 기반 판단 (핵심 로직) ---
+# --- 4. depth 기반 판단 (핵심 로직) ---
 
 STACK_DEPTH=0
-if [ -f "$STACK_FILE" ]; then
-  cleanup_expired_frames
-  STACK_DEPTH="$(read_stack_length "$STACK_FILE")"
-fi
-
 TRANSCRIPT_DEPTH=""
-MST_STACK_SOURCE="${MST_STACK_SOURCE:-auto}"
-if [ "$MST_STACK_SOURCE" != "hook" ]; then
+PARENT_SKILL="unknown"
+CURRENT_SKILL="unknown"
+MST_STACK_SOURCE="${MST_STACK_SOURCE:-transcript}"
+
+if [ "$MST_STACK_SOURCE" = "hook" ]; then
+  if [ -f "$STACK_FILE" ]; then
+    HOOK_STACK_INFO="$(python3 -c 'import json, sys
+from datetime import datetime, timezone
+
+path = sys.argv[1]
+ttl = int(sys.argv[2])
+now = datetime.now(timezone.utc)
+
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    data = []
+if not isinstance(data, list):
+    data = []
+
+before = len(data)
+kept = []
+for frame in data:
+    if not isinstance(frame, dict):
+        kept.append(frame)
+        continue
+    pushed_at = frame.get("pushed_at")
+    if not isinstance(pushed_at, str):
+        kept.append(frame)
+        continue
+    try:
+        dt = datetime.fromisoformat(pushed_at.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        age = (now - dt.astimezone(timezone.utc)).total_seconds()
+        if age > ttl:
+            continue
+    except Exception:
+        pass
+    kept.append(frame)
+
+removed = before - len(kept)
+if removed > 0:
+    try:
+        with open(path + ".tmp", "w", encoding="utf-8") as wf:
+            wf.write(json.dumps(kept, ensure_ascii=True))
+        import os
+        os.replace(path + ".tmp", path)
+    except Exception:
+        try:
+            import os
+            if os.path.exists(path + ".tmp"):
+                os.remove(path + ".tmp")
+        except Exception:
+            pass
+        kept = data
+        removed = 0
+
+depth = len(kept)
+parent = "unknown"
+current = "unknown"
+if depth >= 1 and isinstance(kept[-1], dict):
+    current = kept[-1].get("skill") or "unknown"
+if depth >= 2 and isinstance(kept[-2], dict):
+    parent = kept[-2].get("skill") or "unknown"
+
+print(depth)
+print(parent)
+print(current)
+print(removed)
+' "$STACK_FILE" "$FRAME_TTL" 2>/dev/null || printf '0\nunknown\nunknown\n0\n')"
+    STACK_DEPTH="$(printf '%s\n' "$HOOK_STACK_INFO" | sed -n '1p')"
+    PARENT_SKILL="$(printf '%s\n' "$HOOK_STACK_INFO" | sed -n '2p')"
+    CURRENT_SKILL="$(printf '%s\n' "$HOOK_STACK_INFO" | sed -n '3p')"
+    TTL_REMOVED="$(printf '%s\n' "$HOOK_STACK_INFO" | sed -n '4p')"
+    if [[ "$TTL_REMOVED" =~ ^[1-9][0-9]*$ ]]; then
+      echo "[mst-continuation-guard] warning: removed stale frames ttl=${FRAME_TTL}s removed=$TTL_REMOVED" >&2
+    else
+      TTL_REMOVED=0
+    fi
+    if ! [[ "$STACK_DEPTH" =~ ^[0-9]+$ ]]; then
+      STACK_DEPTH=0
+    fi
+  fi
+else
   TRANSCRIPT_PATH="$(read_transcript_path_from_bridge "$TRANSCRIPT_BRIDGE_FILE" 2>/dev/null || true)"
   if [ -n "$TRANSCRIPT_PATH" ]; then
     if TRANSCRIPT_DEPTH="$(read_transcript_depth "$TRANSCRIPT_PATH")"; then
-      if [ "$STACK_DEPTH" -ne "$TRANSCRIPT_DEPTH" ]; then
-        debug_log "cross_verify_mismatch" "stack_depth=$STACK_DEPTH transcript_depth=$TRANSCRIPT_DEPTH"
+      STACK_DEPTH="$TRANSCRIPT_DEPTH"
+      TRANSCRIPT_PARENT_CURRENT="$(read_parent_current_from_transcript "$TRANSCRIPT_PATH")"
+      if [ -n "$TRANSCRIPT_PARENT_CURRENT" ]; then
+        PARENT_SKILL="$(printf '%s\n' "$TRANSCRIPT_PARENT_CURRENT" | sed -n '1p')"
+        CURRENT_SKILL="$(printf '%s\n' "$TRANSCRIPT_PARENT_CURRENT" | sed -n '2p')"
       fi
+    else
+      debug_log "allow" "reason=transcript_depth_unavailable stack_source=$MST_STACK_SOURCE transcript_path=$TRANSCRIPT_PATH"
     fi
+  else
+    debug_log "allow" "reason=transcript_path_missing stack_source=$MST_STACK_SOURCE"
   fi
 fi
 
@@ -793,38 +898,12 @@ fi
 
 # depth >= 2: 서브스킬 내부이므로 부모로 돌아가야 함 → block 시도
 
-# 부모 스킬 정보 추출
-PARENT_SKILL="$(python3 -c 'import json, sys
-path = sys.argv[1]
-try:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-except Exception:
-    data = []
-if isinstance(data, list) and len(data) >= 2 and isinstance(data[-2], dict):
-    print(data[-2].get("skill") or "unknown")
-else:
-    print("unknown")
-' "$STACK_FILE" 2>/dev/null || true)"
-CURRENT_SKILL="$(python3 -c 'import json, sys
-path = sys.argv[1]
-try:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-except Exception:
-    data = []
-if isinstance(data, list) and len(data) >= 1 and isinstance(data[-1], dict):
-    print(data[-1].get("skill") or "unknown")
-else:
-    print("unknown")
-' "$STACK_FILE" 2>/dev/null || true)"
-
 # Enrich with active request context for actionable instructions
 REQ_CTX="$(read_active_request_context 2>/dev/null || true)"
 REQ_ID="$(printf '%s' "$REQ_CTX" | cut -f1)"
 REQ_STATUS="$(printf '%s' "$REQ_CTX" | cut -f2)"
 REQ_NEXT_ACTION="$(printf '%s' "$REQ_CTX" | cut -f3)"
-STACK_BLOCK_MSG="Call stack depth=$STACK_DEPTH ($CURRENT_SKILL inside $PARENT_SKILL). Return to parent skill $PARENT_SKILL and continue with the next step."
+STACK_BLOCK_MSG="Skill depth=$STACK_DEPTH ($CURRENT_SKILL inside $PARENT_SKILL). Return to parent skill $PARENT_SKILL and continue with the next step."
 if [ -n "$REQ_NEXT_ACTION" ]; then
   STACK_BLOCK_MSG="$STACK_BLOCK_MSG [ACTIVE REQUEST: $REQ_ID ($REQ_STATUS)] $REQ_NEXT_ACTION"
 fi
