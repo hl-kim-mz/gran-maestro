@@ -71,7 +71,7 @@ interface StitchScreenArtifact {
   title: string | null;
   url: string | null;
   image_url: string | null;
-  html: string | null;
+  html: unknown;
 }
 
 class RefreshConflictError extends Error {
@@ -286,6 +286,64 @@ function toOptionalString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+function extractDownloadUrl(value: unknown): string | null {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (normalized.length === 0) {
+      return null;
+    }
+    if (/^https?:\/\//i.test(normalized)) {
+      return normalized;
+    }
+    try {
+      return extractDownloadUrl(JSON.parse(normalized));
+    } catch {
+      return null;
+    }
+  }
+
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const downloadUrl = record.downloadUrl;
+  if (typeof downloadUrl !== "string") {
+    return null;
+  }
+
+  const normalized = downloadUrl.trim();
+  if (normalized.length === 0 || !/^https?:\/\//i.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+async function resolveArtifactHtmlContent(html: unknown, stitchScreenId: string): Promise<string> {
+  const downloadUrl = extractDownloadUrl(html);
+  if (!downloadUrl) {
+    return typeof html === "string" && html.trim().length > 0 ? html : DEFAULT_SCREEN_HTML;
+  }
+
+  try {
+    const response = await fetch(downloadUrl);
+    if (!response.ok) {
+      console.error(
+        `[designs] Failed to fetch stitch html (screen: ${stitchScreenId}, status: ${response.status})`,
+      );
+      return DEFAULT_SCREEN_HTML;
+    }
+
+    const content = await response.text();
+    return content.trim().length > 0 ? content : DEFAULT_SCREEN_HTML;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[designs] Failed to fetch stitch html (screen: ${stitchScreenId}): ${message}`);
+    return DEFAULT_SCREEN_HTML;
+  }
+}
+
 function buildDesignEditJobId(): string {
   const suffix = crypto.randomUUID().split("-")[0];
   return `job-${Date.now()}-${suffix}`;
@@ -485,7 +543,7 @@ async function getStitchScreenArtifact(projectId: string, screenId: string): Pro
     title: toOptionalString(raw?.title),
     url: toOptionalString(raw?.url),
     image_url: toOptionalString(screen.image) ?? toOptionalString(raw?.image),
-    html: toOptionalString(screen.html) ?? toOptionalString(raw?.html),
+    html: screen.html ?? raw?.html ?? null,
   };
 }
 
@@ -684,7 +742,7 @@ async function runDesignRefreshJob(context: DesignRefreshJobContext): Promise<De
         const htmlFile = resolveScreenHtmlFileName(screen);
         const markdownFile = resolveScreenMarkdownFileName(screen);
         if (htmlFile) {
-          const htmlContent = artifact?.html && artifact.html.trim().length > 0 ? artifact.html : DEFAULT_SCREEN_HTML;
+          const htmlContent = await resolveArtifactHtmlContent(artifact?.html, artifact.stitch_screen_id);
           await Deno.writeTextFile(`${desDir}/${htmlFile}`, htmlContent);
         }
         if (markdownFile) {
@@ -727,7 +785,7 @@ async function runDesignRefreshJob(context: DesignRefreshJobContext): Promise<De
         nextNumber += 1;
         const mdFile = `${screenBase}.md`;
         const htmlFile = `${screenBase}.html`;
-        const htmlContent = artifact.html && artifact.html.trim().length > 0 ? artifact.html : DEFAULT_SCREEN_HTML;
+        const htmlContent = await resolveArtifactHtmlContent(artifact.html, artifact.stitch_screen_id);
 
         await Deno.writeTextFile(
           `${desDir}/${mdFile}`,
@@ -854,7 +912,7 @@ async function runDesignEditJob(context: DesignEditJobContext): Promise<void> {
 
         const mdFile = `${screenBase}.md`;
         const htmlFile = `${screenBase}.html`;
-        const htmlContent = artifact.html && artifact.html.trim().length > 0 ? artifact.html : DEFAULT_SCREEN_HTML;
+        const htmlContent = await resolveArtifactHtmlContent(artifact.html, artifact.stitch_screen_id);
 
         await Deno.writeTextFile(`${desDir}/${mdFile}`, buildScreenMarkdown(
           screenBase,

@@ -254,6 +254,64 @@ async function maybeCall(fn) {
   return fn();
 }
 
+function extractDownloadUrl(value) {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (normalized.length === 0) {
+      return null;
+    }
+    if (/^https?:\/\//i.test(normalized)) {
+      return normalized;
+    }
+    try {
+      return extractDownloadUrl(JSON.parse(normalized));
+    } catch {
+      return null;
+    }
+  }
+
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const downloadUrl = value.downloadUrl;
+  if (typeof downloadUrl !== "string") {
+    return null;
+  }
+
+  const normalized = downloadUrl.trim();
+  if (normalized.length === 0 || !/^https?:\/\//i.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+async function resolveScreenHtml(value, screenId) {
+  const downloadUrl = extractDownloadUrl(value);
+  if (!downloadUrl) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+    return undefined;
+  }
+
+  try {
+    const response = await fetch(downloadUrl);
+    if (!response.ok) {
+      console.error(`[stitch-sdk] getHtml download failed (screen: ${screenId ?? "unknown"}, status: ${response.status})`);
+      return undefined;
+    }
+
+    const html = await response.text();
+    return html.trim().length > 0 ? html : undefined;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[stitch-sdk] getHtml download failed (screen: ${screenId ?? "unknown"}): ${message}`);
+    return undefined;
+  }
+}
+
 async function collectScreenArtifacts(screen) {
   if (!screen) return {};
 
@@ -262,7 +320,8 @@ async function collectScreenArtifacts(screen) {
   let json;
 
   try {
-    html = await maybeCall(() => screen.getHtml());
+    const rawHtml = await maybeCall(() => screen.getHtml());
+    html = await resolveScreenHtml(rawHtml, screen?.id);
   } catch {
     html = undefined;
   }
