@@ -11,6 +11,7 @@ import { SessionCard } from '@/components/shared/SessionCard';
 import { RefreshButton } from '@/components/shared/RefreshButton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -263,51 +264,70 @@ export function ReferenceView() {
             </div>
 
             <ScrollArea className="flex-1">
-              <div className="p-6 space-y-4">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Metadata</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {referenceDetail.url && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold text-muted-foreground">URL</span>
-                        <a 
-                          href={referenceDetail.url} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          className="text-sm text-blue-500 hover:underline flex items-center gap-1 w-fit break-all"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          {referenceDetail.url}
-                        </a>
-                      </div>
-                    )}
-                    {referenceDetail.summary && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold text-muted-foreground">Summary</span>
-                        <p className="text-sm">{referenceDetail.summary}</p>
-                      </div>
-                    )}
-                    {referenceDetail.content_path && (
-                      <div className="flex flex-col gap-1 mt-2">
-                        <span className="text-xs font-semibold text-muted-foreground">Content Path</span>
-                        <p className="text-xs font-mono bg-muted/50 p-1.5 rounded">{referenceDetail.content_path}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+              <div className="p-6">
+                <Tabs key={selectedRefId} defaultValue="metadata" className="w-full">
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="metadata">Metadata</TabsTrigger>
+                    <TabsTrigger value="content">Content</TabsTrigger>
+                  </TabsList>
 
-                {(referenceDetail.content) && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Content</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <MarkdownRenderer content={referenceDetail.content} className="px-1" />
-                    </CardContent>
-                  </Card>
-                )}
+                  <TabsContent value="metadata">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Metadata</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {referenceDetail.url && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-muted-foreground">URL</span>
+                            <a 
+                              href={referenceDetail.url} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-sm text-blue-500 hover:underline flex items-center gap-1 w-fit break-all"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              {referenceDetail.url}
+                            </a>
+                          </div>
+                        )}
+                        {referenceDetail.summary && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Summary</span>
+                            <p className="text-sm">{referenceDetail.summary}</p>
+                          </div>
+                        )}
+                        {referenceDetail.content_path && (
+                          <div className="flex flex-col gap-1 mt-2">
+                            <span className="text-xs font-semibold text-muted-foreground">Content Path</span>
+                            <p className="text-xs font-mono bg-muted/50 p-1.5 rounded">{referenceDetail.content_path}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="content">
+                    {referenceDetail.content ? (
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base">Content</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <MarkdownRenderer content={referenceDetail.content} className="px-1" />
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="py-12">
+                        <EmptyState
+                          icon={<BookOpen className="h-8 w-8" />}
+                          title="Content 없음"
+                          description="저장된 본문(content)이 없습니다."
+                        />
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               </div>
             </ScrollArea>
           </>
