@@ -216,6 +216,35 @@ if [ "$SKILL_NAME" = "mst:request" ]; then
   clear_next_action_on_request_push
 fi
 
+# --- mst:plan 진입 시 Hook 버전 게이트 (세션당 1회) ---
+if [ "$SKILL_NAME" = "mst:plan" ]; then
+  HOOK_CHECK_DONE="/tmp/mst-hook-check-done-${PPID}"
+  if [ ! -f "$HOOK_CHECK_DONE" ]; then
+    touch "$HOOK_CHECK_DONE"
+    PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    if [ -n "$PROJECT_ROOT" ]; then
+      HOOK_VER_FILE="$PROJECT_ROOT/.claude/hooks/.mst-hook-version"
+      HOOK_VER=""
+      [ -f "$HOOK_VER_FILE" ] && HOOK_VER="$(tr -d '[:space:]' < "$HOOK_VER_FILE" 2>/dev/null || true)"
+
+      PLUGIN_VER="$(python3 -c 'import glob,json,os
+home=os.path.expanduser("~")
+for p in sorted(glob.glob(os.path.join(home,".claude/plugins/cache/gran-maestro/mst/*/plugin.json")),reverse=True):
+    try:
+        with open(p) as f: print(json.load(f).get("version","")); break
+    except: continue
+else: print("")
+' 2>/dev/null || true)"
+
+      if [ -n "$PLUGIN_VER" ] && [ "$PLUGIN_VER" != "$HOOK_VER" ]; then
+        HOOK_DISPLAY="${HOOK_VER:-미설치}"
+        printf '{"decision":"block","reason":"[Hook 업데이트 필요] hook: v%s → plugin: v%s. AskUserQuestion으로 선택지를 제시하세요: (1) /mst:on 실행하여 Hook 갱신 후 plan 재실행 (2) 이대로 plan 진행"}\n' "$HOOK_DISPLAY" "$PLUGIN_VER"
+        exit 0
+      fi
+    fi
+  fi
+fi
+
 # 스택 파일 초기화 (없으면)
 if [ ! -f "$STACK_FILE" ]; then
   printf '[]' > "$STACK_FILE"

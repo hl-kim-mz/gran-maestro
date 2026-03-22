@@ -3,6 +3,22 @@
 > 플러그인 세계관 및 스킬 레퍼런스: [docs/CLAUDE.md](docs/CLAUDE.md)
 > 릴리스 체크리스트: [docs/RELEASE.md](docs/RELEASE.md)
 
+## Hook 수정 규칙 (CRITICAL)
+
+`.claude/hooks/` 파일은 **직접 수정 금지**. `/mst:on` 실행 시 `hooks/` 원본에서 덮어씌워집니다.
+
+Hook 수정이 필요할 때는 반드시 아래 순서를 따릅니다:
+
+1. **`hooks/` 원본 수정**: 프로젝트 루트의 `hooks/` 디렉토리 파일을 수정
+2. **프로젝트에 복사**: `cp hooks/*.sh .claude/hooks/`
+3. **플러그인 캐시에 복사**: `cp hooks/*.sh ~/.claude/plugins/cache/gran-maestro/mst/{버전}/hooks/` 및 `cp hooks/*.sh ~/.claude/plugins/cache/gran-maestro/mst/{버전}/.claude/hooks/`
+4. **커밋**: `hooks/`와 `.claude/hooks/` 변경사항 모두 커밋
+
+```
+hooks/                    ← 플러그인 소유 원본 (수정 대상)
+.claude/hooks/            ← 프로젝트 복사본 (/mst:on이 hooks/에서 복사)
+```
+
 ## 프로젝트 구조
 
 ```

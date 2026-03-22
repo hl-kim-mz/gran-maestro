@@ -17,6 +17,15 @@ PY
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# hooks/ 원본 → .claude/hooks/ 프로젝트 복사본 동기화
+if [ -d "$REPO_ROOT/hooks" ]; then
+  mkdir -p "$REPO_ROOT/.claude/hooks"
+  for f in "$REPO_ROOT"/hooks/mst-*.sh; do
+    [ -f "$f" ] && cp "$f" "$REPO_ROOT/.claude/hooks/" && chmod +x "$REPO_ROOT/.claude/hooks/$(basename "$f")"
+  done
+  echo "✓ hooks/ → .claude/hooks/ 동기화 완료"
+fi
+
 rsync -a --delete \
   --exclude='.git' \
   --exclude='node_modules' \
