@@ -9,6 +9,7 @@ import { DesignView } from './views/DesignView';
 import { DocumentsView } from './views/DocumentsView';
 import { IntentsView } from './views/IntentsView';
 import { FactCheckView } from './views/FactCheckView';
+import { ReferenceView } from './views/ReferenceView';
 import { SettingsView } from './views/SettingsView';
 import { ArchivesView } from './views/ArchivesView';
 
@@ -44,6 +45,8 @@ export function AppRoutes() {
       <Route path="/memory/intents/:intentId" element={<IntentsView />} />
       <Route path="/memory/fact-checks" element={<FactCheckView />} />
       <Route path="/memory/fact-checks/:fcId" element={<FactCheckView />} />
+      <Route path="/memory/references" element={<ReferenceView />} />
+      <Route path="/memory/references/:refId" element={<ReferenceView />} />
       <Route path="/archives" element={<ArchivesView />} />
       <Route path="/settings" element={<SettingsView />} />
       <Route path="*" element={<Navigate to="/overview" replace />} />

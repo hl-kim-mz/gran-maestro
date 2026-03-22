@@ -97,6 +97,7 @@ const WORKFLOW_INFO_FOCUS_FIELDS: Partial<Record<WorkflowNode['id'], string[]>> 
   auto_mode: ['plan', 'request', 'review', 'confidence_threshold', 'max_review_iterations'],
   intent_fidelity: ['enabled', 'mode', 'exclude_dirs'],
   plan_qa_presets: ['test_strategy', 'loop_exit', 'loop_exit_n'],
+  reference: ['cache_ttl_days', 'cutoff_threshold_months', 'auto_search', 'max_searches_per_step'],
 };
 
 const WORKFLOW_PHASES: WorkflowPhase[] = [
@@ -175,6 +176,13 @@ const WORKFLOW_PHASES: WorkflowPhase[] = [
         description: 'Plan Q&A 자동화 프리셋',
         kind: 'info',
         configPath: ['plan_qa_presets'],
+      },
+      {
+        id: 'reference',
+        label: 'reference',
+        description: '외부 참조 검색/캐싱 설정',
+        kind: 'info',
+        configPath: ['reference'],
       },
       {
         id: 'prereview',

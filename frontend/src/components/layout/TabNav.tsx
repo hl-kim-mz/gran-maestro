@@ -104,6 +104,16 @@ export function TabNav({
           >
             Fact-Check
           </NavLink>
+          <NavLink
+            to="/memory/references"
+            className={({ isActive }) =>
+              `flex items-center h-full px-2 gap-2 rounded-none transition-colors border-b-2 whitespace-nowrap ${
+                isActive ? 'border-primary text-foreground font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`
+            }
+          >
+            Reference
+          </NavLink>
         </nav>
       )}
     </div>
