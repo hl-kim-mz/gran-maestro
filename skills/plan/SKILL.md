@@ -75,6 +75,42 @@ argument-hint: "{플래닝 주제 또는 해결하고 싶은 질문/문제}"
    - `experience_level`/`domain_knowledge`에 맞춰 용어 수준과 설명 깊이를 조절한다.
    - 누락 필드는 추정하지 않고, 존재하는 필드만 참고한다.
 
+### Reference Lookup Protocol (MANDATORY)
+
+외부 의존성(라이브러리/API/프레임워크/버전/프로토콜) 관련 판단이 포함된 plan 주제는 아래 프로토콜을 공통 적용한다.
+
+0. **자동 트리거 게이트**:
+   - `Read({PROJECT_ROOT}/.gran-maestro/config.resolved.json)`에서 `reference.auto_search`를 확인한다.
+   - `reference.auto_search == true`일 때만 자동 WebSearch를 허용한다.
+   - 설정이 없으면 기본값: `cache_ttl_days=7`, `cutoff_threshold_months=1`, `max_searches_per_step=3`.
+1. **키워드 감지**:
+   - 현재 plan 텍스트(사용자 요청, 주제, 미결 항목, discussion/ideation 입력 후보)에서 아래 계열 키워드를 감지한다.
+   - 계열: `library/framework/api/sdk/protocol/version/dependency` 및 한국어 동의어(라이브러리/프레임워크/의존성/버전).
+   - 감지 키워드가 없으면 검색을 생략하고 `references: none` 컨텍스트만 유지한다.
+2. **3단계 신선도 체크** (키워드별 반복):
+   - (a) 캐시 존재 확인: `.gran-maestro/references/`에서 `python3 {PLUGIN_ROOT}/scripts/mst.py reference search --keyword "{keyword}" --json`으로 후보 REF를 조회한다.
+   - (b) TTL 확인: `searched_at` 기준 `cache_ttl_days` 이내면 `fresh`, 초과면 `stale`.
+   - (c) cutoff 괴리 확인: 현재 시각과 `searched_at`의 차이가 `cutoff_threshold_months`를 넘으면 `expired`로 승격한다.
+3. **WebSearch 트리거**:
+   - 캐시 없음 또는 freshness가 `stale/expired`인 항목만 검색 대상으로 선정한다.
+   - `reference.auto_search == true`일 때만 `WebSearch`를 실행하며, Step당 `max_searches_per_step`를 넘기지 않는다.
+4. **REF 저장**:
+   - 유효한 검색 결과는 즉시 `mst.py reference add`로 저장한다.
+   - 예시: `python3 {PLUGIN_ROOT}/scripts/mst.py reference add --topic "{topic}" --url "{url}" --summary "{summary}" --content "{핵심 요약}"`
+5. **프롬프트 주입 블록 생성**:
+   - 이후 의사결정 프롬프트(질문 생성, ideation/discussion 호출 인자)에 아래 형식의 `[REFERENCE_CONTEXT]`를 반드시 주입한다.
+   - `model_cutoff`는 현재 모델 cutoff 문자열(미확인 시 `unknown`)을 사용한다.
+   - 형식:
+     ```text
+     [REFERENCE_CONTEXT]
+     current_date: {YYYY-MM-DD}
+     model_cutoff: {cutoff_date_or_unknown}
+     references:
+     - REF-001 (fresh|stale|expired) {topic} | {url}
+     [/REFERENCE_CONTEXT]
+     ```
+   - 참조가 없으면 `references: none`을 명시한다.
+
 
 ### Step 0.5: 디버그 의도 감지 & 자동 실행
 
@@ -243,6 +279,13 @@ PM이 자율 분류 → auto-decisions.md에 기록 → 전략 자동 적용
    - 권장 형식: `이전에 "{statement}"를 선호하셨습니다. 이번에도 동일하게 적용할까요?`
    - `freq` 숫자 직접 인용 금지 (경향 문장만 사용).
 4. 사용자가 인용 선호를 반박하면 해당 statement를 `disputed_preferences`에 수집하고 Step 4 저장 시 백그라운드 요약 입력으로 전달한다.
+
+#### Step 2-R: Reference Lookup 실행 (Step 2 분석 직후, Step 2.5 이전, MANDATORY)
+
+1. Step 2에서 정리된 요청 맥락(주제, 미결 항목, 제약, 우선순위 후보)을 입력으로 `Reference Lookup Protocol`을 실행한다.
+2. `reference.auto_search != true`이면 자동 WebSearch는 금지하고, 기존 REF 캐시 조회 결과만 컨텍스트로 사용한다.
+3. 생성된 `[REFERENCE_CONTEXT]` 블록을 Step 2.5/Step 3의 모든 판단 프롬프트(ideation/discussion/explore 포함)에 주입한다.
+4. 본 단계는 구현 지시가 아니라 **판단 최신화 보조** 목적이다. plan 본문에 검색 결과를 복사하지 말고 REF-ID 중심으로 참조한다.
 
 **`debug_context` 활성 시:** 근본 원인+수정 제안을 초기 컨텍스트로 선반영 → `[디버그 조사 결과 요약]` 블록 표시(근본 원인/수정 제안 P0~/영향 파일) → 구현 범위·우선순위·분리 실행 여부를 핵심 미결 항목으로 정리
 

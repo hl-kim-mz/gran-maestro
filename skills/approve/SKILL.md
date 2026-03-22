@@ -34,6 +34,36 @@ PM이 작성한 구현 스펙을 승인하고 Phase 2 실행을 시작합니다.
    - `experience_level`/`domain_knowledge`에 맞춰 용어 수준과 설명 깊이를 조절한다.
    - 누락 필드는 추정하지 않고, 존재하는 필드만 참고한다.
 
+### Reference Lookup Protocol (MANDATORY)
+
+approve 외주 브리프 작성 시 외부 의존성 판단 최신화를 위해 아래 공통 프로토콜을 적용한다.
+
+0. **자동 트리거 게이트**:
+   - `config.resolved.json`의 `reference.auto_search == true`일 때만 자동 WebSearch 허용.
+   - 미설정 기본값: `cache_ttl_days=7`, `cutoff_threshold_months=1`, `max_searches_per_step=3`.
+1. **키워드 감지**:
+   - 태스크 spec(`§1/§2/§3`), 이전 피드백, plan 요약, IMPL_CONTEXT 초안에서 외부 의존성 키워드(라이브러리/API/프레임워크/버전/프로토콜)를 감지한다.
+2. **3단계 신선도 체크**:
+   - (a) `.gran-maestro/references/` 캐시 존재 확인
+   - (b) TTL(`cache_ttl_days`) 기준 `fresh/stale` 판정
+   - (c) cutoff 괴리(`cutoff_threshold_months`) 기준 `expired` 판정
+3. **WebSearch 트리거**:
+   - 캐시 없음 또는 `stale/expired` 항목만 검색 대상으로 선정.
+   - 자동 검색은 `reference.auto_search == true`일 때만 수행.
+4. **REF 저장**:
+   - 검색 결과는 `python3 {PLUGIN_ROOT}/scripts/mst.py reference add --topic "{topic}" --url "{url}" --summary "{summary}" --content "{핵심 요약}"`로 저장.
+5. **프롬프트 주입**:
+   - outsource brief의 `{{IMPL_CONTEXT}}`에 아래 `[REFERENCE_CONTEXT]` 블록을 반드시 포함한다.
+     ```text
+     [REFERENCE_CONTEXT]
+     current_date: {YYYY-MM-DD}
+     model_cutoff: {cutoff_date_or_unknown}
+     references:
+     - REF-001 (fresh|stale|expired) {topic} | {url}
+     [/REFERENCE_CONTEXT]
+     ```
+   - 참조가 없으면 `references: none`으로 명시한다.
+
 
 ### REQ ID 결정 (인자 파싱)
 
@@ -505,6 +535,8 @@ Write -> {PROJECT_ROOT}/.gran-maestro/requests/{REQ-ID}/tasks/{NN}/prompts/phase
 
 브리프는 `templates/impl-request.md` 템플릿 사용.
 - `{{IMPL_CONTEXT}}`: PM 작성 — 3~5줄 자유 형식 (무엇을, 왜, 어떻게 + 주의사항)
+  - Step 4b 시작 시 `Reference Lookup Protocol`을 먼저 실행하고, 생성된 `[REFERENCE_CONTEXT]` 블록을 `{{IMPL_CONTEXT}}` 끝에 주입한다.
+  - `reference.auto_search != true`이면 자동 WebSearch 없이 기존 REF 캐시 조회 결과만 주입한다.
   - `request.json`에 `linked_designs`가 존재하고 비어있지 않으면, `{{IMPL_CONTEXT}}` 끝에 다음 문구를 자동 추가:
     `"spec.md §10의 Stitch HTML 파일을 참조하되 기술 스택에 맞게 구현하세요."`
 - `{{SPEC_PATH}}`, `{{WORKTREE_PATH}}`, `{{REQ_ID}}`, `{{TASK_ID}}`: 자동 주입

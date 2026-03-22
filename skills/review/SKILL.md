@@ -42,6 +42,36 @@ argument-hint: "[REQ-ID] [--auto]"
    - `experience_level`/`domain_knowledge`에 맞춰 용어 수준과 설명 깊이를 조절한다.
    - 누락 필드는 추정하지 않고, 존재하는 필드만 참고한다.
 
+### Reference Lookup Protocol (MANDATORY)
+
+review 단계에서 외부 의존성 관련 AC/리뷰 포인트가 보이면 아래 공통 프로토콜을 적용한다.
+
+0. **자동 트리거 게이트**:
+   - `config.resolved.json`의 `reference.auto_search`가 `true`일 때만 자동 WebSearch 허용.
+   - 미설정 기본값: `cache_ttl_days=7`, `cutoff_threshold_months=1`, `max_searches_per_step=3`.
+1. **키워드 감지**:
+   - spec AC, Plan AC, 변경 파일 설명, 리뷰 이슈 텍스트에서 외부 의존성 키워드(라이브러리/API/프레임워크/버전/프로토콜 계열)를 감지한다.
+2. **3단계 신선도 체크**:
+   - (a) `.gran-maestro/references/` 캐시 존재 확인 (`mst.py reference search --keyword ... --json`)
+   - (b) TTL 기준 `fresh/stale` 판정 (`cache_ttl_days`)
+   - (c) cutoff 괴리 기준 `expired` 판정 (`cutoff_threshold_months`)
+3. **WebSearch 트리거**:
+   - 캐시 없음 또는 `stale/expired`인 항목만 검색.
+   - 자동 검색은 `reference.auto_search == true`일 때만 실행.
+4. **REF 저장**:
+   - 신규 검색 결과는 `mst.py reference add`로 저장하고 REF-ID를 확보한다.
+5. **프롬프트 주입**:
+   - Pass B 리뷰어 프롬프트에 아래 `[REFERENCE_CONTEXT]`를 공통 주입한다.
+     ```text
+     [REFERENCE_CONTEXT]
+     current_date: {YYYY-MM-DD}
+     model_cutoff: {cutoff_date_or_unknown}
+     references:
+     - REF-001 (fresh|stale|expired) {topic} | {url}
+     [/REFERENCE_CONTEXT]
+     ```
+   - 참조 없음이면 `references: none`을 유지한다.
+
 
 ### Step 1: 초기화
 
@@ -110,6 +140,10 @@ argument-hint: "[REQ-ID] [--auto]"
    - `request.json.source_plan` 존재 시: `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`에서 `## 요청 (Refined)` + `## Intent (JTBD)`를 추출하여 `{PLAN_INTENT_CONTEXT}`로 보관한다.
    - docs 컨텍스트: `Intent Trace`의 `근거 출처`에 포함된 `docs/` 경로 + `intent_snapshot`(존재 시)의 docs 경로를 dedup 후 Read하여 `{INTENT_DOCS_CONTEXT}`로 보관한다. docs가 없으면 skip.
    - 섹션 미존재 시: `intent_fidelity_skip_reason = "Intent Fidelity 리뷰 skip (Intent Trace 없음)"`를 설정하고 intent_fidelity dispatch를 auto-skip 처리한다.
+4-c. **Reference 컨텍스트 수집 (MANDATORY)**:
+   - Step 2 입력(AC 목록, 변경 파일, plan/request 요약)에서 외부 의존성 키워드를 감지하고 `Reference Lookup Protocol`을 실행한다.
+   - 자동 WebSearch는 `reference.auto_search == true`일 때만 수행한다.
+   - 결과를 `reference_context_block`으로 보관해 Pass B 모든 리뷰어 프롬프트에 공통 주입한다.
 5. **config 로드**: `config.resolved.json`에서 아래 값을 확인.
    - `review.roles.*` 에이전트 키
    - `review.roles.browser_tester.agent` / `review.roles.browser_tester.tier` (존재 시 Pass A의 browser-test AC 실행 주체를 PM 직접 실행 → 서브에이전트 위임으로 전환)
@@ -390,6 +424,7 @@ arch_reviewer dispatch 시 `templates/review-request.md`의 `{{PERSPECTIVE}}`에
 
 - `{{SPEC_PATH}}`: 해당 태스크의 `{PROJECT_ROOT}/.gran-maestro/requests/{REQ_ID}/tasks/{NN}/spec.md` 절대 경로
 - `{{PLAN_PATH}}`: `request.json.source_plan` 존재 시 `{PROJECT_ROOT}/.gran-maestro/plans/{source_plan}/plan.md`, 미존재 시 `"N/A"`
+- `{{REFERENCE_CONTEXT}}`: Step 2에서 생성한 `[REFERENCE_CONTEXT]` 블록 (`references: none` 포함). code/arch/ui/intent_fidelity/impact 모든 리뷰어 프롬프트에 동일 주입.
 
 #### impact_reviewer dispatch 입력 규칙
 

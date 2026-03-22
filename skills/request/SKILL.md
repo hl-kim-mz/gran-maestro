@@ -56,6 +56,38 @@ Maestro 모드 비활성 시 자동 활성화:
    - `experience_level`/`domain_knowledge`에 맞춰 용어 수준과 설명 깊이를 조절한다.
    - 누락 필드는 추정하지 않고, 존재하는 필드만 참고한다.
 
+### Reference Lookup Protocol (MANDATORY)
+
+외부 의존성(라이브러리/API/프레임워크/버전/프로토콜) 관련 spec 판단은 아래 공통 프로토콜을 따른다.
+
+0. **자동 트리거 게이트**:
+   - `Read({PROJECT_ROOT}/.gran-maestro/config.resolved.json)`에서 `reference.auto_search` 확인.
+   - `reference.auto_search == true`일 때만 자동 WebSearch 허용.
+   - 설정 미존재 시 기본값: `cache_ttl_days=7`, `cutoff_threshold_months=1`, `max_searches_per_step=3`.
+1. **키워드 감지**:
+   - 요청 원문, plan 컨텍스트, Step 1c 탐색 결과, 접근법 후보 텍스트에서 `library/framework/api/sdk/protocol/version/dependency` 계열(한국어 동의어 포함) 키워드를 감지.
+2. **3단계 신선도 체크**:
+   - (a) `.gran-maestro/references/` 캐시 존재 확인: `python3 {PLUGIN_ROOT}/scripts/mst.py reference search --keyword "{keyword}" --json`
+   - (b) TTL 체크: `searched_at + cache_ttl_days` 경과 여부로 `fresh/stale` 판정
+   - (c) cutoff 괴리 체크: 현재 시각 대비 `cutoff_threshold_months` 초과 시 `expired` 판정
+3. **WebSearch 트리거**:
+   - 캐시 없음 또는 `stale/expired`일 때만 검색.
+   - `reference.auto_search == true`일 때만 실행, Step당 최대 `max_searches_per_step` 유지.
+4. **REF 저장**:
+   - 검색 결과를 `python3 {PLUGIN_ROOT}/scripts/mst.py reference add --topic "{topic}" --url "{url}" --summary "{summary}" --content "{핵심 요약}"`로 저장.
+5. **프롬프트 주입**:
+   - 이후 spec 작성 프롬프트와 outsource brief 컨텍스트에 `[REFERENCE_CONTEXT]`를 주입한다.
+   - 형식:
+     ```text
+     [REFERENCE_CONTEXT]
+     current_date: {YYYY-MM-DD}
+     model_cutoff: {cutoff_date_or_unknown}
+     references:
+     - REF-001 (fresh|stale|expired) {topic} | {url}
+     [/REFERENCE_CONTEXT]
+     ```
+   - 참조가 없으면 `references: none`으로 명시한다.
+
 
 > ⚠️ **절대 금지 (예외 없음)**: spec.md 저장 및 `/mst:approve` 확인 전에는
 > 코드 수정·파일 편집·git 커밋·빌드 등 어떠한 구현 행위도 수행하지 않는다.
@@ -182,6 +214,11 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
       총 소요 = max(enabled_roles_time, claude_direct_time) — 추가 지연 없음
       반드시 `Skill(skill: "mst:codex/gemini", ...)` 도구로 호출 — MCP 직접 호출 금지
       role agent 기본값: symbol_tracing=codex, broad_scan=gemini
+   c-ref. **Reference Lookup 실행 (Step 1c 완료 직후, Step h 이전, MANDATORY)**:
+      - Step 1c 탐색 산출물(핵심 파일/패턴/충돌 가능성) + 요청 원문 + plan 컨텍스트를 입력으로 `Reference Lookup Protocol`을 실행한다.
+      - `reference.auto_search != true`이면 자동 WebSearch 없이 기존 REF 캐시 조회만 수행한다.
+      - 생성된 `[REFERENCE_CONTEXT]`를 `reference_context_block` 변수로 보관하고, Step h spec 작성 프롬프트에 반드시 주입한다.
+      - spec 본문에 검색 결과 원문을 장문 복사하지 않고, REF-ID/주제/신선도 중심으로 요약 반영한다.
    c-arch. **아키텍처 논의 게이트 (Step 1d-arch)**:
       - 실행 시점: Step 1c 탐색 완료 직후 (Step 1e 이전)
       - PM은 탐색 결과를 바탕으로 트리거 조건 A·B·C를 점검:
