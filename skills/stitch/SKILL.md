@@ -55,6 +55,18 @@ argument-hint: "[--auto] [--variants] [--init] [--req REQ-NNN] [--model pro|flas
   - `[MST skill={name} step=1/3 return_to=null]`
   - `[MST skill={subskill} step=returned return_to={parent_skill}/{step_number}]`
 
+## 시안 제시 금지 행위 (CRITICAL)
+
+> ⚠️ **시안 제시 금지 행위 (CRITICAL)**: 시안 생성 완료 후 결과를 사용자에게 보여줄 때, 아래 행위는 **절대 금지**합니다:
+> - `curl`로 HTML/이미지 다운로드하여 로컬에서 보여주기
+> - `python3 -m http.server` 등 로컬 서버를 실행하여 시안 미리보기
+> - Claude in Chrome(`navigate`, `tabs_create`, `computer` 등) 브라우저 자동화로 시안 표시
+> - 기타 외부 도구를 사용한 시안 직접 미리보기
+>
+> 시안 확인은 **대시보드 Designs 탭**에서만 수행합니다.
+> 모든 결과 보고에 `{DASHBOARD_BASE_URL}/designs/{DES-NNN}` URL만 안내하세요.
+> 이 규칙은 최초 시안, Edit 결과, Alt 결과, Redesign 결과 등 **모든 시안 제시 시점**에 적용됩니다.
+
 ## DES 채번 및 프로젝트 확인/생성
 
 > **경로 규칙 (MANDATORY)**: 이 스킬의 모든 `.gran-maestro/` 경로는 **절대경로**로 사용합니다.
@@ -814,7 +826,14 @@ variants 생성 시:
      }
      ```
 
-5. **반복 정제 루프 진입**:
+5. **결과 안내** (대시보드 URL만 사용):
+   ```
+   [Stitch] Edit 완료.
+   🌐 대시보드에서 확인: {DASHBOARD_BASE_URL}/designs/{DES-NNN}
+   ```
+   > ⚠️ curl/로컬서버/브라우저 자동화로 시안을 직접 보여주는 행위는 금지입니다.
+
+6. **반복 정제 루프 진입**:
    - 현재 화면 컨텍스트를 방금 생성된 `screen-NNN`으로 갱신하고 `## Edit/Alt 반복 정제 루프`를 시작한다.
 
 ## Alt 프로토콜
@@ -844,7 +863,14 @@ variants 생성 시:
    - 선택된 variant만 `screen-NNN.md`/`screen-NNN.html` + `design.json screens[]`에 저장한다.
    - 저장 항목의 `parent_screen_id`는 `{SCREEN_ID}`로 기록한다.
 
-6. **반복 정제 루프 진입**:
+6. **결과 안내** (대시보드 URL만 사용):
+   ```
+   [Stitch] Alt 완료.
+   🌐 대시보드에서 확인: {DASHBOARD_BASE_URL}/designs/{DES-NNN}
+   ```
+   > ⚠️ curl/로컬서버/브라우저 자동화로 시안을 직접 보여주는 행위는 금지입니다.
+
+7. **반복 정제 루프 진입**:
    - 현재 화면 컨텍스트를 선택된 `screen-NNN`으로 갱신하고 `## Edit/Alt 반복 정제 루프`를 시작한다.
 
 ## Edit/Alt 반복 정제 루프
@@ -918,6 +944,7 @@ Edit/Alt로 결과가 생성된 직후 아래 루프를 실행한다.
    🔗 프로젝트: {프로젝트 URL}
    🌐 대시보드에서 확인: {DASHBOARD_BASE_URL}/designs/{DES-NNN}  ← linked_designs에서 DES-NNN 확보 시에만 표시
    ```
+   > ⚠️ curl/로컬서버/브라우저 자동화로 시안을 직접 보여주는 행위는 금지입니다.
 
 5. **메타데이터 기록** (기존 메타데이터 패턴 재사용):
    - REQ-NNN이 있을 경우 `request.json`의 `stitch_screens` 배열에 각 variant를 기록:
