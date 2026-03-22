@@ -7,6 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Terminal, Activity, GitBranch, ClipboardList, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -46,6 +48,21 @@ interface BrowserTestItem {
   results?: BrowserTestResult[];
   screenshots: string[];
   screenshot_urls: string[];
+}
+
+type AcStatus = 'PASS' | 'FAIL' | 'UNVERIFIED';
+
+interface ParsedAcceptanceCriterion {
+  id: string;
+  title: string;
+  given: string | null;
+  when: string | null;
+  then: string | null;
+}
+
+interface AcStatusMeta {
+  status: AcStatus;
+  rvId: string | null;
 }
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -89,6 +106,103 @@ function getReviewBadge(summary: ReviewSummary | null | undefined): string | und
   return undefined;
 }
 
+function normalizeAcId(acId: string | null | undefined): string {
+  if (!acId) return '';
+  return acId.trim().toUpperCase();
+}
+
+function normalizeAcStatus(status: string | null | undefined): AcStatus {
+  const upper = status?.toUpperCase();
+  if (upper === 'PASS') return 'PASS';
+  if (upper === 'FAIL') return 'FAIL';
+  return 'UNVERIFIED';
+}
+
+function getAcStatusLabel(status: AcStatus): string {
+  if (status === 'UNVERIFIED') return '미검증';
+  return status;
+}
+
+function getAcStatusSummary(statusMeta: AcStatusMeta | undefined): string {
+  if (!statusMeta) return '상태: 미검증';
+  const reviewText = statusMeta.rvId ? ` · ${statusMeta.rvId}` : '';
+  return `상태: ${getAcStatusLabel(statusMeta.status)}${reviewText}`;
+}
+
+function getAcBadgeClassName(status: AcStatus): string {
+  if (status === 'PASS') return 'bg-green-100 border-green-300 text-green-800 hover:bg-green-200';
+  if (status === 'FAIL') return 'bg-red-100 border-red-300 text-red-800 hover:bg-red-200';
+  return 'bg-muted border text-muted-foreground hover:bg-muted/80';
+}
+
+function getTaskCoversAc(selectedReq: any, task: any): string[] {
+  const fromRequest = selectedReq?.tasks?.find((item: any) => item.id === task.id)?.covers_ac;
+  const fromTask = task?.covers_ac;
+  const coversAc = Array.isArray(fromRequest) ? fromRequest : fromTask;
+  if (!Array.isArray(coversAc)) return [];
+  return coversAc
+    .map((acId) => normalizeAcId(String(acId)))
+    .filter((acId) => acId.length > 0);
+}
+
+function parseAcceptanceCriteriaFromSpec(specContent: string | null | undefined): Record<string, ParsedAcceptanceCriterion> {
+  if (!specContent) return {};
+
+  const normalized = specContent.replace(/\r\n/g, '\n');
+  const sectionHeaderMatch = normalized.match(/^##\s*3\.\s*수락\s*조건.*$/m);
+  if (!sectionHeaderMatch || sectionHeaderMatch.index == null) return {};
+
+  const startIndex = sectionHeaderMatch.index;
+  const afterStart = normalized.slice(startIndex + sectionHeaderMatch[0].length);
+  const nextSectionOffset = afterStart.search(/\n##\s+/);
+  const sectionText = nextSectionOffset >= 0
+    ? normalized.slice(startIndex, startIndex + sectionHeaderMatch[0].length + nextSectionOffset)
+    : normalized.slice(startIndex);
+
+  const result: Record<string, ParsedAcceptanceCriterion> = {};
+  const lines = sectionText.split('\n');
+
+  let currentAcId: string | null = null;
+  let currentLines: string[] = [];
+
+  const flushCurrent = () => {
+    if (!currentAcId) return;
+
+    const bodyLines = currentLines
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    const firstLine = bodyLines.find((line) => !/^(given|when|then|test)\s*:/i.test(line)) ?? null;
+    const given = bodyLines.find((line) => /^given\s*:/i.test(line))?.replace(/^given\s*:\s*/i, '').trim() ?? null;
+    const when = bodyLines.find((line) => /^when\s*:/i.test(line))?.replace(/^when\s*:\s*/i, '').trim() ?? null;
+    const then = bodyLines.find((line) => /^then\s*:/i.test(line))?.replace(/^then\s*:\s*/i, '').trim() ?? null;
+
+    result[currentAcId] = {
+      id: currentAcId,
+      title: firstLine ?? given ?? when ?? then ?? currentAcId,
+      given,
+      when,
+      then,
+    };
+  };
+
+  for (const line of lines) {
+    const headerMatch = line.trim().match(/^####\s*(AC-\d+)\b/i);
+    if (headerMatch) {
+      flushCurrent();
+      currentAcId = normalizeAcId(headerMatch[1]);
+      currentLines = [];
+      continue;
+    }
+
+    if (!currentAcId) continue;
+    currentLines.push(line);
+  }
+
+  flushCurrent();
+  return result;
+}
+
 export function WorkflowView() {
   const { projectId, lastSseEvent, navigateTo } = useAppContext();
   const { reqId, taskId: paramTaskId } = useParams();
@@ -108,6 +222,8 @@ export function WorkflowView() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [traceContent, setTraceContent] = useState<string | null>(null);
+  const [taskSpecByTaskId, setTaskSpecByTaskId] = useState<Record<string, string | null>>({});
+  const [openAcPopoverKey, setOpenAcPopoverKey] = useState<string | null>(null);
   const logScrollAreaRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -181,6 +297,39 @@ export function WorkflowView() {
     }
     return Array.from(grouped.entries()).map(([rvId, items]) => ({ rvId, items }));
   }, [browserTests]);
+
+  const latestAcStatusById = useMemo(() => {
+    const sortedByLatest = [...browserTests].sort((a, b) => {
+      const aTime = a.created_at ?? '';
+      const bTime = b.created_at ?? '';
+      return bTime.localeCompare(aTime);
+    });
+
+    const map = new Map<string, AcStatusMeta>();
+    for (const browserTest of sortedByLatest) {
+      const reviewId = browserTest.rv_id ?? null;
+      for (const result of browserTest.results ?? []) {
+        const acId = normalizeAcId(result.ac_id);
+        if (!acId || map.has(acId)) continue;
+
+        map.set(acId, {
+          status: normalizeAcStatus(result.status),
+          rvId: reviewId,
+        });
+      }
+    }
+    return map;
+  }, [browserTests]);
+
+  const parsedAcByTaskId = useMemo(() => {
+    const map: Record<string, Record<string, ParsedAcceptanceCriterion>> = {};
+    for (const [taskId, spec] of Object.entries(taskSpecByTaskId)) {
+      map[taskId] = parseAcceptanceCriteriaFromSpec(spec);
+    }
+    return map;
+  }, [taskSpecByTaskId]);
+
+  const isAnyAcPopoverOpen = openAcPopoverKey !== null;
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -370,6 +519,64 @@ export function WorkflowView() {
       .then(data => setSelectedTaskDetail(data))
       .catch(() => setSelectedTaskDetail(null));
   }, [selectedReq?.id, selectedTask?.id, projectId]);
+
+  useEffect(() => {
+    setTaskSpecByTaskId({});
+    setOpenAcPopoverKey(null);
+  }, [selectedReq?.id]);
+
+  useEffect(() => {
+    if (!selectedTask?.id || !selectedTaskDetail?.spec) return;
+    setTaskSpecByTaskId((prev) => {
+      if (prev[selectedTask.id] === selectedTaskDetail.spec) return prev;
+      return { ...prev, [selectedTask.id]: selectedTaskDetail.spec };
+    });
+  }, [selectedTask?.id, selectedTaskDetail?.spec]);
+
+  useEffect(() => {
+    if (!selectedReq || !projectId || tasks.length === 0) return;
+
+    const missingTaskIds = tasks
+      .filter((task: any) => {
+        const coversAc = getTaskCoversAc(selectedReq, task);
+        return coversAc.length > 0 && !(task.id in taskSpecByTaskId);
+      })
+      .map((task: any) => task.id);
+
+    if (missingTaskIds.length === 0) return;
+
+    let isCancelled = false;
+    Promise.all(
+      missingTaskIds.map(async (taskId) => {
+        try {
+          const detail = await apiFetch<any>(
+            `/api/requests/${selectedReq.id}/tasks/${taskId}`,
+            projectId,
+          );
+          return [taskId, detail?.spec ?? null] as const;
+        } catch (err) {
+          console.error(`Failed to load task spec for ${taskId}:`, err);
+          return [taskId, null] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (isCancelled) return;
+      setTaskSpecByTaskId((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const [taskId, spec] of entries) {
+          if (taskId in prev) continue;
+          next[taskId] = spec;
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedReq?.id, selectedReq?.tasks, projectId, tasks, taskSpecByTaskId]);
 
   const handleStatusChange = async (targetStatus: string) => {
     try {
@@ -807,16 +1014,79 @@ export function WorkflowView() {
                               <p className="text-[11px] line-clamp-2 leading-snug">{task.name}</p>
                             )}
                             {(() => {
-                              const coversAc = selectedReq?.tasks?.find((t: any) => t.id === task.id)?.covers_ac || task.covers_ac;
-                              if (!Array.isArray(coversAc) || coversAc.length === 0) return null;
+                              const coversAc = getTaskCoversAc(selectedReq, task);
+                              if (coversAc.length === 0) return null;
+                              const parsedAcById = parsedAcByTaskId[task.id] ?? {};
                               return (
-                                <div className="flex flex-wrap gap-1 mt-1.5">
-                                  {coversAc.map((acId: string) => (
-                                    <span key={acId} className="px-1 py-0.5 rounded text-[9px] bg-muted border text-muted-foreground font-mono">
-                                      {acId}
-                                    </span>
-                                  ))}
-                                </div>
+                                <TooltipProvider delayDuration={150}>
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {coversAc.map((acId) => {
+                                      const key = `${task.id}:${acId}`;
+                                      const statusMeta = latestAcStatusById.get(acId);
+                                      const status = statusMeta?.status ?? 'UNVERIFIED';
+                                      const parsedAc = parsedAcById[acId];
+                                      const tooltipTitle = parsedAc?.title ?? acId;
+                                      const statusSummary = getAcStatusSummary(statusMeta);
+                                      const statusLabel = getAcStatusLabel(status);
+                                      const reviewId = statusMeta?.rvId ?? 'N/A';
+
+                                      return (
+                                        <Popover
+                                          key={key}
+                                          open={openAcPopoverKey === key}
+                                          onOpenChange={(open) => {
+                                            setOpenAcPopoverKey((prev) => {
+                                              if (open) return key;
+                                              return prev === key ? null : prev;
+                                            });
+                                          }}
+                                        >
+                                          <Tooltip open={isAnyAcPopoverOpen ? false : undefined}>
+                                            <TooltipTrigger asChild>
+                                              <PopoverTrigger asChild>
+                                                <button
+                                                  type="button"
+                                                  onClick={(event) => event.stopPropagation()}
+                                                  className={`px-1 py-0.5 rounded text-[9px] border font-mono transition-colors ${getAcBadgeClassName(status)}`}
+                                                >
+                                                  {acId}
+                                                </button>
+                                              </PopoverTrigger>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" className="max-w-72 text-[11px]">
+                                              <div className="font-medium">{tooltipTitle}</div>
+                                              <div className="text-muted-foreground">{statusSummary}</div>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                          <PopoverContent
+                                            side="right"
+                                            align="start"
+                                            className="w-96 max-w-[calc(100vw-2rem)] p-3"
+                                            onClick={(event) => event.stopPropagation()}
+                                          >
+                                            <div className="space-y-2 text-xs">
+                                              <div className="flex items-center gap-2">
+                                                <span className="font-mono text-[11px] font-semibold">{acId}</span>
+                                                <span className={`px-1.5 py-0.5 rounded border text-[10px] font-medium ${getAcBadgeClassName(status)}`}>
+                                                  {statusLabel}
+                                                </span>
+                                              </div>
+                                              <p className="text-[11px] leading-relaxed">{tooltipTitle}</p>
+                                              <div className="rounded border bg-muted/30 p-2 space-y-1 text-[11px]">
+                                                <p><span className="font-semibold">Given:</span> {parsedAc?.given ?? '-'}</p>
+                                                <p><span className="font-semibold">When:</span> {parsedAc?.when ?? '-'}</p>
+                                                <p><span className="font-semibold">Then:</span> {parsedAc?.then ?? '-'}</p>
+                                              </div>
+                                              <p className="text-[11px] text-muted-foreground">
+                                                Review ID: <span className="font-mono">{reviewId}</span>
+                                              </p>
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+                                      );
+                                    })}
+                                  </div>
+                                </TooltipProvider>
                               );
                             })()}
                             {(task.assigned_agent || task.agent) && (
