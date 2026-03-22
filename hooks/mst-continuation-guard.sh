@@ -8,6 +8,7 @@ MST_TMP="${PROJECT_ROOT}/.gran-maestro/tmp"
 mkdir -p "$MST_TMP"
 
 STACK_FILE="${MST_TMP}/mst-call-stack-${PPID}.json"
+TRANSCRIPT_BRIDGE_FILE="${MST_TMP}/mst-transcript-${PPID}.path"
 COUNTER_FILE="${MST_TMP}/mst-stop-hook-count-${PPID}"
 NEXT_ACTION_FILE="${MST_TMP}/mst-next-action-${PPID}.json"
 NEXT_ACTION_COUNTER_FILE="${MST_TMP}/mst-next-action-count-${PPID}"
@@ -107,6 +108,105 @@ print(len(data))
   else
     printf '0'
   fi
+}
+
+read_transcript_path_from_bridge() {
+  local bridge_file="$1"
+  [ -f "$bridge_file" ] || return 1
+
+  local transcript_path
+  transcript_path="$(python3 -c 'import sys
+path = sys.argv[1]
+value = ""
+try:
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        value = (f.readline() or "").strip()
+except Exception:
+    value = ""
+if value:
+    print(value)
+' "$bridge_file" 2>/dev/null || true)"
+
+  [ -n "$transcript_path" ] || return 1
+  printf '%s' "$transcript_path"
+}
+
+read_transcript_depth() {
+  local transcript_path="$1"
+  [ -n "$transcript_path" ] || return 1
+
+  local depth
+  depth="$(python3 -c 'import json, os, sys
+
+path = sys.argv[1]
+MAX_TAIL_BYTES = 512 * 1024
+SKILL_TOOL_NAMES = {"Skill", "proxy_Skill"}
+
+if not path or not os.path.isfile(path):
+    sys.exit(1)
+
+try:
+    file_size = os.path.getsize(path)
+except Exception:
+    sys.exit(1)
+
+try:
+    if file_size > MAX_TAIL_BYTES:
+        start_offset = max(0, file_size - MAX_TAIL_BYTES)
+        with open(path, "rb") as f:
+            f.seek(start_offset)
+            raw = f.read()
+        text = raw.decode("utf-8", errors="ignore")
+        lines = text.splitlines()
+        if start_offset > 0 and lines:
+            lines = lines[1:]
+    else:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.read().splitlines()
+except Exception:
+    sys.exit(1)
+
+pending = {}
+for line in lines:
+    if not line.strip():
+        continue
+    try:
+        entry = json.loads(line)
+    except Exception:
+        continue
+    if not isinstance(entry, dict):
+        continue
+
+    message = entry.get("message")
+    if not isinstance(message, dict):
+        continue
+    content = message.get("content")
+    if not isinstance(content, list):
+        continue
+
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        block_type = block.get("type")
+        if block_type == "tool_use":
+            block_id = block.get("id")
+            block_name = block.get("name")
+            if not isinstance(block_id, str) or block_name not in SKILL_TOOL_NAMES:
+                continue
+            pending[block_id] = True
+        elif block_type == "tool_result":
+            tool_use_id = block.get("tool_use_id")
+            if isinstance(tool_use_id, str):
+                pending.pop(tool_use_id, None)
+
+print(len(pending))
+' "$transcript_path" 2>/dev/null || true)"
+
+  if [[ "$depth" =~ ^[0-9]+$ ]]; then
+    printf '%s' "$depth"
+    return 0
+  fi
+  return 1
 }
 
 read_counter() {
@@ -671,6 +771,19 @@ STACK_DEPTH=0
 if [ -f "$STACK_FILE" ]; then
   cleanup_expired_frames
   STACK_DEPTH="$(read_stack_length "$STACK_FILE")"
+fi
+
+TRANSCRIPT_DEPTH=""
+MST_STACK_SOURCE="${MST_STACK_SOURCE:-auto}"
+if [ "$MST_STACK_SOURCE" != "hook" ]; then
+  TRANSCRIPT_PATH="$(read_transcript_path_from_bridge "$TRANSCRIPT_BRIDGE_FILE" 2>/dev/null || true)"
+  if [ -n "$TRANSCRIPT_PATH" ]; then
+    if TRANSCRIPT_DEPTH="$(read_transcript_depth "$TRANSCRIPT_PATH")"; then
+      if [ "$STACK_DEPTH" -ne "$TRANSCRIPT_DEPTH" ]; then
+        debug_log "cross_verify_mismatch" "stack_depth=$STACK_DEPTH transcript_depth=$TRANSCRIPT_DEPTH"
+      fi
+    fi
+  fi
 fi
 
 # depth <= 1: 최상위 스킬이거나 스택 비어있음 → Stop 허용
