@@ -73,6 +73,11 @@ async function loadPreset(presetId: string, baseDir: string): Promise<{ data: ob
   return null;
 }
 
+async function isBuiltinPreset(presetId: string): Promise<boolean> {
+  const manifest = await readJsonFile<ManifestType>(MANIFEST_PATH);
+  return Array.isArray(manifest?.presets) && manifest.presets.some((preset) => preset.id === presetId);
+}
+
 projectPresetsApi.get("/presets", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
   if (!baseDir) {
@@ -183,6 +188,89 @@ projectPresetsApi.post("/presets/:presetId/apply", async (c) => {
   return c.json({ ok: true, changes });
 });
 
+projectPresetsApi.delete("/presets/:presetId", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const presetId = c.req.param("presetId");
+  if (!PRESET_ID_RE.test(presetId)) {
+    return c.json({ error: "Preset not found" }, 404);
+  }
+
+  if (await isBuiltinPreset(presetId)) {
+    return c.json({ error: "Cannot delete built-in preset" }, 403);
+  }
+
+  const userPresetPath = join(baseDir, "presets", `${presetId}.json`);
+  try {
+    await Deno.remove(userPresetPath);
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) {
+      return c.json({ error: "Preset not found" }, 404);
+    }
+    return c.json({ error: "Failed to delete preset" }, 500);
+  }
+
+  return c.json({ ok: true });
+});
+
+projectPresetsApi.patch("/presets/:presetId", async (c) => {
+  const baseDir = resolveBaseDir(c.req.param("projectId"));
+  if (!baseDir) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const presetId = c.req.param("presetId");
+  if (!PRESET_ID_RE.test(presetId)) {
+    return c.json({ error: "Preset not found" }, 404);
+  }
+
+  if (await isBuiltinPreset(presetId)) {
+    return c.json({ error: "Cannot edit built-in preset" }, 403);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const { name, description } = body;
+  if (name !== undefined && typeof name !== "string") {
+    return c.json({ error: "Invalid name. Must be a string." }, 400);
+  }
+  if (description !== undefined && typeof description !== "string") {
+    return c.json({ error: "Invalid description. Must be a string." }, 400);
+  }
+  if (name === undefined && description === undefined) {
+    return c.json({ error: "No fields to update" }, 400);
+  }
+
+  const userPresetPath = join(baseDir, "presets", `${presetId}.json`);
+  const presetData = await readJsonFile<Record<string, unknown>>(userPresetPath);
+  if (!presetData) {
+    return c.json({ error: "Preset not found" }, 404);
+  }
+
+  const nextPresetData: Record<string, unknown> = { ...presetData };
+  if (name !== undefined) {
+    nextPresetData.name = name;
+  }
+  if (description !== undefined) {
+    nextPresetData.description = description;
+  }
+
+  const writeOk = await writeJsonFile(userPresetPath, nextPresetData);
+  if (!writeOk) {
+    return c.json({ error: "Failed to update preset" }, 500);
+  }
+
+  return c.json({ ok: true });
+});
+
 projectPresetsApi.post("/presets", async (c) => {
   const baseDir = resolveBaseDir(c.req.param("projectId"));
   if (!baseDir) {
@@ -191,10 +279,16 @@ projectPresetsApi.post("/presets", async (c) => {
 
   try {
     const body = await c.req.json();
-    const { id, name, description } = body as Record<string, unknown>;
+    const { id, name, description, force } = body as Record<string, unknown>;
 
-    if (!id || typeof id !== "string" || !/^[a-z0-9-]+$/.test(id)) {
+    if (!id || typeof id !== "string" || !PRESET_ID_RE.test(id)) {
       return c.json({ error: "Invalid preset ID. Must be lowercase alphanumeric and hyphens only." }, 400);
+    }
+    if (await isBuiltinPreset(id)) {
+      return c.json({ error: "Cannot overwrite built-in preset" }, 403);
+    }
+    if (force !== undefined && typeof force !== "boolean") {
+      return c.json({ error: "Invalid force option. Must be a boolean." }, 400);
     }
 
     const overrides = await readJsonFile<GranMaestroConfig>(join(baseDir, "config.json")) ?? {};
@@ -206,13 +300,25 @@ projectPresetsApi.post("/presets", async (c) => {
       // ignore
     }
 
+    const presetPath = join(userPresetsDir, `${id}.json`);
+    if (!force) {
+      try {
+        await Deno.stat(presetPath);
+        return c.json({ exists: true, id }, 409);
+      } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) {
+          return c.json({ error: "Failed to check existing preset" }, 500);
+        }
+      }
+    }
+
     const presetData = {
-      name: name || id,
-      description: description || "",
+      name: typeof name === "string" ? name : id,
+      description: typeof description === "string" ? description : "",
       config: overrides,
     };
 
-    const writeOk = await writeJsonFile(join(userPresetsDir, `${id}.json`), presetData);
+    const writeOk = await writeJsonFile(presetPath, presetData);
     if (!writeOk) {
       return c.json({ error: "Failed to save preset" }, 500);
     }

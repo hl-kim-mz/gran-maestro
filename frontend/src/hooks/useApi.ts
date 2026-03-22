@@ -1,3 +1,13 @@
+export class ApiFetchError extends Error {
+  status: number;
+
+  constructor(path: string, status: number, message?: string) {
+    super(message ?? `API ${path} failed: ${status}`);
+    this.name = 'ApiFetchError';
+    this.status = status;
+  }
+}
+
 export async function apiFetch<T>(path: string, projectId?: string, options?: RequestInit): Promise<T> {
   // If projectId is provided, rewrite /api/... -> /api/projects/{projectId}/...
   let resolvedPath = path;
@@ -28,7 +38,26 @@ export async function apiFetch<T>(path: string, projectId?: string, options?: Re
   try {
     const response = await fetch(resolvedPath, requestInit);
     if (!response.ok) {
-      throw new Error(`API ${resolvedPath} failed: ${response.status}`);
+      const rawError = await response.text();
+      let detail = '';
+
+      if (rawError.trim()) {
+        try {
+          const parsed = JSON.parse(rawError) as Record<string, unknown>;
+          if (typeof parsed.error === 'string') {
+            detail = parsed.error;
+          } else {
+            detail = rawError.trim();
+          }
+        } catch {
+          detail = rawError.trim();
+        }
+      }
+
+      const message = detail
+        ? `${detail} (HTTP ${response.status})`
+        : `API ${resolvedPath} failed: ${response.status}`;
+      throw new ApiFetchError(resolvedPath, response.status, message);
     }
 
     return response.json();

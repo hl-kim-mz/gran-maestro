@@ -359,7 +359,7 @@ export function FactCheckView() {
                   <button
                     type="button"
                     className="inline-flex"
-                    onClick={() => navigateTo('plans', factCheckDetail.linked_plan)}
+                    onClick={() => navigateTo('plans', factCheckDetail.linked_plan!)}
                   >
                     <Badge variant="secondary" className="cursor-pointer hover:opacity-90">
                       {factCheckDetail.linked_plan}

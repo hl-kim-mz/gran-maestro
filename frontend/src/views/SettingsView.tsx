@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
-import { FoldVertical, Globe, RefreshCcw, Replace, Save, UnfoldVertical, Wand2 } from 'lucide-react';
+import { FoldVertical, Globe, RefreshCcw, Replace, Save, UnfoldVertical, Wand2, Bookmark } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { PresetDiffChange } from '../../../src/types';
 import { SETTING_DESCRIPTIONS, getDescription, getOptions } from '@/config/settingDescriptions';
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
 import { TagInput } from '@/components/shared/TagInput';
 import { SetupWizardModal } from '@/components/shared/SetupWizardModal';
+import { PresetManagerModal } from '@/components/shared/PresetManagerModal';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -903,6 +904,7 @@ export function SettingsView() {
   const [saving, setSaving] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [presetManagerOpen, setPresetManagerOpen] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [diffChanges, setDiffChanges] = useState<PresetDiffChange[]>([]);
   const [openSections, setOpenSections] = useState<string[]>(['workflow']);
@@ -1331,6 +1333,22 @@ export function SettingsView() {
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>설정 마법사 : 초기 설정을 단계별로 안내합니다</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setPresetManagerOpen(true)}
+                        disabled={saving}
+                        aria-label="프리셋 관리 : 사용자 설정을 프리셋으로 저장하고 불러옵니다"
+                      >
+                        <Bookmark className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>프리셋 관리 : 사용자 설정을 프리셋으로 저장하고 불러옵니다</p>
                     </TooltipContent>
                   </Tooltip>
                   <Tooltip>
@@ -1869,6 +1887,12 @@ export function SettingsView() {
       <SetupWizardModal
         open={wizardOpen}
         onOpenChange={setWizardOpen}
+        projectId={projectId}
+        onApplied={fetchConfig}
+      />
+      <PresetManagerModal
+        open={presetManagerOpen}
+        onOpenChange={setPresetManagerOpen}
         projectId={projectId}
         onApplied={fetchConfig}
       />
