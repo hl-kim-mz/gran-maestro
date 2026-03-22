@@ -13,7 +13,8 @@ import { RefreshButton } from '@/components/shared/RefreshButton';
 import { ListFilter, type FilterOption } from '@/components/shared/ListFilter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ExternalLink, Palette, FileText, ChevronDown, ChevronRight, Pencil, GitBranch, Send, Undo2 } from 'lucide-react';
+import { ExternalLink, Palette, FileText, ChevronDown, ChevronRight, Pencil, GitBranch, Send, Undo2, Maximize2 } from 'lucide-react';
+import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { parseDesignSections } from '@/shared/designUtils';
@@ -757,6 +758,30 @@ export function DesignView() {
                           >
                             HTML 미리보기
                           </Button>
+                          {viewMode === 'html' && htmlPreviewSrc && (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  title="전체화면"
+                                >
+                                  <Maximize2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] m-0 p-0 border-none rounded-none flex flex-col">
+                                <DialogTitle className="sr-only">HTML 전체화면 미리보기</DialogTitle>
+                                <DialogDescription className="sr-only">선택된 디자인 화면의 HTML 전체화면 미리보기입니다.</DialogDescription>
+                                <iframe
+                                  title={`${selectedSession?.id ?? 'design'}-${file}-html-fullscreen`}
+                                  src={htmlPreviewSrc}
+                                  className="w-full h-full flex-1 border-none"
+                                  sandbox="allow-scripts"
+                                />
+                              </DialogContent>
+                            </Dialog>
+                          )}
                         </>
                       )}
                       {canEditSelectedScreen && (
