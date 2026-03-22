@@ -1353,6 +1353,7 @@ def _build_reference_prompt_block(reference_entries, model_cutoff_date: str, now
 def _load_reference(ref_id: str):
     normalized_id = _normalize_reference_id(ref_id)
     ref_path = _reference_path(normalized_id)
+    content_path = _reference_content_path(normalized_id)
     data = load_json(ref_path)
     if not isinstance(data, dict):
         raise ValueError(f"{normalized_id} not found")
@@ -1369,6 +1370,14 @@ def _load_reference(ref_id: str):
     data["expires_at"] = expires_at or str(data.get("expires_at", ""))
     data["freshness"] = _check_reference_freshness(data, config=config)
     data["content_path"] = str(Path(".gran-maestro") / "references" / normalized_id / "content.md")
+    try:
+        if content_path.exists():
+            content = content_path.read_text(encoding="utf-8")
+            data["content"] = content if content else None
+        else:
+            data["content"] = None
+    except (OSError, UnicodeDecodeError):
+        data["content"] = None
     return data, ref_path
 
 
