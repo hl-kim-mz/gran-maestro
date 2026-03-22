@@ -97,8 +97,11 @@
 > 이 plan이 완료됐다는 것은 무엇을 의미하는가?
 > 구현 방법이 아닌 관찰 가능한 결과/동작을 기준으로 작성합니다.
 > mst:request가 이 섹션을 읽어 상세 AC(Given-When-Then)로 변환합니다.
-> 저장 시 각 항목은 `PAC-N` ID가 자동 부여되며 `plans/PLN-NNN/plan.ids.json`에 `[{ "id", "text", "grade" }]` 형식으로 기록됩니다.
+> 저장 시 각 항목은 `PAC-N` ID가 자동 부여되며 `plans/PLN-NNN/plan.ids.json`에 `[{ "id", "text", "grade", "tags" }]` 형식으로 기록됩니다.
 > 항목 앞에 `[SHOULD]` 태그를 붙이면 grade가 SHOULD로 기록되고, 미기입 시 MUST로 기록됩니다.
+> 각 항목에는 `[TIER-A]` 또는 `[TIER-B]` 태그를 의무적으로 포함합니다.
+> 분류 기준: `TIER-A`는 비즈니스 규칙·상태 전이·데이터 변환, `TIER-B`는 UI·문구·설정·저위험 변경입니다.
+> Tier 태그가 누락되면 기본값 `TIER-B`로 간주됩니다.
 
 이 plan의 구현이 완료됐다는 것은:
 - {관찰 가능한 완료 조건 1}

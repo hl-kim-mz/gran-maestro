@@ -612,6 +612,10 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         - plan.md에서 `## 요청 (Refined)` + `## Intent (JTBD)` + `## 인수 기준 초안`을 Read하여 `intent_context`로 보관한다.
         - `{PROJECT_ROOT}/.gran-maestro/plans/PLN-NNN/plan.ids.json`을 Read하여 PAC preflight를 수행한다 (비차단):
           - 파일 존재 시: `[{id,text,grade,tags?}]` 목록을 `pac_preflight_checklist`로 로드한다 (`tags` 미존재 시 빈 배열로 간주).
+          - 각 PAC의 `tags`에서 `TIER-A`/`TIER-B`를 인식해 `pac_tier`를 결정한다.
+            - `tags`에 `TIER-A`가 있으면 `pac_tier="TIER-A"`
+            - 그 외 `TIER-B`가 있으면 `pac_tier="TIER-B"`
+            - 둘 다 없으면 기본값 `pac_tier="TIER-B"`로 간주한다 (기존 plan.ids.json 하위 호환)
           - 파일 미존재 시: warn 출력 후 plan.md `## 인수 기준 초안`에서 임시 PAC 목록을 추론한다 (비차단).
           - 로드된 PAC 전체 ID를 `pac_anchor_list`로 보관하고 이후 spec AC 작성/게이트 프롬프트 앞단에 고정 주입한다.
           - preflight 단계에서는 request emit을 차단하지 않는다.
@@ -655,11 +659,19 @@ config.resolved.json이 없으면 `templates/defaults/config.json`의 `agent_ass
         - plan의 `## 인수 기준 초안` 또는 대화 컨텍스트에 `브라우저 테스트`, `실제 브라우저`, `스크린샷 검증`, `Playwright`, `Claude in Chrome` 신호가 있으면 AC를 `[browser-test]`로 분류한다.
         - `[browser-test]` AC도 기존 Given/When/Then/Test 형식을 그대로 유지한다.
         - `Test:`는 실행 대상 URL/화면 + 핵심 사용자 동작 + 기대 결과를 포함해 작성한다 (예: `Playwright 또는 Claude in Chrome으로 /settings 진입 후 Save 클릭 시 성공 토스트 표시 확인`).
+      - **[tdd-required] 보조 태그 규칙 (MANDATORY)**:
+        - h-0.6에서 로드한 `pac_preflight_checklist` 기준으로 `pac_tier="TIER-A"`인 PAC에 매핑된 Spec AC 헤더에는 `[tdd-required]`를 자동 부여한다.
+        - `pac_tier="TIER-B"`인 PAC는 `[tdd-required]`를 자동 부여하지 않는다.
+        - `[tdd-required]`는 기존 보조 태그(`impact-check`, `regression-test` 등)와 독립적으로 공존하며 기존 라우팅/검증 규칙을 변경하지 않는다.
       - **[impact-check] 보조 태그 변환 규칙 (MANDATORY)**:
         - plan PAC에 `[IMPACT]` 태그가 있거나 `plan.ids.json` 항목의 `tags`에 `"IMPACT"`가 포함되면, 변환된 Spec AC 헤더에 `[impact-check]` 보조 태그를 반드시 포함한다.
         - `[impact-check]`는 기존 보조 태그 체계(`[unit-test]`, `[api-test]`, ...)에 편입되며 Given/When/Then/Test 형식은 기존 규칙을 그대로 따른다.
         - 복수 보조 태그가 공존하면 라우팅 우선순위는 `[impact-check]`가 최우선이며, impact_reviewer 위임 대상으로 표시한다.
         - `[IMPACT]` PAC가 없는 plan/spec에서는 이 규칙을 graceful skip하고 기존 보조 태그 변환 동작을 유지한다 (하위 호환).
+      - **Tier 에스컬레이션 규칙 (MANDATORY)**:
+        - 구현 에이전트는 코드 복잡도/리스크 근거가 충분한 경우 `TIER-B` PAC를 `TIER-A`로 상향 에스컬레이션할 수 있다.
+        - 상향 에스컬레이션된 PAC/AC에는 `[tdd-required]`를 추가 적용한다.
+        - `TIER-A`를 `TIER-B`로 하향 에스컬레이션하는 것은 명시적으로 금지한다.
       - **PAC 매핑 규칙 ( `--plan` 제공 시, MANDATORY )**:
         - h-0.6에서 확보한 `pac_preflight_checklist`의 각 PAC를 spec AC에 최소 1회 매핑한다.
         - spec 본문에 `## 3.3 PAC Mapping` 섹션을 추가해 아래 표를 작성한다:
