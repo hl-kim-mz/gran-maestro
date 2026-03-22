@@ -9,6 +9,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { FoldVertical, Globe, RefreshCcw, Replace, Save, UnfoldVertical, Wand2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { PresetDiffChange } from '../../../src/types';
 import { SETTING_DESCRIPTIONS, getDescription, getOptions } from '@/config/settingDescriptions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SettingsFindReplace } from '@/components/shared/SettingsFindReplace';
@@ -856,9 +858,44 @@ function getNodeRows(config: any, node: WorkflowNode): WorkflowAgentRow[] | null
   return null;
 }
 
+function computeDiff(original: any, current: any, currentPath: string = ''): PresetDiffChange[] {
+  const changes: PresetDiffChange[] = [];
+
+  function compare(a: any, b: any, path: string) {
+    if (a === b) return;
+
+    if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') {
+      changes.push({ path, from: a, to: b });
+      return;
+    }
+
+    if (Array.isArray(a) !== Array.isArray(b)) {
+      changes.push({ path, from: a, to: b });
+      return;
+    }
+
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (JSON.stringify(a) !== JSON.stringify(b)) {
+        changes.push({ path, from: a, to: b });
+      }
+      return;
+    }
+
+    const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+    for (const key of keys) {
+      const nextPath = path ? `${path}.${key}` : key;
+      compare(a?.[key], b?.[key], nextPath);
+    }
+  }
+
+  compare(original, current, currentPath);
+  return changes;
+}
+
 export function SettingsView() {
   const { projectId, lastSseEvent } = useAppContext();
   const [merged, setMerged] = useState<any>(null);
+  const [originalConfig, setOriginalConfig] = useState<any>(null);
   const [overrides, setOverrides] = useState<any>(null);
   const [defaults, setDefaults] = useState<any>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -866,6 +903,8 @@ export function SettingsView() {
   const [saving, setSaving] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [diffChanges, setDiffChanges] = useState<PresetDiffChange[]>([]);
   const [openSections, setOpenSections] = useState<string[]>(['workflow']);
   const [activeTab, setActiveTab] = useState<'workflow' | 'behavior' | 'advanced'>('workflow');
   const [selectedNodeId, setSelectedNodeId] = useState<string>('ideation');
@@ -891,6 +930,7 @@ export function SettingsView() {
     try {
       const data = await apiFetch<{ merged: any; overrides: any; defaults: any }>('/api/config', projectId);
       setMerged(data.merged ?? null);
+      setOriginalConfig(JSON.parse(JSON.stringify(data.merged ?? null)));
       setOverrides(data.overrides ?? null);
       setDefaults(data.defaults ?? null);
       setIsDirty(false);
@@ -922,6 +962,22 @@ export function SettingsView() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleSaveButtonClick() {
+    if (!merged || !originalConfig) return;
+    const diffs = computeDiff(originalConfig, merged);
+    if (diffs.length === 0) {
+      alert('변경사항이 없습니다');
+      return;
+    }
+    setDiffChanges(diffs);
+    setShowConfirmModal(true);
+  }
+
+  function handleConfirmSave() {
+    setShowConfirmModal(false);
+    void handleSave();
   }
 
   async function handleApplyAll() {
@@ -1296,7 +1352,7 @@ export function SettingsView() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        onClick={() => handleSave()}
+                        onClick={handleSaveButtonClick}
                         disabled={saving}
                         variant={isDirty ? 'default' : 'outline'}
                         size="icon"
@@ -1816,6 +1872,44 @@ export function SettingsView() {
         projectId={projectId}
         onApplied={fetchConfig}
       />
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="max-h-[80vh] overflow-hidden sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>변경사항 확인</DialogTitle>
+          </DialogHeader>
+          {diffChanges.length === 0 ? (
+            <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
+              변경 사항 없음
+            </div>
+          ) : (
+            <div className="space-y-3 overflow-y-auto pr-1" role="list">
+              <div className="text-sm font-medium">{diffChanges.length}건 변경</div>
+              {diffChanges.map((change, idx) => (
+                <div key={`${change.path}-${idx}`} role="listitem" className="rounded-xl border bg-card p-3 flex flex-col gap-1.5 text-sm">
+                  <div className="font-semibold text-foreground break-all">{change.path}</div>
+                  <div className="flex items-center gap-2 text-xs font-mono w-full">
+                    <span className="text-muted-foreground bg-muted px-2 py-1 rounded truncate flex-1 opacity-70">
+                      {change.from === undefined ? '(없음)' : JSON.stringify(change.from)}
+                    </span>
+                    <span className="text-muted-foreground shrink-0">→</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-1 rounded truncate flex-1 font-semibold">
+                      {change.to === undefined ? '(없음)' : JSON.stringify(change.to)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmModal(false)} disabled={saving}>
+              취소
+            </Button>
+            <Button onClick={handleConfirmSave} disabled={saving || diffChanges.length === 0}>
+              {saving ? '저장 중...' : '저장'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

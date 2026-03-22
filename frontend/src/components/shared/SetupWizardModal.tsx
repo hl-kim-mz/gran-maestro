@@ -149,6 +149,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
   const [initializing, setInitializing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [agentOverrides, setAgentOverrides] = useState<Record<string, number | string>>({});
+  const [currentConfig, setCurrentConfig] = useState<Record<string, unknown>>({});
 
   const [baseBranch, setBaseBranch] = useState<string>('');
   const [baseBranchLoaded, setBaseBranchLoaded] = useState(false);
@@ -178,6 +179,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
       setBaseBranch('');
       setBaseBranchLoaded(false);
       setAgentOverrides({});
+      setCurrentConfig({});
       setInitializing(true);
 
       try {
@@ -189,6 +191,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
         if (!isMounted) return;
 
         const mergedConfig = configResponse.merged ?? {};
+        setCurrentConfig(mergedConfig);
         const loadedToggles = {
           stitch: Boolean(getNestedValue(mergedConfig, ['stitch', 'enabled'])),
           codeReview: Boolean(getNestedValue(mergedConfig, ['code_review', 'enabled'])),
@@ -283,7 +286,7 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
         if (existingIndex >= 0) {
           finalChanges[existingIndex] = { ...finalChanges[existingIndex], to: value };
         } else {
-          finalChanges.push({ path, from: undefined, to: value });
+          finalChanges.push({ path, from: getNestedValue(currentConfig, path.split('.')), to: value });
         }
       });
 
@@ -609,8 +612,8 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
                                 const countPath = `${feature.id}.agents.${agent}.count`;
                                 const tierPath = `${feature.id}.agents.${agent}.tier`;
                                 
-                                const countVal = agentOverrides[countPath] ?? 0;
-                                const tierVal = agentOverrides[tierPath] ?? 'efficient';
+                                const countVal = agentOverrides[countPath] ?? (getNestedValue(currentConfig, countPath.split('.')) as number | undefined) ?? 0;
+                                const tierVal = agentOverrides[tierPath] ?? (getNestedValue(currentConfig, tierPath.split('.')) as string | undefined) ?? 'economy';
 
                                 return (
                                   <td key={agent} className="px-4 py-3 min-w-[120px]">
@@ -632,9 +635,8 @@ export function SetupWizardModal({ open, onOpenChange, projectId, onApplied }: S
                                           value={tierVal}
                                           onChange={(e) => setAgentOverrides(prev => ({ ...prev, [tierPath]: e.target.value }))}
                                         >
-                                          <option value="performance">Perf</option>
-                                          <option value="efficient">Effic</option>
-                                          <option value="budget">Budget</option>
+                                          <option value="premium">Premium</option>
+                                          <option value="economy">Economy</option>
                                         </select>
                                       </div>
                                     </div>
