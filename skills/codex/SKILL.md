@@ -48,62 +48,54 @@ Codex CLI 호출의 단일 진입점. request 워크플로우(--trace 모드 포
    MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex"); codex exec --full-auto -m "$MODEL" -C {working_dir} "$(cat {prompt_file})"             # --prompt-file
    MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex"); set -o pipefail; codex exec --full-auto -m "$MODEL" -C {working_dir} "$(cat {prompt_file})" 2>&1 | tee {task_dir}/running.log  # trace
    ```
-7. **결과 처리**: `--trace` → Trace 문서 작성 후 경로만 출력; `--output` → 파일 저장; 둘 다 없음 → 결과 표시
+7. **결과 처리**: `--trace` → Trace 문서 자동 생성 후 exit code만 반환; `--output` → 파일 저장; 둘 다 없음 → 결과 표시
 
 ## Trace 모드 (워크플로우 내 자동 문서화)
 
-워크플로우 내 결과를 파일로 저장해 히스토리 추적; 전체 stdout을 부모 컨텍스트로 반환하지 않아 토큰 절약.
+워크플로우 내 결과를 파일로 저장해 히스토리 추적; 실행 본문은 `running.log`에 위임하고 trace .md는 메타데이터만 기록.
 
 형식: `--trace {REQ-ID}/{TASK-NUM}/{label}` (예: `REQ-001/01/phase2-impl`)
 
 실행 절차:
 1. 출력 디렉토리: `requests/{REQ-ID}/tasks/{TASK-NUM}/traces/` (없으면 생성)
-2. 파일명: `codex-{label}-{YYYYMMDD-HHmmss}.md`
-3. Codex CLI 실행
-4. **Trace 문서 작성** (Write 도구로 직접 저장):
+2. 파일명 패턴: `codex-{label}-{YYYYMMDD-HHmmss}.md`
+3. **단일 Bash 블록**에서 실행 + trace 자동 생성:
 
-```markdown
+```bash
+task_dir="{PROJECT_ROOT}/.gran-maestro/requests/{REQ-ID}/tasks/{TASK-NUM}"
+trace_dir="$task_dir/traces"
+mkdir -p "$trace_dir"
+TS=$(date +"%Y%m%d-%H%M%S")
+START=$(date +%s%3N)
+MODEL=$(python3 {PLUGIN_ROOT}/scripts/mst.py resolve-model codex default 2>/dev/null || echo "gpt-5.3-codex")
+set -o pipefail
+codex exec --full-auto -m "$MODEL" -C {working_dir} "$(cat {prompt_file})" 2>&1 | tee "$task_dir/running.log"
+EXIT=$?
+END=$(date +%s%3N)
+DUR=$((END-START))
+cat > "$trace_dir/codex-{label}-${TS}.md" <<EOF
 ---
 agent: codex
 request: {REQ-ID}
 task: {TASK-NUM}
 label: {label}
-timestamp: {ISO-8601 timestamp}
-prompt_file: "{경로 또는 null}"  # --prompt-file 사용 시 경로 기록
-prompt_summary: "{프롬프트 첫 100자}..."
-duration_ms: {실행 시간}
-exit_code: {종료 코드}
-working_dir: {작업 디렉토리}
+timestamp: ${TS}
+duration_ms: ${DUR}
+exit_code: ${EXIT}
+log: requests/{REQ-ID}/tasks/{TASK-NUM}/running.log
 ---
-
-# Codex Trace — {REQ-ID}/{TASK-NUM} [{label}]
-
-## 프롬프트
-
-> 출처: {prompt_file 경로 또는 "inline"}
-
-{전체 프롬프트 텍스트 — prompt-file 사용 시 $(cat)으로 읽은 내용}
-
-## 결과
-
-{stdout 전체 내용}
-
-## 오류 (있는 경우)
-
-{stderr 내용, 없으면 이 섹션 생략}
+EOF
+exit $EXIT
 ```
 
-5. **부모 컨텍스트에는 아래 형식으로만 반환** (전체 stdout 출력 안 함; 필요 시 Read 도구로 파일 접근).
-   **이 텍스트를 출력한 후 부모 컨텍스트에 제어를 반환한다 — 부모 스킬이 있으면 부모의 후속 단계가 이어진다. 추가 설명, 요약 등 부가 텍스트 출력 절대 금지**:
-   ```
-   [TRACE_SAVED] requests/{REQ-ID}/tasks/{TASK-NUM}/traces/codex-{label}-{timestamp}.md | exit={exit_code} — 부모 스킬의 다음 단계를 계속 진행하세요.
-   ```
+4. **부모 컨텍스트에는 exit code만 반환**한다.
+   반환 후 부모 스킬의 후속 단계를 계속 진행한다. 추가 설명, 요약 등 부가 텍스트 출력 절대 금지.
 
 > **금지 마커 (MANDATORY)**: 이 스킬은 `NEXT_ACTION`, `step=returned`, `[MST skill=...]` 마커를 **절대 출력하지 않는다**.
 > 이 마커들은 부모 스킬(approve 등)의 책임이며, 서브스킬이 출력하면 부모가 "이미 처리됨"으로 혼동한다.
 
 > **Exit Code 캡처 (MANDATORY)**: Bash 도구의 exit code를 반드시 확인한다.
-> 0이 아니면 trace의 `exit_code` 필드에 해당 값을 기록하고, `## 오류` 섹션을 포함한다.
+> 0이 아니어도 trace의 `exit_code` 필드에 해당 값을 반드시 기록한다.
 
 ## 옵션
 
