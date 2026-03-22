@@ -39,7 +39,7 @@ argument-hint: "[--port {포트}] [--stop] [--restart]"
 7. 서버 시작 (백그라운드):
    ```bash
    mkdir -p ~/.gran-maestro-hub
-   deno run --allow-net --allow-read --allow-write --allow-env --allow-run=python3,zip,sh,pgrep "{plugin_root}/src/server.ts" > /tmp/gran-maestro-hub.log 2>&1 &
+   deno run --allow-net --allow-read --allow-write --allow-env --allow-run=python3,zip,sh,pgrep,node,tar "{plugin_root}/src/server.ts" > /tmp/gran-maestro-hub.log 2>&1 &
    ```
    PID는 서버가 `~/.gran-maestro-hub/hub.pid`에 자체 기록
 8. 2초 대기 후 `curl -s http://127.0.0.1:<port>/favicon.ico` HTTP 200 확인 (실패 시 로그 출력)
