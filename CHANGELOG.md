@@ -4,6 +4,22 @@
 
 ---
 
+## [0.55.2] — 2026-03-22
+
+### 개선
+
+- **approve → accept 인라인 배치**: review PASS 후 accept 호출을 approve 스킬 내에서 직접 실행하여 워크플로우 단축
+- **런타임 마커 경로 격리**: /tmp 마커를 .gran-maestro/tmp/로 이동하여 크로스 프로젝트 오염 방지
+- **explore 스킬 상세화**: explore SKILL.md를 debug 수준으로 상세 기술하여 탐색 품질 향상
+- **Reference 상세 보기 탭 분리**: metadata/content 탭으로 분리하여 가독성 개선
+- **plan 프로토콜 우회 금지 규칙**: /mst:plan 호출 시 주제 성격과 무관하게 전체 프로토콜 실행을 강제하는 규칙 추가
+
+### 버그 수정
+
+- **stop hook debug_log 호출 순서**: 함수 정의 전 호출되던 오류 수정
+
+---
+
 ## [0.55.1] — 2026-03-22
 
 ### 개선
