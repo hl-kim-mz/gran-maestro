@@ -4,6 +4,23 @@
 
 ---
 
+## [0.55.4] — 2026-03-23
+
+### 새 기능
+
+- **plan UI 감지 확장**: 기존 화면이 대규모로 수정될 때도 Stitch 시안 확인을 자동 트리거
+
+### 개선
+
+- **HUD transcript JSONL 전환**: statusline transcript를 JSONL 파싱 기반으로 전환하여 안정성 향상
+- **HUD continuation-guard 교차 검증**: transcript 단일 소스 전환 및 push/pop 콜스택 제거로 guard 로직 단순화
+
+### 버그 수정
+
+- **Stitch HTML 미리보기 fetch 오류**: download URL 대신 실제 HTML을 fetch하도록 수정
+
+---
+
 ## [0.55.3] — 2026-03-22
 
 ### 새 기능
