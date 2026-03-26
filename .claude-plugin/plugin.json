@@ -21,6 +21,9 @@
     "./agents/outsource-brief.md",
     "./agents/feedback-composer.md",
     "./agents/schema-designer.md",
-    "./agents/ui-designer.md"
+    "./agents/ui-designer.md",
+    "./agents/researcher.md",
+    "./agents/cto-reviewer.md",
+    "./agents/ux-trend-expert.md"
   ]
 }
